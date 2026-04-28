@@ -1,0 +1,166 @@
+import { Injectable, computed, signal } from '@angular/core';
+import {
+  EditTarget, Entry, MainView, Market, Note,
+  Row, Signal, Trade,
+} from '../models/types';
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+@Injectable({ providedIn: 'root' })
+export class AppStateService {
+  // ── Server data ───────────────────────────────────────────────────────────
+  notes        = signal<Note[]>([]);
+  signals      = signal<Record<string, Signal[]>>({});
+  trades       = signal<Record<string, Trade[]>>({});
+  sources      = signal<string[]>([]);
+  tradeMarkets = signal<Record<string, Market>>({});
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  activeNoteId = signal<string | null>(null);
+  view         = signal<MainView>('notes');
+  sidebarOpen  = signal(false);
+  editTarget   = signal<EditTarget | null>(null);
+  addToRowId   = signal<string | null>(null);
+  importing    = signal(false);
+  syncing      = signal(false);
+  syncMsg      = signal('');
+  loading      = signal(true);
+  error        = signal<string | null>(null);
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+  activeNote = computed(() =>
+    this.notes().find(n => n.id === this.activeNoteId()) ?? null,
+  );
+
+  activeSignalCount = computed(() =>
+    Object.values(this.signals())
+      .flat()
+      .filter(s => s.status === 'active').length,
+  );
+
+  // ── Helpers: uid ──────────────────────────────────────────────────────────
+  uid() { return uid(); }
+
+  // ── Notes mutations ───────────────────────────────────────────────────────
+  addNote(note: Note) {
+    this.notes.update(ns => [note, ...ns]);
+    this.activeNoteId.set(note.id);
+    this.sidebarOpen.set(false);
+  }
+
+  removeNote(id: string) {
+    this.notes.update(ns => {
+      const rem = ns.filter(n => n.id !== id);
+      if (this.activeNoteId() === id) this.activeNoteId.set(rem[0]?.id ?? null);
+      return rem;
+    });
+  }
+
+  updateNoteTitle(id: string, title: string) {
+    this.notes.update(ns => ns.map(n => (n.id === id ? { ...n, title } : n)));
+  }
+
+  addNoteToFront(note: Note) {
+    this.notes.update(ns => [note, ...ns]);
+    this.activeNoteId.set(note.id);
+    this.view.set('notes');
+    this.sidebarOpen.set(false);
+  }
+
+  // ── Row mutations ─────────────────────────────────────────────────────────
+  addRow(noteId: string, row: Row) {
+    this._mutNote(noteId, n => ({ ...n, rows: [...n.rows, row] }));
+  }
+
+  removeRow(noteId: string, rowId: string) {
+    this._mutNote(noteId, n => ({ ...n, rows: n.rows.filter(r => r.id !== rowId) }));
+  }
+
+  updateCategory(noteId: string, rowId: string, category: string) {
+    this._mutNote(noteId, n => ({
+      ...n,
+      rows: n.rows.map(r => (r.id === rowId ? { ...r, category } : r)),
+    }));
+  }
+
+  // ── Entry mutations ───────────────────────────────────────────────────────
+  addEntry(noteId: string, rowId: string, entry: Entry) {
+    this._mutRow(noteId, rowId, r => ({ ...r, entries: [...r.entries, entry] }));
+  }
+
+  removeEntry(noteId: string, rowId: string, entryId: string) {
+    this._mutRow(noteId, rowId, r => ({
+      ...r,
+      entries: r.entries.filter(e => e.id !== entryId),
+    }));
+  }
+
+  cycleEntry(noteId: string, rowId: string, entryId: string, status: Entry['status']) {
+    this._mutEntry(noteId, rowId, entryId, e => ({ ...e, status }));
+  }
+
+  saveEntry(noteId: string, rowId: string, updated: Entry) {
+    this._mutEntry(noteId, rowId, updated.id, () => updated);
+  }
+
+  // ── Signal mutations ──────────────────────────────────────────────────────
+  addSignal(code: string, sig: Signal) {
+    this.signals.update(ss => ({ ...ss, [code]: [sig, ...(ss[code] ?? [])] }));
+  }
+
+  updateSignal(code: string, id: string, updated: Signal) {
+    this.signals.update(ss => ({
+      ...ss,
+      [code]: (ss[code] ?? []).map(s => (s.id === id ? updated : s)),
+    }));
+  }
+
+  deleteSignal(code: string, id: string) {
+    this.signals.update(ss => ({
+      ...ss,
+      [code]: (ss[code] ?? []).filter(s => s.id !== id),
+    }));
+  }
+
+  // ── Trade mutations ───────────────────────────────────────────────────────
+  addTrade(code: string, trade: Trade) {
+    this.trades.update(tt => ({ ...tt, [code]: [trade, ...(tt[code] ?? [])] }));
+  }
+
+  deleteTrade(code: string, id: string) {
+    this.trades.update(tt => ({
+      ...tt,
+      [code]: (tt[code] ?? []).filter(t => t.id !== id),
+    }));
+  }
+
+  setMarket(code: string, market: Market) {
+    this.tradeMarkets.update(mm => ({ ...mm, [code]: market }));
+  }
+
+  // ── Source mutations ──────────────────────────────────────────────────────
+  addSource(name: string) {
+    this.sources.update(ss => (ss.includes(name) ? ss : [...ss, name]));
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+  private _mutNote(id: string, fn: (n: Note) => Note) {
+    this.notes.update(ns => ns.map(n => (n.id === id ? fn(n) : n)));
+  }
+
+  private _mutRow(noteId: string, rowId: string, fn: (r: Row) => Row) {
+    this._mutNote(noteId, n => ({
+      ...n,
+      rows: n.rows.map(r => (r.id === rowId ? fn(r) : r)),
+    }));
+  }
+
+  private _mutEntry(
+    noteId: string, rowId: string, entryId: string, fn: (e: Entry) => Entry,
+  ) {
+    this._mutRow(noteId, rowId, r => ({
+      ...r,
+      entries: r.entries.map(e => (e.id === entryId ? fn(e) : e)),
+    }));
+  }
+}

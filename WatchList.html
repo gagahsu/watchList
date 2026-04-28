@@ -1,0 +1,2138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WatchList — 投資研究筆記</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #FAF7F0;
+      --sidebar-bg: #F2EBD9;
+      --panel-bg: #FDF9F3;
+      --gold: #B8892A;
+      --gold-light: #E8D49A;
+      --gold-muted: #D4B96A;
+      --text: #2A1F0E;
+      --text-muted: #7A6A52;
+      --border: #E2D5BC;
+      --row-hover: #FBF5E8;
+      --holding: #2D7A4F;
+      --holding-bg: #E8F5EE;
+      --tracking: #B8892A;
+      --tracking-bg: #FBF3E0;
+      --watching: #6A7A8A;
+      --watching-bg: #EDF0F3;
+      --red: #C0392B;
+    }
+    body {
+      font-family: 'Noto Serif TC', serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+    #root {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 260px; min-width: 260px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      height: 100vh;
+      transition: transform 0.3s ease;
+      z-index: 100;
+    }
+    .sidebar-header {
+      padding: 22px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand {
+      font-size: 17px; font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 0.04em;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-brand-icon {
+      width: 34px; height: 34px; background: var(--gold);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 16px; flex-shrink: 0;
+    }
+    .sidebar-brand-sub {
+      font-size: 11px; color: var(--text-muted);
+      font-weight: 400; margin-top: 1px;
+    }
+    .sidebar-notes { flex: 1; overflow-y: auto; padding: 10px 8px; }
+    .note-item {
+      padding: 10px 12px; border-radius: 8px;
+      cursor: pointer; margin-bottom: 3px;
+      transition: background 0.15s;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+    }
+    .note-item:hover { background: rgba(184,137,42,0.12); }
+    .note-item.active {
+      background: var(--gold); color: white;
+      box-shadow: 0 2px 8px rgba(184,137,42,0.3);
+    }
+    .note-item-body { flex: 1; min-width: 0; }
+    .note-item-title {
+      font-size: 13px; font-weight: 600; line-height: 1.4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .note-item-date { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .note-item.active .note-item-date { color: rgba(255,255,255,0.65); }
+    .note-item-del {
+      opacity: 0; background: none; border: none; cursor: pointer;
+      color: var(--red); padding: 2px 4px; border-radius: 4px; font-size: 13px;
+      transition: opacity 0.15s; flex-shrink: 0; line-height: 1;
+    }
+    .note-item:hover .note-item-del { opacity: 0.5; }
+    .note-item.active .note-item-del { opacity: 0.4; color: white; }
+    .note-item-del:hover { opacity: 1 !important; }
+    .sidebar-footer { padding: 8px; border-top: 1px solid var(--border); }
+    .sidebar-add {
+      padding: 10px; border: 1.5px dashed var(--border);
+      border-radius: 8px; background: none;
+      color: var(--text-muted); font-size: 13px;
+      cursor: pointer; width: 100%;
+      font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.15s;
+    }
+    .sidebar-add:hover { border-color: var(--gold); color: var(--gold); background: var(--tracking-bg); }
+
+    /* ── Main ── */
+    #main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; min-width: 0; }
+
+    .main-toolbar {
+      padding: 15px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+      background: var(--panel-bg);
+      min-height: 64px;
+    }
+    .menu-btn {
+      display: none; background: none; border: none;
+      cursor: pointer; padding: 4px; color: var(--text-muted); font-size: 20px;
+    }
+    .note-title-input {
+      flex: 1; font-size: 20px; font-weight: 700;
+      border: none; background: none; outline: none;
+      color: var(--text); font-family: inherit; min-width: 0;
+    }
+    .note-title-input::placeholder { color: var(--border); }
+    .note-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+    .main-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* ── Table ── */
+    .supply-table {
+      width: 100%; border-collapse: collapse;
+      border: 1.5px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+      background: white;
+      box-shadow: 0 2px 12px rgba(42,31,14,0.06);
+    }
+    .supply-table thead tr { background: var(--gold); }
+    .supply-table thead th {
+      padding: 13px 16px; text-align: left;
+      font-size: 13px; font-weight: 700; color: white; letter-spacing: 0.06em;
+    }
+    .supply-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+    .supply-table tbody tr:last-child { border-bottom: none; }
+    .supply-table tbody tr:hover { background: var(--row-hover); }
+    .supply-table td { padding: 12px 16px; vertical-align: middle; }
+    .td-category { width: 28%; }
+    .td-companies { width: auto; }
+    .td-actions { width: 36px; text-align: center; padding: 12px 8px; }
+
+    .category-input {
+      border: none; background: none; outline: none;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      color: var(--text); width: 100%; cursor: text;
+    }
+    .category-input:focus {
+      background: var(--tracking-bg);
+      border-radius: 4px; padding: 3px 6px; margin: -3px -6px;
+    }
+
+    /* ── Company chips ── */
+    .companies-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .company-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 9px 4px 7px; border-radius: 20px;
+      font-size: 13px; border: 1.5px solid transparent;
+      transition: all 0.15s; cursor: default; user-select: none;
+      white-space: nowrap;
+    }
+    .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .chip-code {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
+      cursor: pointer;
+    }
+    .chip-name { font-size: 12px; cursor: pointer; }
+    .chip-del {
+      margin-left: 3px; opacity: 0; font-size: 11px; line-height: 1;
+      transition: opacity 0.15s; cursor: pointer; color: currentColor;
+    }
+    .company-chip:hover .chip-del { opacity: 0.5; }
+    .chip-del:hover { opacity: 1 !important; color: var(--red) !important; }
+
+    .chip-holding  { background: var(--holding-bg);  border-color: #A8D9BC; color: var(--holding); }
+    .chip-holding  .chip-dot { background: var(--holding); }
+    .chip-tracking { background: var(--tracking-bg); border-color: var(--gold-light); color: var(--tracking); }
+    .chip-tracking .chip-dot { background: var(--tracking); }
+    .chip-watching { background: var(--watching-bg); border-color: #C8D0D8; color: var(--watching); }
+    .chip-watching .chip-dot { background: var(--watching); }
+
+    .add-company-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 20px;
+      border: 1.5px dashed var(--border); background: none;
+      color: var(--text-muted); font-size: 12px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .add-company-btn:hover { border-color: var(--gold); color: var(--gold); background: var(--tracking-bg); }
+
+    .row-del-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--border); font-size: 15px; padding: 4px;
+      transition: color 0.15s; line-height: 1;
+    }
+    .row-del-btn:hover { color: var(--red); }
+
+    .add-row-btn {
+      margin-top: 14px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 11px 16px;
+      border: 1.5px dashed var(--border); border-radius: 8px;
+      background: none; color: var(--text-muted); font-size: 13px;
+      cursor: pointer; font-family: inherit; width: 100%;
+      transition: all 0.15s;
+    }
+    .add-row-btn:hover { border-color: var(--gold); color: var(--gold); background: var(--tracking-bg); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(42,31,14,0.35);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 300; backdrop-filter: blur(3px);
+    }
+    .modal-box {
+      background: white; border-radius: 14px;
+      padding: 26px; width: 360px; max-width: 92vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+      animation: modal-in 0.18s ease;
+    }
+    @keyframes modal-in { from { opacity:0; transform: scale(0.95) translateY(8px); } to { opacity:1; transform: none; } }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; color: var(--text); }
+    .modal-field { margin-bottom: 14px; }
+    .modal-label { font-size: 11px; color: var(--text-muted); margin-bottom: 5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+    .modal-input {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-family: 'JetBrains Mono', monospace;
+      font-size: 14px; outline: none; background: var(--bg);
+      transition: border-color 0.15s; color: var(--text);
+    }
+    .modal-input:focus { border-color: var(--gold); background: white; }
+    .modal-input-text { font-family: 'Noto Serif TC', serif; }
+    .autocomplete-list {
+      border: 1.5px solid var(--border); border-radius: 8px;
+      background: white; max-height: 180px; overflow-y: auto;
+      margin-top: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .autocomplete-item {
+      padding: 9px 12px; cursor: pointer; font-size: 13px;
+      display: flex; gap: 12px; align-items: center; transition: background 0.1s;
+    }
+    .autocomplete-item:hover { background: var(--row-hover); }
+    .autocomplete-item .ac-code { font-family: 'JetBrains Mono', monospace; color: var(--gold); font-size: 12px; font-weight: 500; min-width: 40px; }
+
+    .status-selector { display: flex; gap: 6px; }
+    .status-btn {
+      flex: 1; padding: 9px 4px; border-radius: 8px; border: 1.5px solid;
+      font-family: inherit; font-size: 12px; cursor: pointer;
+      transition: all 0.15s; font-weight: 600;
+    }
+    .status-btn-holding  { border-color: #A8D9BC; color: var(--holding);  background: var(--holding-bg);  }
+    .status-btn-tracking { border-color: var(--gold-light); color: var(--tracking); background: var(--tracking-bg); }
+    .status-btn-watching { border-color: #C8D0D8; color: var(--watching); background: var(--watching-bg); }
+    .status-btn-holding.active  { background: var(--holding);  color: white; border-color: var(--holding); }
+    .status-btn-tracking.active { background: var(--tracking); color: white; border-color: var(--tracking); }
+    .status-btn-watching.active { background: var(--watching); color: white; border-color: var(--watching); }
+
+    .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+    .btn-primary {
+      flex: 1; padding: 11px; background: var(--gold); color: white;
+      border: none; border-radius: 8px; font-family: inherit; font-size: 14px;
+      font-weight: 700; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #9A7220; }
+    .btn-cancel {
+      padding: 11px 16px; background: none; border: 1.5px solid var(--border);
+      border-radius: 8px; font-family: inherit; font-size: 14px; cursor: pointer;
+      transition: all 0.15s; color: var(--text-muted);
+    }
+    .btn-cancel:hover { border-color: var(--text-muted); color: var(--text); }
+
+    /* ── Legend ── */
+    .legend { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-hint { margin-left: auto; font-size: 11px; opacity: 0.55; }
+
+    /* ── Empty state ── */
+    .empty-state { text-align: center; padding: 80px 24px; color: var(--text-muted); }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+    .empty-sub { font-size: 14px; line-height: 1.7; }
+    .empty-btn {
+      margin-top: 20px; padding: 12px 24px; background: var(--gold);
+      color: white; border: none; border-radius: 8px; font-family: inherit;
+      font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s;
+    }
+    .empty-btn:hover { background: #9A7220; }
+
+    /* ── Stock Detail Modal ── */
+    .detail-modal-box {
+      background: white; border-radius: 14px;
+      padding: 0; width: 460px; max-width: 94vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+      animation: modal-in 0.18s ease; overflow: hidden;
+    }
+    .detail-header {
+      background: var(--gold); padding: 18px 22px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .detail-header-code {
+      font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700;
+      color: white; line-height: 1;
+    }
+    .detail-header-name { font-size: 15px; color: rgba(255,255,255,0.85); margin-top: 3px; }
+    .detail-header-right { margin-left: auto; }
+    .detail-body { padding: 20px 22px; }
+    .detail-status-row { display: flex; gap: 6px; margin-bottom: 18px; }
+    .detail-field { margin-bottom: 16px; }
+    .detail-label {
+      font-size: 11px; color: var(--text-muted); margin-bottom: 6px;
+      font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .detail-label-hint { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0.7; font-size: 11px; }
+    .detail-input {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-family: 'Noto Serif TC', serif;
+      font-size: 14px; outline: none; background: var(--bg);
+      transition: border-color 0.15s; color: var(--text); font-weight: 600;
+    }
+    .detail-input:focus { border-color: var(--gold); background: white; }
+    .detail-textarea {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-family: 'Noto Serif TC', serif;
+      font-size: 13px; outline: none; background: var(--bg);
+      transition: border-color 0.15s; color: var(--text);
+      resize: vertical; min-height: 100px; line-height: 1.7;
+    }
+    .detail-textarea:focus { border-color: var(--gold); background: white; }
+    .detail-thesis-preview {
+      margin-top: 8px; padding: 10px 14px;
+      background: var(--sidebar-bg); border-radius: 8px;
+      font-size: 13px; color: var(--text-muted); font-style: italic;
+      border-left: 3px solid var(--gold-muted); line-height: 1.6;
+    }
+    .detail-footer {
+      padding: 14px 22px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; background: var(--bg);
+    }
+
+    /* chip note indicator */
+    .chip-has-note {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: currentColor; opacity: 0.5; flex-shrink: 0;
+    }
+
+    /* ── Signals ── */
+    .detail-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .detail-tab {
+      flex: 1; padding: 11px 8px; text-align: center; font-size: 13px; font-weight: 600;
+      border: none; background: none; cursor: pointer; color: var(--text-muted);
+      border-bottom: 2.5px solid transparent; margin-bottom: -1px; font-family: inherit;
+      transition: all 0.15s;
+    }
+    .detail-tab:hover { color: var(--gold); }
+    .detail-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    .signals-list { display: flex; flex-direction: column; gap: 8px; }
+    .signal-item {
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: white; overflow: hidden; transition: box-shadow 0.15s;
+    }
+    .signal-item:hover { box-shadow: 0 2px 10px rgba(42,31,14,0.08); }
+    .signal-item.sig-invalid { opacity: 0.55; }
+    .signal-item.sig-expired  { opacity: 0.55; }
+    .signal-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px; background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .sig-dir {
+      padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .sig-dir-enter  { background: #E8F5EE; color: var(--holding); }
+    .sig-dir-exit   { background: #FEF0F0; color: var(--red); }
+    .sig-dir-watch  { background: var(--watching-bg); color: var(--watching); }
+    .sig-source { font-size: 12px; font-weight: 700; color: var(--text); }
+    .sig-date   { font-size: 11px; color: var(--text-muted); margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+    .signal-body { padding: 10px 12px; }
+    .sig-condition { font-size: 13px; color: var(--text); line-height: 1.6; }
+    .sig-price {
+      display: inline-block; margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      color: var(--gold); background: var(--tracking-bg);
+      border: 1px solid var(--gold-light); border-radius: 5px; padding: 1px 7px;
+    }
+    .signal-footer {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-top: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .sig-status {
+      padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;
+    }
+    .sig-status-active   { background: #E8F5EE; color: var(--holding); }
+    .sig-status-triggered{ background: #E8EFF8; color: #2D5AA0; }
+    .sig-status-invalid  { background: #FEF0F0; color: var(--red); }
+    .sig-status-expired  { background: var(--watching-bg); color: var(--watching); }
+    .sig-invalid-reason  { font-size: 11px; color: var(--text-muted); flex: 1; }
+    .sig-actions { margin-left: auto; display: flex; gap: 4px; }
+    .sig-action-btn {
+      background: none; border: 1px solid var(--border); border-radius: 5px;
+      cursor: pointer; padding: 2px 7px; font-size: 11px; color: var(--text-muted);
+      font-family: inherit; transition: all 0.15s;
+    }
+    .sig-action-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .sig-action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+    .sig-add-form {
+      border: 1.5px dashed var(--border); border-radius: 10px;
+      padding: 14px; background: var(--bg); margin-top: 4px;
+    }
+    .sig-form-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .sig-form-select {
+      padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: inherit; font-size: 13px; background: white; color: var(--text);
+      outline: none; cursor: pointer; transition: border-color 0.15s;
+    }
+    .sig-form-select:focus { border-color: var(--gold); }
+    .sig-form-input {
+      flex: 1; min-width: 120px; padding: 7px 10px;
+      border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: inherit; font-size: 13px; background: white; color: var(--text);
+      outline: none; transition: border-color 0.15s;
+    }
+    .sig-form-input:focus { border-color: var(--gold); }
+    .sig-form-textarea {
+      width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: inherit; font-size: 13px; background: white; color: var(--text);
+      outline: none; resize: none; min-height: 64px; line-height: 1.6;
+      transition: border-color 0.15s; margin-bottom: 10px;
+    }
+    .sig-form-textarea:focus { border-color: var(--gold); }
+    .sig-add-btn {
+      padding: 8px 16px; background: var(--gold); color: white;
+      border: none; border-radius: 7px; font-family: inherit; font-size: 13px;
+      font-weight: 700; cursor: pointer; transition: background 0.15s;
+    }
+    .sig-add-btn:hover { background: #9A7220; }
+    .sig-open-add {
+      width: 100%; padding: 9px; border: 1.5px dashed var(--border);
+      border-radius: 8px; background: none; color: var(--text-muted);
+      font-family: inherit; font-size: 13px; cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .sig-open-add:hover { border-color: var(--gold); color: var(--gold); background: var(--tracking-bg); }
+    .sig-empty {
+      text-align: center; padding: 28px 16px; color: var(--text-muted);
+      font-size: 13px; line-height: 1.7;
+    }
+
+    /* Signals overview tab */
+    .sov-filters {
+      display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
+    }
+    .sov-filter-btn {
+      padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--border);
+      background: none; font-family: inherit; font-size: 12px; cursor: pointer;
+      color: var(--text-muted); font-weight: 600; transition: all 0.15s;
+    }
+    .sov-filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .sov-filter-btn.active { background: var(--gold); color: white; border-color: var(--gold); }
+    .sov-stock-group { margin-bottom: 20px; }
+    .sov-stock-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    }
+    .sov-stock-code { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--gold); font-weight: 600; }
+    .sov-stock-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .sov-stock-status { margin-left: auto; }
+    .sov-empty { text-align: center; padding: 60px 24px; color: var(--text-muted); font-size: 14px; line-height: 1.7; }
+
+    /* ── Trade Records ── */
+    .trade-summary {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;
+    }
+    .trade-summary-card {
+      background: var(--sidebar-bg); border-radius: 10px;
+      padding: 12px 14px; border: 1px solid var(--border);
+    }
+    .trade-summary-card.pnl-pos { background: #E8F5EE; border-color: #A8D9BC; }
+    .trade-summary-card.pnl-neg { background: #FEF0F0; border-color: #F8BCBC; }
+    .tsc-label { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 4px; }
+    .tsc-value { font-size: 18px; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+    .tsc-value.pos { color: var(--holding); }
+    .tsc-value.neg { color: var(--red); }
+    .tsc-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+    .market-toggle { display: flex; gap: 4px; margin-bottom: 14px; }
+    .market-btn {
+      padding: 5px 14px; border-radius: 16px; border: 1.5px solid var(--border);
+      background: none; font-family: inherit; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s; color: var(--text-muted);
+    }
+    .market-btn.active { background: var(--gold); color: white; border-color: var(--gold); }
+
+    .trade-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .trade-item {
+      display: grid; grid-template-columns: 72px 56px 1fr 1fr 1fr 80px;
+      align-items: center; gap: 8px;
+      padding: 9px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: white;
+      font-size: 12px; transition: background 0.1s;
+    }
+    .trade-item:hover { background: var(--row-hover); }
+    .trade-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
+    .trade-type {
+      padding: 2px 7px; border-radius: 8px; font-size: 11px; font-weight: 700;
+      text-align: center;
+    }
+    .trade-type-buy  { background: #E8F5EE; color: var(--holding); }
+    .trade-type-sell { background: #FEF0F0; color: var(--red); }
+    .trade-num { font-family: 'JetBrains Mono', monospace; color: var(--text); }
+    .trade-pnl { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+    .trade-pnl.pos { color: var(--holding); }
+    .trade-pnl.neg { color: var(--red); }
+    .trade-del-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--border); font-size: 13px; padding: 2px 4px;
+      transition: color 0.15s; text-align: right;
+    }
+    .trade-del-btn:hover { color: var(--red); }
+
+    .trade-header-row {
+      display: grid; grid-template-columns: 72px 56px 1fr 1fr 1fr 80px;
+      gap: 8px; padding: 0 12px 6px;
+      font-size: 10px; color: var(--text-muted); font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      border-bottom: 1px solid var(--border); margin-bottom: 6px;
+    }
+
+    .trade-form {
+      background: var(--sidebar-bg); border-radius: 10px;
+      padding: 14px; border: 1px solid var(--border); margin-top: 4px;
+    }
+    .trade-form-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .trade-form-label {
+      font-size: 10px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;
+    }
+    .trade-form-group { display: flex; flex-direction: column; }
+    .trade-form-input {
+      padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      background: white; color: var(--text); outline: none; transition: border-color 0.15s;
+      width: 100%;
+    }
+    .trade-form-input:focus { border-color: var(--gold); }
+    .trade-form-select {
+      padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: inherit; font-size: 13px; background: white; color: var(--text);
+      outline: none; cursor: pointer; transition: border-color 0.15s; width: 100%;
+    }
+    .trade-form-select:focus { border-color: var(--gold); }
+    .trade-tax-hint {
+      font-size: 11px; color: var(--text-muted); background: var(--tracking-bg);
+      border: 1px solid var(--gold-light); border-radius: 6px;
+      padding: 6px 10px; margin-bottom: 10px;
+    }
+
+    /* ── Import Modal ── */
+    .import-drop {
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 28px 20px; text-align: center; cursor: pointer;
+      transition: all 0.15s; background: var(--bg); margin-bottom: 14px;
+    }
+    .import-drop:hover, .import-drop.drag-over {
+      border-color: var(--gold); background: var(--tracking-bg);
+    }
+    .import-drop-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.6; }
+    .import-drop-text { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+    .import-drop-text strong { color: var(--gold); }
+    .import-format-hint {
+      background: var(--sidebar-bg); border-radius: 8px; padding: 10px 14px;
+      font-size: 12px; color: var(--text-muted); line-height: 1.7; margin-bottom: 14px;
+    }
+    .import-format-hint code {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      background: var(--border); padding: 1px 4px; border-radius: 3px;
+    }
+    .import-preview { margin-top: 4px; }
+    .import-preview-title {
+      font-size: 12px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+    }
+    .import-preview-rows {
+      max-height: 220px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: 8px; background: white;
+    }
+    .import-preview-row {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .import-preview-row:last-child { border-bottom: none; }
+    .ipr-cat {
+      padding: 8px 12px; width: 38%; flex-shrink: 0;
+      font-weight: 600; color: var(--text); border-right: 1px solid var(--border);
+      background: var(--sidebar-bg);
+    }
+    .ipr-chips { padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .ipr-chip {
+      padding: 2px 8px; border-radius: 12px; font-size: 11px;
+      background: var(--watching-bg); border: 1px solid #C8D0D8; color: var(--watching);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .import-note-name {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-family: 'Noto Serif TC', serif;
+      font-size: 14px; outline: none; background: var(--bg);
+      transition: border-color 0.15s; color: var(--text); margin-bottom: 14px;
+    }
+    .import-note-name:focus { border-color: var(--gold); background: white; }
+    .import-error {
+      background: #FEF0F0; border: 1px solid #F8BCBC; border-radius: 8px;
+      padding: 10px 14px; font-size: 12px; color: var(--red); margin-bottom: 12px;
+    }
+
+    /* ── View Tabs ── */
+    .view-tabs {
+      display: flex; gap: 2px; padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-bg);
+    }
+    .view-tab {
+      padding: 10px 18px; font-size: 13px; font-weight: 600;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-bottom: 2.5px solid transparent;
+      margin-bottom: -1px; transition: all 0.15s; font-family: inherit;
+      letter-spacing: 0.02em;
+    }
+    .view-tab:hover { color: var(--gold); }
+    .view-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* ── Stock Index ── */
+    .index-search-wrap { margin-bottom: 18px; position: relative; }
+    .index-search {
+      width: 100%; padding: 10px 14px 10px 38px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      background: white; font-family: inherit; font-size: 14px;
+      outline: none; color: var(--text); transition: border-color 0.15s;
+    }
+    .index-search:focus { border-color: var(--gold); }
+    .index-search-icon {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--text-muted); font-size: 15px; pointer-events: none;
+    }
+
+    .index-table {
+      width: 100%; border-collapse: collapse;
+      border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden;
+      background: white; box-shadow: 0 2px 12px rgba(42,31,14,0.06);
+    }
+    .index-table thead tr { background: var(--gold); }
+    .index-table thead th {
+      padding: 12px 16px; text-align: left;
+      font-size: 13px; font-weight: 700; color: white; letter-spacing: 0.06em;
+    }
+    .index-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; cursor: pointer; }
+    .index-table tbody tr:last-child { border-bottom: none; }
+    .index-table tbody tr:hover { background: var(--row-hover); }
+    .index-table td { padding: 12px 16px; vertical-align: middle; }
+    .idx-code {
+      font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600;
+      color: var(--gold); white-space: nowrap;
+    }
+    .idx-name { font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .idx-refs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .idx-ref-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px; border-radius: 6px;
+      background: var(--sidebar-bg); border: 1px solid var(--border);
+      font-size: 12px; color: var(--text-muted); cursor: pointer;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .idx-ref-tag:hover { border-color: var(--gold); color: var(--gold); background: var(--tracking-bg); }
+    .idx-ref-sep { color: var(--border); font-size: 10px; }
+
+    .index-summary {
+      font-size: 12px; color: var(--text-muted); margin-bottom: 14px;
+    }
+
+    /* ── Mobile overlay ── */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 99;
+    }
+
+    @media (max-width: 768px) {
+      #sidebar { position: fixed; transform: translateX(-100%); box-shadow: 4px 0 20px rgba(0,0,0,0.12); }
+      #sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.show { display: block; }
+      .menu-btn { display: block; }
+      .main-toolbar { padding: 12px 16px; }
+      .main-content { padding: 16px; }
+      .note-title-input { font-size: 17px; }
+      .td-category { width: 36%; }
+      .supply-table thead th { padding: 10px 12px; font-size: 12px; }
+      .supply-table td { padding: 10px 12px; }
+      .category-input { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// Populated from /api/stocks after startup; also used by CSV parser & autocomplete
+let STOCK_DB    = {};   // code  -> name
+let STOCK_CLOSE = {};   // code  -> { close, updatedAt }
+let STOCK_LIST  = [];   // [{ code, name, close, updatedAt }]  full list for search
+
+function applyStockData(stks) {
+  STOCK_DB = {}; STOCK_CLOSE = {}; STOCK_LIST = stks;
+  stks.forEach(s => {
+    STOCK_DB[s.code] = s.name;
+    STOCK_CLOSE[s.code] = { close: s.close, updatedAt: s.updatedAt };
+  });
+}
+
+const STATUS_LABELS = { holding:"已持有", tracking:"追蹤中", watching:"觀察中" };
+const STATUS_CLASS  = { holding:"chip-holding", tracking:"chip-tracking", watching:"chip-watching" };
+const STATUS_DOT    = { holding:"var(--holding)", tracking:"var(--tracking)", watching:"var(--watching)" };
+const STATUS_ORDER  = ["watching","tracking","holding"];
+
+const uid  = () => Math.random().toString(36).slice(2,9);
+const fmtD = d => new Date(d).toLocaleDateString('zh-TW',{month:'short',day:'numeric'});
+
+/* ── API Layer ── */
+const API = location.protocol === 'file:' ? 'http://localhost:8000/api' : '/api';
+async function apiFetch(path, opts = {}) {
+  const hasBody = opts.body !== undefined;
+  const r = await fetch(API + path, {
+    method: opts.method || 'GET',
+    headers: hasBody ? { 'Content-Type': 'application/json' } : {},
+    body: hasBody ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!r.ok) throw new Error(`${opts.method || 'GET'} ${path} → ${r.status}`);
+  return r.json();
+}
+
+/* ── AddCompanyModal ── */
+function AddCompanyModal({ onAdd, onClose }) {
+  const [code,   setCode]   = useState('');
+  const [name,   setName]   = useState('');
+  const [status, setStatus] = useState('watching');
+  const [sugg,   setSugg]   = useState([]);
+  const inputRef = useRef();
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleCode = v => {
+    setCode(v);
+    if (v.length >= 1) {
+      const q = v.toLowerCase();
+      const byCode = STOCK_LIST.filter(s => s.code.startsWith(v));
+      const byName = v.length >= 2
+        ? STOCK_LIST.filter(s => !s.code.startsWith(v) && s.name.includes(v))
+        : [];
+      const merged = [...byCode, ...byName].slice(0, 8);
+      setSugg(merged.map(s => [s.code, s.name]));
+      if (STOCK_DB[v]) setName(STOCK_DB[v]);
+    } else {
+      setSugg([]);
+      if (!v) setName('');
+    }
+  };
+
+  const pick = (c,n) => { setCode(c); setName(n); setSugg([]); };
+
+  const submit = () => {
+    if (!code.trim()) return;
+    onAdd({ id:uid(), code:code.trim(), name:name.trim() || code.trim(), status });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div className="modal-box">
+        <div className="modal-title">新增股票</div>
+
+        <div className="modal-field">
+          <div className="modal-label">股票代碼</div>
+          <input ref={inputRef} className="modal-input" placeholder="如：2330"
+            value={code} onChange={e => handleCode(e.target.value)}
+            onKeyDown={e => e.key==='Enter' && submit()} />
+          {sugg.length > 0 && (
+            <div className="autocomplete-list">
+              {sugg.map(([c,n]) => (
+                <div key={c} className="autocomplete-item" onClick={() => pick(c,n)}>
+                  <span className="ac-code">{c}</span>
+                  <span>{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-field">
+          <div className="modal-label">公司名稱</div>
+          <input className="modal-input modal-input-text" placeholder="自動帶入或手動填寫"
+            value={name} onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key==='Enter' && submit()} />
+        </div>
+
+        <div className="modal-field">
+          <div className="modal-label">追蹤狀態</div>
+          <div className="status-selector">
+            {['watching','tracking','holding'].map(s => (
+              <button key={s}
+                className={`status-btn status-btn-${s}${status===s?' active':''}`}
+                onClick={() => setStatus(s)}>{STATUS_LABELS[s]}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn-cancel" onClick={onClose}>取消</button>
+          <button className="btn-primary" onClick={submit}>新增</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Trade constants & helpers ── */
+
+const fmtMoney = (n, market) => {
+  const abs = Math.abs(n);
+  const sign = n >= 0 ? '+' : '-';
+  if (market === 'us') return `${sign}$${abs.toFixed(2)}`;
+  return `${sign}${Math.round(abs).toLocaleString()}`;
+};
+const fmtNum = n => Number(n).toLocaleString();
+
+// FIFO calculation
+function calcFIFO(trades, market) {
+  const sorted = [...trades].sort((a,b) => new Date(a.date) - new Date(b.date));
+  const buyQueue = []; // [{shares, unitCost}]
+  let realizedPnL = 0;
+  const results = []; // per-trade realized PnL (null for buys)
+
+  for (const t of sorted) {
+    const fee  = parseFloat(t.fee)  || 0;
+    const shares = parseFloat(t.shares) || 0;
+    const price  = parseFloat(t.price)  || 0;
+
+    if (t.type === 'buy') {
+      const unitCost = (shares * price + fee) / shares;
+      buyQueue.push({ shares, unitCost });
+      results.push({ id: t.id, realized: null, tax: 0 });
+    } else {
+      // sell
+      const sellAmount = shares * price;
+      const tax = market === 'tw' ? Math.floor(sellAmount * 0.003) : 0;
+      const proceeds = sellAmount - fee - tax;
+      let remaining = shares;
+      let costBasis = 0;
+      const queueCopy = buyQueue.map(l => ({...l}));
+      while (remaining > 0 && buyQueue.length > 0) {
+        const lot = buyQueue[0];
+        const used = Math.min(remaining, lot.shares);
+        costBasis += used * lot.unitCost;
+        lot.shares -= used;
+        remaining -= used;
+        if (lot.shares <= 0) buyQueue.shift();
+      }
+      const realized = proceeds - costBasis;
+      realizedPnL += realized;
+      results.push({ id: t.id, realized, tax });
+    }
+  }
+
+  const holdingShares = buyQueue.reduce((s,l) => s + l.shares, 0);
+  const holdingCost   = buyQueue.reduce((s,l) => s + l.shares * l.unitCost, 0);
+  const avgCost = holdingShares > 0 ? holdingCost / holdingShares : 0;
+  return { realizedPnL, holdingShares, avgCost, holdingCost, results };
+}
+
+/* ── TradesTab ── */
+function TradesTab({ code, trades, market, onSetMarket, onAddTrade, onDeleteTrade }) {
+  const [showForm, setShowForm] = useState(false);
+  const [type,    setType]    = useState('buy');
+  const [date,    setDate]    = useState(new Date().toISOString().slice(0,10));
+  const [shares,  setShares]  = useState('');
+  const [price,   setPrice]   = useState('');
+  const [fee,     setFee]     = useState('');
+  const [sigRef,  setSigRef]  = useState('');
+
+  const { realizedPnL, holdingShares, avgCost, results } = calcFIFO(trades, market);
+
+  const resultMap = {};
+  results.forEach(r => { resultMap[r.id] = r; });
+
+  const sellAmount = type === 'sell' ? (parseFloat(shares)||0) * (parseFloat(price)||0) : 0;
+  const autoTax    = market === 'tw' && type === 'sell' ? Math.floor(sellAmount * 0.003) : 0;
+
+  const submit = () => {
+    if (!shares || !price) return;
+    onAddTrade({
+      id: uid(), date, type,
+      shares: parseFloat(shares), price: parseFloat(price),
+      fee: parseFloat(fee) || 0, sigRef
+    });
+    setShares(''); setPrice(''); setFee(''); setSigRef('');
+    setShowForm(false);
+  };
+
+  const sorted = [...trades].sort((a,b) => new Date(b.date) - new Date(a.date));
+  const curr = market === 'tw' ? 'NT$' : '$';
+
+  return (
+    <div>
+      {/* Market toggle */}
+      <div className="market-toggle">
+        <button className={`market-btn${market==='tw'?' active':''}`} onClick={()=>onSetMarket('tw')}>🇹🇼 台股</button>
+        <button className={`market-btn${market==='us'?' active':''}`} onClick={()=>onSetMarket('us')}>🇺🇸 美股</button>
+      </div>
+
+      {/* Summary */}
+      {trades.length > 0 && (
+        <div className="trade-summary">
+          <div className="trade-summary-card">
+            <div className="tsc-label">持有股數 / 均攤成本</div>
+            <div className="tsc-value">{fmtNum(holdingShares)} 股</div>
+            <div className="tsc-sub">均攤 {curr}{market==='us'?avgCost.toFixed(2):Math.round(avgCost).toLocaleString()}</div>
+          </div>
+          <div className={`trade-summary-card${realizedPnL>0?' pnl-pos':realizedPnL<0?' pnl-neg':''}`}>
+            <div className="tsc-label">已實現損益</div>
+            <div className={`tsc-value${realizedPnL>0?' pos':realizedPnL<0?' neg':''}`}>
+              {fmtMoney(realizedPnL, market)}
+            </div>
+            <div className="tsc-sub">{market==='tw'?'含手續費與證交稅':'含手續費'}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Trade list */}
+      {sorted.length > 0 && (
+        <>
+          <div className="trade-header-row">
+            <span>日期</span><span>方向</span><span>股數</span>
+            <span>成交價</span><span>手續費{market==='tw'&&' / 稅'}</span><span>損益</span>
+          </div>
+          <div className="trade-list">
+            {sorted.map(t => {
+              const r = resultMap[t.id];
+              const tax = r?.tax || 0;
+              return (
+                <div key={t.id} className="trade-item">
+                  <span className="trade-date">{t.date.slice(5)}</span>
+                  <span className={`trade-type trade-type-${t.type}`}>{t.type==='buy'?'買入':'賣出'}</span>
+                  <span className="trade-num">{fmtNum(t.shares)}</span>
+                  <span className="trade-num">{curr}{market==='us'?t.price.toFixed(2):fmtNum(t.price)}</span>
+                  <span className="trade-num" style={{fontSize:'11px'}}>
+                    {t.fee ? `${curr}${market==='us'?t.fee.toFixed(2):fmtNum(t.fee)}` : '—'}
+                    {tax > 0 && <span style={{color:'var(--text-muted)'}}> / {fmtNum(tax)}</span>}
+                  </span>
+                  <span className={`trade-pnl${r?.realized!=null?(r.realized>=0?' pos':' neg'):''}`}>
+                    {r?.realized != null ? fmtMoney(r.realized, market) : '—'}
+                  </span>
+                  <button className="trade-del-btn" onClick={()=>onDeleteTrade(t.id)}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Add form */}
+      {showForm ? (
+        <div className="trade-form">
+          <div className="trade-form-row">
+            <div className="trade-form-group" style={{width:'80px'}}>
+              <div className="trade-form-label">方向</div>
+              <select className="trade-form-select" value={type} onChange={e=>setType(e.target.value)}>
+                <option value="buy">買入</option>
+                <option value="sell">賣出</option>
+              </select>
+            </div>
+            <div className="trade-form-group" style={{flex:1}}>
+              <div className="trade-form-label">日期</div>
+              <input type="date" className="trade-form-input" value={date} onChange={e=>setDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="trade-form-row">
+            <div className="trade-form-group" style={{flex:1}}>
+              <div className="trade-form-label">股數（張×1000）</div>
+              <input className="trade-form-input" placeholder={market==='tw'?'如：1000':'如：10'} inputMode="decimal"
+                value={shares} onChange={e=>setShares(e.target.value)} />
+            </div>
+            <div className="trade-form-group" style={{flex:1}}>
+              <div className="trade-form-label">成交價（{curr}）</div>
+              <input className="trade-form-input" placeholder={market==='tw'?'如：500':'如：185.5'} inputMode="decimal"
+                value={price} onChange={e=>setPrice(e.target.value)} />
+            </div>
+            <div className="trade-form-group" style={{flex:1}}>
+              <div className="trade-form-label">手續費（{curr}）</div>
+              <input className="trade-form-input" placeholder="如：71" inputMode="decimal"
+                value={fee} onChange={e=>setFee(e.target.value)} />
+            </div>
+          </div>
+          {market === 'tw' && type === 'sell' && sellAmount > 0 && (
+            <div className="trade-tax-hint">
+              📋 證交稅（自動）：NT${fmtNum(autoTax)}
+              <span style={{marginLeft:'8px',opacity:0.7}}>= {fmtNum(sellAmount)} × 0.3%</span>
+            </div>
+          )}
+          <div style={{display:'flex',gap:'8px'}}>
+            <button className="sig-add-btn" onClick={submit}>新增交易</button>
+            <button className="sig-action-btn" onClick={()=>setShowForm(false)}>取消</button>
+          </div>
+        </div>
+      ) : (
+        <button className="sig-open-add" onClick={()=>setShowForm(true)}>
+          ＋ 新增交易記錄
+        </button>
+      )}
+
+      {trades.length === 0 && !showForm && (
+        <div className="sig-empty" style={{paddingTop:'12px'}}>尚無交易記錄<br/>點擊上方新增第一筆</div>
+      )}
+    </div>
+  );
+}
+
+/* ── Signal constants ── */
+const DEFAULT_SOURCES = ['口袋證券','股癌','方格子','XQ全球贏家','理財達人秀','其他'];
+const SIG_DIR_LABELS  = { enter:'進場', exit:'出場', watch:'觀察' };
+const SIG_DIR_CLASS   = { enter:'sig-dir-enter', exit:'sig-dir-exit', watch:'sig-dir-watch' };
+const SIG_STATUS_LABELS = { active:'有效', triggered:'已實現', invalid:'已失效', expired:'已過期' };
+const SIG_STATUS_CLASS  = { active:'sig-status-active', triggered:'sig-status-triggered', invalid:'sig-status-invalid', expired:'sig-status-expired' };
+
+
+const fmtDate = d => new Date(d).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'});
+
+/* ── SignalItem ── */
+function SignalItem({ sig, onStatusChange, onDelete }) {
+  const [showInvalid, setShowInvalid] = useState(false);
+  const [reason, setReason] = useState(sig.invalidReason || '');
+
+  const markInvalid = () => {
+    onStatusChange('invalid', reason);
+    setShowInvalid(false);
+  };
+
+  return (
+    <div className={`signal-item sig-${sig.status}`}>
+      <div className="signal-header">
+        <span className={`sig-dir ${SIG_DIR_CLASS[sig.direction]}`}>{SIG_DIR_LABELS[sig.direction]}</span>
+        <span className="sig-source">{sig.source}</span>
+        <span className="sig-date">{fmtDate(sig.date)}</span>
+      </div>
+      <div className="signal-body">
+        <div className="sig-condition">{sig.condition}</div>
+        {sig.price && <span className="sig-price">{sig.price}</span>}
+      </div>
+      <div className="signal-footer">
+        <span className={`sig-status ${SIG_STATUS_CLASS[sig.status]}`}>{SIG_STATUS_LABELS[sig.status]}</span>
+        {sig.invalidReason && <span className="sig-invalid-reason">→ {sig.invalidReason}</span>}
+        <div className="sig-actions">
+          {sig.status === 'active' && <>
+            <button className="sig-action-btn" onClick={() => onStatusChange('triggered','')}>已實現</button>
+            <button className="sig-action-btn" onClick={() => onStatusChange('expired','')}>已過期</button>
+            <button className="sig-action-btn" onClick={() => setShowInvalid(v=>!v)}>已失效</button>
+          </>}
+          <button className="sig-action-btn danger" onClick={onDelete}>刪除</button>
+        </div>
+      </div>
+      {showInvalid && (
+        <div style={{padding:'8px 12px', borderTop:'1px solid var(--border)', background:'var(--bg)', display:'flex', gap:'6px'}}>
+          <input className="sig-form-input" placeholder="失效原因（如：跌破5日線）"
+            value={reason} onChange={e=>setReason(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&markInvalid()} style={{fontSize:'12px'}} />
+          <button className="sig-add-btn" style={{fontSize:'12px',padding:'6px 12px'}} onClick={markInvalid}>確認</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── SignalForm ── */
+function SignalForm({ sources, onAdd, onAddSource, onCancel }) {
+  const [direction, setDir]    = useState('enter');
+  const [source,    setSource] = useState(sources[0] || '');
+  const [condition, setCond]   = useState('');
+  const [price,     setPrice]  = useState('');
+  const [customSrc, setCustom] = useState('');
+  const [addSrc,    setAddSrc] = useState(false);
+
+  const submit = () => {
+    if (!condition.trim()) return;
+    const src = source.trim() || '未知來源';
+    onAdd({ id:uid(), date:Date.now(), direction, source:src, condition:condition.trim(), price:price.trim(), status:'active', invalidReason:'' });
+    setCond(''); setPrice('');
+  };
+
+  const confirmNewSrc = () => {
+    if (!customSrc.trim()) return;
+    onAddSource(customSrc.trim());
+    setSource(customSrc.trim());
+    setCustom(''); setAddSrc(false);
+  };
+
+  return (
+    <div className="sig-add-form">
+      <div className="sig-form-row">
+        <select className="sig-form-select" value={direction} onChange={e=>setDir(e.target.value)}>
+          <option value="enter">📈 進場</option>
+          <option value="exit">📉 出場</option>
+          <option value="watch">👀 觀察</option>
+        </select>
+        <select className="sig-form-select" value={source} onChange={e=>{ if(e.target.value==='__new__') setAddSrc(true); else setSource(e.target.value); }}>
+          {sources.map(s=><option key={s} value={s}>{s}</option>)}
+          <option value="__new__">＋ 新增來源…</option>
+        </select>
+        <input className="sig-form-input" placeholder="價格條件（選填，如 2330）"
+          value={price} onChange={e=>setPrice(e.target.value)} style={{maxWidth:'160px'}} />
+      </div>
+      {addSrc && (
+        <div className="sig-form-row" style={{marginBottom:'10px'}}>
+          <input className="sig-form-input" placeholder="新來源名稱"
+            value={customSrc} onChange={e=>setCustom(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&confirmNewSrc()} autoFocus />
+          <button className="sig-add-btn" style={{fontSize:'12px',padding:'7px 12px'}} onClick={confirmNewSrc}>新增</button>
+          <button className="sig-action-btn" onClick={()=>setAddSrc(false)}>取消</button>
+        </div>
+      )}
+      <textarea className="sig-form-textarea" placeholder="訊號描述（如：回測5日線有守可進場）"
+        value={condition} onChange={e=>setCond(e.target.value)} />
+      <div style={{display:'flex',gap:'8px'}}>
+        <button className="sig-add-btn" onClick={submit}>新增訊號</button>
+        <button className="sig-action-btn" onClick={onCancel}>取消</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── StockDetailModal ── */
+function StockDetailModal({ entry, signals, sources, trades, market, onSave, onAddSignal, onUpdateSignal, onDeleteSignal, onAddSource, onAddTrade, onDeleteTrade, onSetMarket, onClose }) {
+  const [tab,    setTab]    = useState('info');
+  const [code,   setCode]   = useState(entry.code);
+  const [name,   setName]   = useState(entry.name);
+  const [status, setStatus] = useState(entry.status);
+  const [thesis, setThesis] = useState(entry.thesis || '');
+  const [memo,   setMemo]   = useState(entry.memo   || '');
+  const [showForm, setShowForm] = useState(false);
+
+  const handleCode = v => {
+    setCode(v);
+    if (STOCK_DB[v]) setName(STOCK_DB[v]);
+  };
+
+  const submit = () => {
+    onSave({ ...entry, code: code.trim(), name: name.trim() || code.trim(), status, thesis: thesis.trim(), memo: memo.trim() });
+    onClose();
+  };
+
+  const activeSignals   = signals.filter(s => s.status === 'active');
+  const inactiveSignals = signals.filter(s => s.status !== 'active');
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div className="detail-modal-box" style={{maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
+        {/* Header */}
+        <div className="detail-header">
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'baseline',gap:'10px'}}>
+              <div className="detail-header-code">{code || '----'}</div>
+              {STOCK_CLOSE[entry.code]?.close != null && (
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:'18px',
+                  fontWeight:700,color:'white',letterSpacing:'0.02em'}}>
+                  {Number(STOCK_CLOSE[entry.code].close).toLocaleString()}
+                </div>
+              )}
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <div className="detail-header-name">{name || '公司名稱'}</div>
+              {STOCK_CLOSE[entry.code]?.updatedAt && (
+                <div style={{fontSize:'11px',color:'rgba(255,255,255,0.55)'}}>
+                  {STOCK_CLOSE[entry.code].updatedAt} 收盤
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="detail-header-right">
+            <span className={`company-chip ${STATUS_CLASS[status]}`}
+              style={{fontSize:'12px',padding:'4px 10px'}}>
+              <span className="chip-dot"></span>
+              {STATUS_LABELS[status]}
+            </span>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="detail-tabs">
+          <button className={`detail-tab${tab==='info'?' active':''}`} onClick={()=>setTab('info')}>基本資料</button>
+          <button className={`detail-tab${tab==='signals'?' active':''}`} onClick={()=>setTab('signals')}>
+            訊號記錄 {activeSignals.length > 0 && <span style={{background:'var(--gold)',color:'white',borderRadius:'8px',fontSize:'10px',padding:'1px 5px',marginLeft:'4px'}}>{activeSignals.length}</span>}
+          </button>
+          <button className={`detail-tab${tab==='trades'?' active':''}`} onClick={()=>setTab('trades')}>
+            交易記錄 {trades.length > 0 && <span style={{background:'var(--watching)',color:'white',borderRadius:'8px',fontSize:'10px',padding:'1px 5px',marginLeft:'4px'}}>{trades.length}</span>}
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="detail-body" style={{overflowY:'auto',flex:1}}>
+          {tab === 'info' && <>
+            {/* Status */}
+            <div className="detail-field">
+              <div className="detail-label">追蹤狀態</div>
+              <div className="detail-status-row">
+                {['watching','tracking','holding'].map(s => (
+                  <button key={s} className={`status-btn status-btn-${s}${status===s?' active':''}`}
+                    onClick={() => setStatus(s)}>{STATUS_LABELS[s]}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'flex', gap:'10px'}}>
+              <div className="detail-field" style={{width:'35%'}}>
+                <div className="detail-label">股票代碼</div>
+                <input className="detail-input" style={{fontFamily:"'JetBrains Mono',monospace"}}
+                  value={code} onChange={e => handleCode(e.target.value)} />
+              </div>
+              <div className="detail-field" style={{flex:1}}>
+                <div className="detail-label">公司名稱</div>
+                <input className="detail-input" value={name} onChange={e => setName(e.target.value)} />
+              </div>
+            </div>
+            <div className="detail-field">
+              <div className="detail-label">投資主題 <span className="detail-label-hint">一句話描述核心邏輯</span></div>
+              <input className="detail-input" placeholder="如：全球 BMC 供應龍頭，AI 伺服器升級受惠"
+                value={thesis} onChange={e => setThesis(e.target.value)} />
+            </div>
+            <div className="detail-field" style={{marginBottom:0}}>
+              <div className="detail-label">研究摘要 <span className="detail-label-hint">詳細筆記、財報重點、風險…</span></div>
+              <textarea className="detail-textarea" placeholder="貼上公司介紹、研究心得…"
+                value={memo} onChange={e => setMemo(e.target.value)} />
+            </div>
+          </>}
+
+          {tab === 'signals' && <>
+            {/* Active signals */}
+            {activeSignals.length === 0 && !showForm && (
+              <div className="sig-empty">尚無有效訊號<br/>點擊下方新增第一筆</div>
+            )}
+            {activeSignals.length > 0 && (
+              <div className="signals-list" style={{marginBottom:'12px'}}>
+                {activeSignals.map(sig => (
+                  <SignalItem key={sig.id} sig={sig}
+                    onStatusChange={(st,r) => onUpdateSignal(sig.id, {...sig, status:st, invalidReason:r})}
+                    onDelete={() => onDeleteSignal(sig.id)} />
+                ))}
+              </div>
+            )}
+            {showForm
+              ? <SignalForm sources={sources} onAdd={e=>{onAddSignal(e);setShowForm(false);}} onAddSource={onAddSource} onCancel={()=>setShowForm(false)} />
+              : <button className="sig-open-add" onClick={()=>setShowForm(true)}>＋ 新增訊號</button>
+            }
+            {/* Inactive signals */}
+            {inactiveSignals.length > 0 && (
+              <details style={{marginTop:'16px'}}>
+                <summary style={{fontSize:'12px',color:'var(--text-muted)',cursor:'pointer',padding:'4px 0',userSelect:'none'}}>
+                  歷史訊號（{inactiveSignals.length}）
+                </summary>
+                <div className="signals-list" style={{marginTop:'8px'}}>
+                  {inactiveSignals.map(sig => (
+                    <SignalItem key={sig.id} sig={sig}
+                      onStatusChange={(st,r) => onUpdateSignal(sig.id, {...sig, status:st, invalidReason:r})}
+                      onDelete={() => onDeleteSignal(sig.id)} />
+                  ))}
+                </div>
+              </details>
+            )}
+          </>}
+          {tab === 'trades' && (
+            <TradesTab code={entry.code} trades={trades} market={market}
+              onSetMarket={onSetMarket}
+              onAddTrade={onAddTrade}
+              onDeleteTrade={onDeleteTrade} />
+          )}
+        </div>
+
+        {/* Footer */}
+        {tab === 'info' && (
+          <div className="detail-footer">
+            <button className="btn-cancel" onClick={onClose}>取消</button>
+            <button className="btn-primary" onClick={submit}>儲存</button>
+          </div>
+        )}
+        {tab === 'signals' && (
+          <div className="detail-footer">
+            <button className="btn-primary" style={{flex:'none',padding:'10px 20px'}} onClick={onClose}>完成</button>
+          </div>
+        )}
+        {tab === 'trades' && (
+          <div className="detail-footer">
+            <button className="btn-primary" style={{flex:'none',padding:'10px 20px'}} onClick={onClose}>完成</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── SignalsView (3rd main tab) ── */
+function SignalsView({ signals, notes, onUpdateSignal, onDeleteSignal, onOpenStock }) {
+  const [filterDir,    setFilterDir]    = useState('all');
+  const [filterStatus, setFilterStatus] = useState('active');
+
+  // Build stock lookup from notes
+  const stockMap = React.useMemo(() => {
+    const m = {};
+    notes.forEach(n => n.rows.forEach(r => r.entries.forEach(e => {
+      if (!m[e.code]) m[e.code] = { name: e.name, status: e.status };
+    })));
+    return m;
+  }, [notes]);
+
+  // Aggregate all signals with stock info
+  const allEntries = React.useMemo(() => {
+    const list = [];
+    Object.entries(signals).forEach(([code, sigs]) => {
+      sigs.forEach(sig => list.push({ ...sig, code }));
+    });
+    return list.sort((a,b) => b.date - a.date);
+  }, [signals]);
+
+  const filtered = allEntries.filter(s =>
+    (filterDir === 'all' || s.direction === filterDir) &&
+    (filterStatus === 'all' || s.status === filterStatus)
+  );
+
+  // Group by code
+  const groups = React.useMemo(() => {
+    const m = new Map();
+    filtered.forEach(s => {
+      if (!m.has(s.code)) m.set(s.code, []);
+      m.get(s.code).push(s);
+    });
+    return [...m.entries()];
+  }, [filtered]);
+
+  if (allEntries.length === 0) return (
+    <div className="sov-empty">
+      尚無訊號記錄<br/>
+      點擊任一股票標籤 → 訊號記錄 → 新增訊號
+    </div>
+  );
+
+  return (
+    <>
+      <div className="sov-filters">
+        <div style={{display:'flex',gap:'4px'}}>
+          {['all','enter','exit','watch'].map(d => (
+            <button key={d} className={`sov-filter-btn${filterDir===d?' active':''}`}
+              onClick={()=>setFilterDir(d)}>
+              {d==='all'?'全部方向':SIG_DIR_LABELS[d]}
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:'4px'}}>
+          {['all','active','triggered','invalid','expired'].map(s => (
+            <button key={s} className={`sov-filter-btn${filterStatus===s?' active':''}`}
+              onClick={()=>setFilterStatus(s)}>
+              {s==='all'?'全部狀態':SIG_STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
+        <div style={{marginLeft:'auto',fontSize:'12px',color:'var(--text-muted)'}}>
+          {filtered.length} 筆訊號
+        </div>
+      </div>
+
+      {groups.length === 0 && (
+        <div className="sov-empty">沒有符合篩選條件的訊號</div>
+      )}
+
+      {groups.map(([code, sigs]) => {
+        const stock = stockMap[code] || { name: code, status: 'watching' };
+        return (
+          <div key={code} className="sov-stock-group">
+            <div className="sov-stock-header">
+              <span className="sov-stock-code">{code}</span>
+              <span className="sov-stock-name">{stock.name}</span>
+              <div className="sov-stock-status">
+                <span className={`company-chip ${STATUS_CLASS[stock.status]}`}
+                  style={{fontSize:'11px',padding:'2px 8px'}}>
+                  <span className="chip-dot"></span>
+                  {STATUS_LABELS[stock.status]}
+                </span>
+              </div>
+            </div>
+            <div className="signals-list">
+              {sigs.map(sig => (
+                <SignalItem key={sig.id} sig={sig}
+                  onStatusChange={(st,r) => onUpdateSignal(code, sig.id, {...sig, status:st, invalidReason:r})}
+                  onDelete={() => onDeleteSignal(code, sig.id)} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/* ── CompanyChip ── */
+function CompanyChip({ entry, onCycle, onDelete, onEdit }) {
+  const cycle = e => {
+    e.stopPropagation();
+    const i = STATUS_ORDER.indexOf(entry.status);
+    onCycle(STATUS_ORDER[(i+1) % STATUS_ORDER.length]);
+  };
+  const hasNote = !!(entry.thesis || entry.memo);
+  return (
+    <span className={`company-chip ${STATUS_CLASS[entry.status]}`}
+      title={entry.thesis || `${STATUS_LABELS[entry.status]}　點擊編輯`}
+      onClick={onEdit} style={{cursor:'pointer'}}>
+      <span className="chip-dot" onClick={cycle} title="點擊切換狀態" style={{cursor:'pointer',flexShrink:0}}></span>
+      <span className="chip-code">{entry.code}</span>
+      <span className="chip-name">{entry.name}</span>
+      {hasNote && <span className="chip-has-note" title="有研究筆記"></span>}
+      <span className="chip-del" onClick={e => { e.stopPropagation(); onDelete(); }}>✕</span>
+    </span>
+  );
+}
+
+/* ── CSV Parser ── */
+function parseCSV(text) {
+  // Normalize line endings
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return null;
+
+  // Parse a single CSV line respecting quoted fields
+  const parseLine = line => {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { out.push(cur.trim()); cur = ''; }
+      else { cur += c; }
+    }
+    out.push(cur.trim());
+    return out;
+  };
+
+  // Extract code+name from a string like "世芯-KY(3661)" or "世芯-KY（3661）"
+  const parseEntry = str => {
+    str = str.trim().replace(/（/g,'(').replace(/）/g,')');
+    const m = str.match(/^(.+?)\((\d{4,6})\)$/);
+    if (m) return { id:uid(), name:m[1].trim(), code:m[2].trim(), status:'watching' };
+    // code-only like "3661"
+    if (/^\d{4,6}$/.test(str)) return { id:uid(), name:STOCK_DB[str]||str, code:str, status:'watching' };
+    // Try name lookup in dynamic stock list
+    const byName = STOCK_LIST.find(s => s.name === str);
+    if (byName) return { id:uid(), name:byName.name, code:byName.code, status:'watching' };
+    return { id:uid(), name:str, code:'', status:'watching' };
+  };
+
+  const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/\s/g,''));
+  const catIdx = headers.findIndex(h => h.includes('產業') || h.includes('category') || h.includes('類別') || h === '0');
+  const compIdx = headers.findIndex(h => h.includes('公司') || h.includes('company') || h.includes('名稱') || h === '1');
+  const codeIdx = headers.findIndex(h => h.includes('代碼') || h.includes('code') || h.includes('ticker'));
+
+  const ci = catIdx >= 0 ? catIdx : 0;
+  const ni = compIdx >= 0 ? compIdx : 1;
+
+  // Group rows by category
+  const catMap = new Map();
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseLine(lines[i]);
+    const cat = (cols[ci] || '').trim();
+    if (!cat) continue;
+    const compCell = (cols[ni] || '').trim();
+    const codeCell = codeIdx >= 0 ? (cols[codeIdx]||'').trim() : '';
+
+    if (!catMap.has(cat)) catMap.set(cat, []);
+
+    // Multiple companies in one cell: split by 、, ；; (but not inside parens)
+    const parts = compCell.split(/[、；;]|(?<=\))[,，]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      parts.forEach(p => catMap.get(cat).push(parseEntry(p)));
+    } else if (codeCell) {
+      // Separate code column
+      const name = compCell || STOCK_DB[codeCell] || STOCK_LIST.find(s=>s.code===codeCell)?.name || codeCell;
+      catMap.get(cat).push({ id:uid(), code:codeCell, name, status:'watching' });
+    }
+  }
+
+  return Array.from(catMap.entries()).map(([category, entries]) => ({
+    id: uid(), category, entries
+  }));
+}
+
+/* ── ImportModal ── */
+function ImportModal({ onImport, onClose }) {
+  const [rows,      setRows]      = useState(null);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [error,     setError]     = useState('');
+  const [drag,      setDrag]      = useState(false);
+  const fileRef = useRef();
+
+  const processText = text => {
+    setError('');
+    const result = parseCSV(text);
+    if (!result || result.length === 0) {
+      setError('無法解析 CSV，請確認格式（第一列為標題列：產業別,公司名稱）');
+      setRows(null);
+    } else {
+      setRows(result);
+    }
+  };
+
+  const handleFile = file => {
+    if (!file) return;
+    // Pre-fill note title from filename
+    setNoteTitle(file.name.replace(/\.csv$/i,''));
+    const reader = new FileReader();
+    reader.onload = e => processText(e.target.result);
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleDrop = e => {
+    e.preventDefault(); setDrag(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  };
+
+  const submit = () => {
+    if (!rows || rows.length === 0) return;
+    onImport({ title: noteTitle || '匯入筆記', rows, createdAt: Date.now(), id: uid() });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div className="modal-box" style={{width:'480px',maxHeight:'90vh',overflowY:'auto'}}>
+        <div className="modal-title">📥 匯入 CSV 筆記</div>
+
+        <div className="import-format-hint">
+          支援格式：<code>產業別,公司名稱</code>，公司名稱請含代碼，如<br/>
+          <code>ASIC 設計服務,"世芯-KY(3661)"</code><br/>
+          同一產業多家公司可用頓號分隔：<code>"緯穎(6669)、廣達(2382)"</code>
+        </div>
+
+        {!rows && (
+          <div className={`import-drop${drag?' drag-over':''}`}
+            onDragOver={e=>{e.preventDefault();setDrag(true);}}
+            onDragLeave={()=>setDrag(false)}
+            onDrop={handleDrop}
+            onClick={()=>fileRef.current.click()}>
+            <div className="import-drop-icon">📂</div>
+            <div className="import-drop-text">
+              <strong>點擊選擇</strong>或拖曳 CSV 檔案到此處<br/>
+              <span style={{fontSize:'11px',opacity:0.7}}>支援 UTF-8 編碼</span>
+            </div>
+            <input ref={fileRef} type="file" accept=".csv,text/csv"
+              style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])} />
+          </div>
+        )}
+
+        {error && <div className="import-error">{error}</div>}
+
+        {rows && (
+          <>
+            <div className="modal-field">
+              <div className="modal-label">筆記名稱</div>
+              <input className="import-note-name" placeholder="輸入筆記名稱…"
+                value={noteTitle} onChange={e=>setNoteTitle(e.target.value)} />
+            </div>
+
+            <div className="import-preview">
+              <div className="import-preview-title">預覽（{rows.length} 個產業、{rows.reduce((s,r)=>s+r.entries.length,0)} 支股票）</div>
+              <div className="import-preview-rows">
+                {rows.map((row,i) => (
+                  <div key={i} className="import-preview-row">
+                    <div className="ipr-cat">{row.category}</div>
+                    <div className="ipr-chips">
+                      {row.entries.map((e,j) => (
+                        <span key={j} className="ipr-chip">
+                          {e.code ? `${e.name}(${e.code})` : e.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{marginTop:'10px'}}>
+              <button style={{fontSize:'12px',background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',padding:'4px 0',fontFamily:'inherit'}}
+                onClick={()=>{setRows(null);setError('');}}>
+                ← 重新選擇檔案
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="modal-actions" style={{marginTop:'18px'}}>
+          <button className="btn-cancel" onClick={onClose}>取消</button>
+          <button className="btn-primary" onClick={submit}
+            style={{opacity: rows ? 1 : 0.4, pointerEvents: rows ? 'auto' : 'none'}}>
+            建立筆記
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── StockIndexView ── */
+function StockIndexView({ notes, signals, sources, onGoToNote, onOpenStock }) {
+  const [search, setSearch] = useState('');
+
+  // Build reverse index: code -> { name, status (best), refs: [{noteId, noteTitle, category}] }
+  const index = React.useMemo(() => {
+    const map = {};
+    notes.forEach(note => {
+      note.rows.forEach(row => {
+        row.entries.forEach(e => {
+          if (!map[e.code]) map[e.code] = { code:e.code, name:e.name, bestStatus:'watching', refs:[], entry:e };
+          map[e.code].refs.push({ noteId:note.id, noteTitle:note.title, category:row.category, rowId:row.id });
+          // escalate status: holding > tracking > watching
+          const rank = { holding:2, tracking:1, watching:0 };
+          if (rank[e.status] > rank[map[e.code].bestStatus]) map[e.code].bestStatus = e.status;
+        });
+      });
+    });
+    return Object.values(map).sort((a,b) => a.code.localeCompare(b.code));
+  }, [notes]);
+
+  const filtered = search.trim()
+    ? index.filter(s =>
+        s.code.includes(search) ||
+        s.name.includes(search) ||
+        s.refs.some(r => r.noteTitle.includes(search) || r.category.includes(search))
+      )
+    : index;
+
+  if (notes.length === 0 || index.length === 0) return (
+    <div className="empty-state">
+      <div className="empty-icon" style={{fontSize:'36px',opacity:0.4}}>🔍</div>
+      <div className="empty-title">尚無個股資料</div>
+      <div className="empty-sub">在筆記中新增股票後，<br/>即可在此看到反向索引。</div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="index-search-wrap">
+        <span className="index-search-icon">🔍</span>
+        <input className="index-search" placeholder="搜尋股票代碼、名稱、產業別…"
+          value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+      <div className="index-summary">共 {filtered.length} 支股票，跨 {notes.length} 份筆記　<span style={{opacity:0.6}}>· 點擊任一列開啟個股詳情</span></div>
+      <table className="index-table">
+        <thead>
+          <tr>
+            <th style={{width:'80px'}}>代碼</th>
+            <th style={{width:'120px'}}>名稱</th>
+            <th style={{width:'80px'}}>狀態</th>
+            <th style={{width:'90px'}}>收盤價</th>
+            <th>出現在</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map(s => {
+            const sigCount = (signals[s.code]||[]).filter(sg=>sg.status==='active').length;
+            const hasNote  = s.entry && !!(s.entry.thesis || s.entry.memo);
+            return (
+              <tr key={s.code} style={{cursor: onOpenStock ? 'pointer' : 'default'}}
+                onClick={() => onOpenStock && onOpenStock(s.code)}>
+                <td>
+                  <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                    <span className="idx-code">{s.code}</span>
+                    {sigCount > 0 && (
+                      <span style={{background:'var(--gold)',color:'white',borderRadius:'8px',
+                        fontSize:'10px',padding:'1px 5px',fontFamily:'sans-serif'}}>
+                        {sigCount}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td>
+                  <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                    <span className="idx-name">{s.name}</span>
+                    {hasNote && <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--gold-muted)',flexShrink:0}} title="有研究筆記"></span>}
+                  </div>
+                </td>
+                <td>
+                  <span className={`company-chip ${STATUS_CLASS[s.bestStatus]}`}
+                    style={{display:'inline-flex',fontSize:'11px',padding:'3px 8px'}}>
+                    <span className="chip-dot"></span>
+                    {STATUS_LABELS[s.bestStatus]}
+                  </span>
+                </td>
+                <td style={{fontFamily:"'JetBrains Mono',monospace",fontSize:'13px',color:'var(--text)'}}>
+                  {STOCK_CLOSE[s.code]?.close != null
+                    ? Number(STOCK_CLOSE[s.code].close).toLocaleString()
+                    : <span style={{color:'var(--border)'}}>—</span>}
+                </td>
+                <td onClick={e=>e.stopPropagation()}>
+                  <div className="idx-refs">
+                    {s.refs.map((r,i) => (
+                      <span key={i} className="idx-ref-tag"
+                        onClick={() => onGoToNote(r.noteId)}
+                        title={`前往：${r.noteTitle}`}>
+                        <span>{r.noteTitle}</span>
+                        <span className="idx-ref-sep">›</span>
+                        <span>{r.category}</span>
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/* ── App ── */
+function App() {
+  const [notes,        setNotes]        = useState([]);
+  const [activeId,     setActiveId]     = useState(null);
+  const [sidebar,      setSidebar]      = useState(false);
+  const [addTo,        setAddTo]        = useState(null);
+  const [view,         setView]         = useState('notes');
+  const [importing,    setImporting]    = useState(false);
+  const [editEntry,    setEditEntry]    = useState(null);
+  const [signals,      setSignals]      = useState({});
+  const [sources,      setSources]      = useState([]);
+  const [trades,       setTrades]       = useState({});
+  const [tradeMarkets, setTradeMarkets] = useState({});
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [syncing,      setSyncing]      = useState(false);
+  const [syncMsg,      setSyncMsg]      = useState('');
+  const titleTimer    = useRef(null);
+  const categoryTimer = useRef({});
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch('/notes'),
+      apiFetch('/signals'),
+      apiFetch('/trades'),
+      apiFetch('/sources'),
+      apiFetch('/trade-markets'),
+      apiFetch('/stocks'),
+    ]).then(([n, sig, tr, src, mkts, stks]) => {
+      setNotes(n);
+      setSignals(sig);
+      setTrades(tr);
+      setSources(src);
+      setTradeMarkets(mkts);
+      applyStockData(stks);
+      setActiveId(n[0]?.id || null);
+      setLoading(false);
+    }).catch(err => { setError(err.message); setLoading(false); });
+  }, []);
+
+  const syncStocks = async () => {
+    setSyncing(true); setSyncMsg('');
+    try {
+      const res = await apiFetch('/stocks/sync', { method: 'POST' });
+      const stks = await apiFetch('/stocks');
+      applyStockData(stks);
+      setSyncMsg(res.message);
+    } catch (e) {
+      setSyncMsg('同步失敗：' + e.message);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(''), 6000);
+    }
+  };
+
+  const mutNote = useCallback((id, fn) =>
+    setNotes(ns => ns.map(n => n.id===id ? fn(n) : n)), []);
+
+  const addNote = async () => {
+    const n = { id:uid(), title:"新筆記", createdAt:Date.now(), rows:[] };
+    await apiFetch('/notes', { method:'POST', body:n });
+    setNotes(ns => [n, ...ns]);
+    setActiveId(n.id);
+    setSidebar(false);
+  };
+
+  const delNote = async id => {
+    await apiFetch(`/notes/${id}`, { method:'DELETE' });
+    setNotes(ns => {
+      const rem = ns.filter(n => n.id!==id);
+      if (activeId===id) setActiveId(rem[0]?.id || null);
+      return rem;
+    });
+  };
+
+  const updateNoteTitle = (id, title) => {
+    mutNote(id, n => ({...n, title}));
+    clearTimeout(titleTimer.current);
+    titleTimer.current = setTimeout(() =>
+      apiFetch(`/notes/${id}`, { method:'PATCH', body:{title} }), 300);
+  };
+
+  const addRow = async () => {
+    const row = { id:uid(), category:"新產業別", entries:[] };
+    await apiFetch(`/notes/${activeId}/rows`, { method:'POST', body:row });
+    mutNote(activeId, n => ({...n, rows:[...n.rows, row]}));
+  };
+
+  const mutRow = (rowId, fn) =>
+    mutNote(activeId, n => ({...n, rows:n.rows.map(r => r.id===rowId ? fn(r) : r)}));
+
+  const delRow = async rowId => {
+    await apiFetch(`/rows/${rowId}`, { method:'DELETE' });
+    mutNote(activeId, n => ({...n, rows:n.rows.filter(r => r.id!==rowId)}));
+  };
+
+  const updateCategory = (rowId, category) => {
+    mutRow(rowId, r => ({...r, category}));
+    clearTimeout(categoryTimer.current[rowId]);
+    categoryTimer.current[rowId] = setTimeout(() =>
+      apiFetch(`/rows/${rowId}`, { method:'PATCH', body:{category} }), 300);
+  };
+
+  const addEntry = async (rid, e) => {
+    await apiFetch(`/rows/${rid}/entries`, { method:'POST', body:e });
+    mutRow(rid, r => ({...r, entries:[...r.entries, e]}));
+  };
+
+  const delEntry = async (rid, eid) => {
+    await apiFetch(`/entries/${eid}`, { method:'DELETE' });
+    mutRow(rid, r => ({...r, entries:r.entries.filter(e => e.id!==eid)}));
+  };
+
+  const cycleEntry = async (rid, eid, status) => {
+    await apiFetch(`/entries/${eid}`, { method:'PATCH', body:{status} });
+    mutRow(rid, r => ({...r, entries:r.entries.map(e => e.id===eid?{...e,status}:e)}));
+  };
+
+  const saveEntry = async (rid, updated) => {
+    await apiFetch(`/entries/${updated.id}`, { method:'PATCH', body:updated });
+    mutRow(rid, r => ({...r, entries:r.entries.map(e => e.id===updated.id ? updated : e)}));
+  };
+
+  const addSource = async s => {
+    await apiFetch('/sources', { method:'POST', body:{name:s} });
+    setSources(ss => ss.includes(s) ? ss : [...ss, s]);
+  };
+
+  const addSignal = async (code, sig) => {
+    await apiFetch(`/signals/${code}`, { method:'POST', body:sig });
+    setSignals(ss => ({ ...ss, [code]: [sig, ...(ss[code]||[])] }));
+  };
+
+  const updateSignal = async (code, id, updated) => {
+    await apiFetch(`/signals/${id}`, { method:'PATCH', body:{status:updated.status, invalidReason:updated.invalidReason} });
+    setSignals(ss => ({ ...ss, [code]: (ss[code]||[]).map(s => s.id===id ? updated : s) }));
+  };
+
+  const deleteSignal = async (code, id) => {
+    await apiFetch(`/signals/${id}`, { method:'DELETE' });
+    setSignals(ss => ({ ...ss, [code]: (ss[code]||[]).filter(s => s.id!==id) }));
+  };
+
+  const addTrade = async (code, t) => {
+    await apiFetch(`/trades/${code}`, { method:'POST', body:t });
+    setTrades(tt => ({ ...tt, [code]: [t, ...(tt[code]||[])] }));
+  };
+
+  const deleteTrade = async (code, id) => {
+    await apiFetch(`/trades/${id}`, { method:'DELETE' });
+    setTrades(tt => ({ ...tt, [code]: (tt[code]||[]).filter(t => t.id!==id) }));
+  };
+
+  const setTradeMarket = async (code, m) => {
+    await apiFetch(`/trade-markets/${code}`, { method:'PUT', body:{market:m} });
+    setTradeMarkets(mm => ({ ...mm, [code]: m }));
+  };
+
+  const active = notes.find(n => n.id === activeId);
+
+  if (loading) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',
+      flexDirection:'column',gap:'16px',color:'var(--text-muted)',fontFamily:'inherit'}}>
+      <div style={{fontSize:'32px'}}>⏳</div>
+      <div style={{fontSize:'15px'}}>載入中…</div>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',
+      flexDirection:'column',gap:'16px',fontFamily:'inherit'}}>
+      <div style={{fontSize:'32px'}}>⚠️</div>
+      <div style={{fontSize:'15px',color:'var(--red)',textAlign:'center',lineHeight:'1.7'}}>
+        無法連線到伺服器<br/><span style={{fontSize:'12px',color:'var(--text-muted)'}}>{error}</span>
+      </div>
+      <button style={{padding:'10px 20px',background:'var(--gold)',color:'white',border:'none',
+        borderRadius:'8px',cursor:'pointer',fontFamily:'inherit',fontSize:'14px'}}
+        onClick={() => window.location.reload()}>重新整理</button>
+    </div>
+  );
+
+  return (
+    <>
+      <div className={`sidebar-overlay${sidebar?' show':''}`} onClick={() => setSidebar(false)} />
+
+      {/* ── Sidebar ── */}
+      <div id="sidebar" className={sidebar ? 'open' : ''}>
+        <div className="sidebar-header">
+          <div className="sidebar-brand">
+            <div className="sidebar-brand-icon">📋</div>
+            <div>
+              <div>WatchList</div>
+              <div className="sidebar-brand-sub">投資研究筆記</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sidebar-notes">
+          {notes.map(n => (
+            <div key={n.id} className={`note-item${activeId===n.id?' active':''}`}
+              onClick={() => { setActiveId(n.id); setSidebar(false); }}>
+              <div className="note-item-body">
+                <div className="note-item-title">{n.title || "未命名筆記"}</div>
+                <div className="note-item-date">{fmtD(n.createdAt)} · {n.rows.length} 個產業</div>
+              </div>
+              <button className="note-item-del"
+                onClick={e => { e.stopPropagation(); delNote(n.id); }} title="刪除">✕</button>
+            </div>
+          ))}
+          {notes.length === 0 && (
+            <div style={{padding:'24px',textAlign:'center',color:'var(--text-muted)',fontSize:'13px',lineHeight:'1.6'}}>
+              尚無筆記<br/>點擊下方新增
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-footer">
+          <button className="sidebar-add" onClick={addNote} style={{marginBottom:'6px'}}>＋ 新增筆記</button>
+          <button className="sidebar-add" onClick={()=>setImporting(true)} style={{borderStyle:'solid',opacity:0.8,marginBottom:'6px'}}>
+            📥 匯入 CSV
+          </button>
+          <button className="sidebar-add" onClick={syncStocks} disabled={syncing}
+            style={{borderStyle:'solid',opacity:syncing?0.5:0.8}}>
+            {syncing ? '⏳ 同步中…' : '🔄 同步股票資料'}
+          </button>
+          {syncMsg && (
+            <div style={{marginTop:'6px',fontSize:'11px',color:'var(--text-muted)',
+              padding:'6px 8px',background:'var(--row-hover)',borderRadius:'6px',lineHeight:'1.5'}}>
+              {syncMsg}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Main ── */}
+      <div id="main">
+        <div className="main-toolbar">
+          <button className="menu-btn" onClick={() => setSidebar(o => !o)}>☰</button>
+          {view === 'notes' && active ? (
+            <>
+              <input className="note-title-input"
+                value={active.title} placeholder="筆記標題…"
+                onChange={e => updateNoteTitle(activeId, e.target.value)} />
+              <div className="note-meta">{fmtD(active.createdAt)}</div>
+            </>
+          ) : (
+            <div style={{color:'var(--text-muted)',fontSize:'16px',fontWeight:600}}>
+              {view === 'index' ? '個股索引' : 'WatchList'}
+            </div>
+          )}
+        </div>
+
+        <div className="view-tabs">
+          <button className={`view-tab${view==='notes'?' active':''}`} onClick={() => setView('notes')}>📋 筆記</button>
+          <button className={`view-tab${view==='index'?' active':''}`} onClick={() => setView('index')}>🔍 個股索引</button>
+          <button className={`view-tab${view==='signals'?' active':''}`} onClick={() => setView('signals')}>
+            📡 訊號總覽
+            {Object.values(signals).flat().filter(s=>s.status==='active').length > 0 && (
+              <span style={{background:'var(--gold)',color:'white',borderRadius:'8px',fontSize:'10px',padding:'1px 5px',marginLeft:'4px'}}>
+                {Object.values(signals).flat().filter(s=>s.status==='active').length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="main-content">
+          {view === 'index' ? (
+            <StockIndexView notes={notes} signals={signals} sources={sources}
+              onGoToNote={id => { setActiveId(id); setView('notes'); setSidebar(false); }}
+              onOpenStock={code => {
+                for (const note of notes) {
+                  for (const row of note.rows) {
+                    const entry = row.entries.find(e => e.code === code);
+                    if (entry) { setEditEntry({ rowId: row.id, entry }); return; }
+                  }
+                }
+              }} />
+          ) : view === 'signals' ? (
+            <SignalsView signals={signals} notes={notes}
+              onUpdateSignal={updateSignal} onDeleteSignal={deleteSignal} />
+          ) : !active ? (
+            <div className="empty-state">
+              <div className="empty-icon">📊</div>
+              <div className="empty-title">開始你的研究筆記</div>
+              <div className="empty-sub">整理供應鏈、產業主題，<br/>追蹤心儀的股票。</div>
+              <button className="empty-btn" onClick={addNote}>＋ 新增筆記</button>
+            </div>
+          ) : (
+            <>
+              {/* Legend */}
+              <div className="legend">
+                {['holding','tracking','watching'].map(s => (
+                  <div key={s} className="legend-item">
+                    <div className="legend-dot" style={{background:STATUS_DOT[s]}}></div>
+                    <span>{STATUS_LABELS[s]}</span>
+                  </div>
+                ))}
+                <div className="legend-hint">點擊標籤可循環切換狀態</div>
+              </div>
+
+              {/* Table */}
+              {active.rows.length > 0 ? (
+                <table className="supply-table">
+                  <thead>
+                    <tr>
+                      <th>產業別／類別</th>
+                      <th>公司名稱</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {active.rows.map(row => (
+                      <tr key={row.id}>
+                        <td className="td-category">
+                          <input className="category-input"
+                            value={row.category}
+                            onChange={e => updateCategory(row.id, e.target.value)} />
+                        </td>
+                        <td className="td-companies">
+                          <div className="companies-wrap">
+                            {row.entries.map(e => (
+                              <CompanyChip key={e.id} entry={e}
+                                onCycle={s => cycleEntry(row.id, e.id, s)}
+                                onDelete={() => delEntry(row.id, e.id)}
+                                onEdit={() => setEditEntry({rowId: row.id, entry: e})} />
+                            ))}
+                            <button className="add-company-btn" onClick={() => setAddTo(row.id)}>＋ 新增</button>
+                          </div>
+                        </td>
+                        <td className="td-actions">
+                          <button className="row-del-btn" onClick={() => delRow(row.id)} title="刪除此列">✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{textAlign:'center',padding:'48px 24px',background:'white',
+                  borderRadius:'12px',border:'1.5px dashed var(--border)',
+                  color:'var(--text-muted)',fontSize:'14px',lineHeight:'1.7'}}>
+                  <div style={{fontSize:'28px',marginBottom:'12px',opacity:0.5}}>＋</div>
+                  點擊下方「新增產業別」開始整理
+                </div>
+              )}
+
+              <button className="add-row-btn" onClick={addRow}>＋ 新增產業別</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Stock Detail Modal */}
+      {editEntry && (
+        <StockDetailModal
+          entry={editEntry.entry}
+          signals={signals[editEntry.entry.code] || []}
+          sources={sources}
+          trades={trades[editEntry.entry.code] || []}
+          market={tradeMarkets[editEntry.entry.code] || 'tw'}
+          onSave={updated => saveEntry(editEntry.rowId, updated)}
+          onAddSignal={sig => addSignal(editEntry.entry.code, sig)}
+          onUpdateSignal={(id, updated) => updateSignal(editEntry.entry.code, id, updated)}
+          onDeleteSignal={id => deleteSignal(editEntry.entry.code, id)}
+          onAddSource={addSource}
+          onAddTrade={t => addTrade(editEntry.entry.code, t)}
+          onDeleteTrade={id => deleteTrade(editEntry.entry.code, id)}
+          onSetMarket={m => setTradeMarket(editEntry.entry.code, m)}
+          onClose={() => setEditEntry(null)} />
+      )}
+
+      {/* Import Modal */}
+      {importing && (
+        <ImportModal
+          onImport={async note => {
+            await apiFetch('/notes', { method:'POST', body:note });
+            setNotes(ns => [note, ...ns]);
+            setActiveId(note.id);
+            setView('notes');
+            setSidebar(false);
+          }}
+          onClose={() => setImporting(false)} />
+      )}
+
+      {/* Add Company Modal */}
+      {addTo && (
+        <AddCompanyModal
+          onAdd={e => addEntry(addTo, e)}
+          onClose={() => setAddTo(null)} />
+      )}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+@if (state.loading()) {
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;color:var(--text-muted)">
+    <div style="font-size:32px">⏳</div>
+    <div style="font-size:15px">載入中…</div>
+  </div>
+} @else if (state.error()) {
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px">
+    <div style="font-size:32px">⚠️</div>
+    <div style="font-size:15px;color:var(--red);text-align:center;line-height:1.7">
+      無法連線到伺服器<br>
+      <span style="font-size:12px;color:var(--text-muted)">{{ state.error() }}</span>
+    </div>
+    <button class="empty-btn" (click)="reload()">重新整理</button>
+  </div>
+} @else {
+  <div class="sidebar-overlay" [class.show]="state.sidebarOpen()" (click)="state.sidebarOpen.set(false)"></div>
+
+  <app-sidebar />
+
+  <div id="main">
+    <!-- Toolbar -->
+    <div class="main-toolbar">
+      <button class="menu-btn" (click)="state.sidebarOpen.update(v => !v)">☰</button>
+      @if (state.view() === 'notes' && state.activeNote()) {
+        <input class="note-title-input" [value]="state.activeNote()!.title"
+          placeholder="筆記標題…" (input)="onTitleInput($event)" />
+        <span class="note-meta">{{ fmtD(state.activeNote()!.createdAt) }}</span>
+      } @else {
+        <span style="color:var(--text-muted);font-size:16px;font-weight:600">
+          {{ state.view() === 'index' ? '個股索引' : state.view() === 'signals' ? '訊號總覽' : 'WatchList' }}
+        </span>
+      }
+    </div>
+
+    <!-- View tabs -->
+    <div class="view-tabs">
+      <button class="view-tab" [class.active]="state.view()==='notes'" (click)="state.view.set('notes')">📋 筆記</button>
+      <button class="view-tab" [class.active]="state.view()==='index'" (click)="state.view.set('index')">🔍 個股索引</button>
+      <button class="view-tab" [class.active]="state.view()==='signals'" (click)="state.view.set('signals')">
+        📡 訊號總覽
+        @if (state.activeSignalCount() > 0) {
+          <span class="badge">{{ state.activeSignalCount() }}</span>
+        }
+      </button>
+    </div>
+
+    <!-- Content -->
+    <div class="main-content">
+      @switch (state.view()) {
+        @case ('notes') { <app-notes-view /> }
+        @case ('index') { <app-stock-index /> }
+        @case ('signals') { <app-signals-view /> }
+      }
+    </div>
+  </div>
+
+  <!-- Modals -->
+  @if (state.addToRowId()) { <app-add-company-modal /> }
+  @if (state.editTarget())  { <app-stock-detail-modal /> }
+  @if (state.importing())   { <app-import-modal /> }
+}

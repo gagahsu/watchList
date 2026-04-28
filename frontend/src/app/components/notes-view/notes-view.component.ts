@@ -1,0 +1,121 @@
+import { Component } from '@angular/core';
+import { AppStateService } from '../../services/app-state.service';
+import { ApiService } from '../../services/api.service';
+import { CompanyChipComponent } from './company-chip/company-chip.component';
+import { STATUS_LABELS } from '../../utils';
+import { uid } from '../../utils';
+
+@Component({
+  selector: 'app-notes-view',
+  imports: [CompanyChipComponent],
+  template: `
+@if (!state.activeNote()) {
+  <div class="empty-state">
+    <div class="empty-icon">📊</div>
+    <div class="empty-title">開始你的研究筆記</div>
+    <div class="empty-sub">整理供應鏈、產業主題，<br>追蹤心儀的股票。</div>
+    <button class="empty-btn" (click)="addNote()">＋ 新增筆記</button>
+  </div>
+} @else {
+  <!-- Legend -->
+  <div class="legend">
+    @for (s of statuses; track s) {
+      <div class="legend-item">
+        <div class="legend-dot" [style.background]="dotColor(s)"></div>
+        <span>{{ label(s) }}</span>
+      </div>
+    }
+    <span class="legend-hint">點擊標籤可循環切換狀態</span>
+  </div>
+
+  <!-- Table -->
+  @if (state.activeNote()!.rows.length > 0) {
+    <table class="supply-table">
+      <thead><tr><th>產業別／類別</th><th>公司名稱</th><th></th></tr></thead>
+      <tbody>
+        @for (row of state.activeNote()!.rows; track row.id) {
+          <tr>
+            <td class="td-category">
+              <input class="category-input" [value]="row.category"
+                (input)="onCategoryInput(row.id, $event)" />
+            </td>
+            <td class="td-companies">
+              <div class="companies-wrap">
+                @for (entry of row.entries; track entry.id) {
+                  <app-company-chip [entry]="entry"
+                    (cycled)="cycleEntry(row.id, entry.id, $event)"
+                    (deleted)="deleteEntry(row.id, entry.id)"
+                    (edit)="state.editTarget.set({rowId: row.id, entry})" />
+                }
+                <button class="add-company-btn" (click)="state.addToRowId.set(row.id)">＋ 新增</button>
+              </div>
+            </td>
+            <td class="td-actions">
+              <button class="row-del-btn" (click)="deleteRow(row.id)" title="刪除此列">✕</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <div style="text-align:center;padding:48px 24px;background:white;border-radius:12px;border:1.5px dashed var(--border);color:var(--text-muted);font-size:14px;line-height:1.7">
+      <div style="font-size:28px;margin-bottom:12px;opacity:0.5">＋</div>
+      點擊下方「新增產業別」開始整理
+    </div>
+  }
+
+  <button class="add-row-btn" (click)="addRow()">＋ 新增產業別</button>
+}
+  `,
+})
+export class NotesViewComponent {
+  statuses = ['holding', 'tracking', 'watching'];
+  private catTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+  constructor(public state: AppStateService, private api: ApiService) {}
+
+  label(s: string) { return STATUS_LABELS[s]; }
+  dotColor(s: string) {
+    return s === 'holding' ? 'var(--holding)' : s === 'tracking' ? 'var(--tracking)' : 'var(--watching)';
+  }
+
+  async addNote() {
+    const { uid: u } = await import('../../utils');
+    const note = { id: u(), title: '新筆記', createdAt: Date.now(), rows: [] };
+    await this.api.createNote(note);
+    this.state.addNote(note as any);
+  }
+
+  async addRow() {
+    const noteId = this.state.activeNoteId()!;
+    const row = { id: uid(), category: '新產業別', entries: [] };
+    await this.api.createRow(noteId, row);
+    this.state.addRow(noteId, row as any);
+  }
+
+  async deleteRow(rowId: string) {
+    const noteId = this.state.activeNoteId()!;
+    await this.api.deleteRow(rowId);
+    this.state.removeRow(noteId, rowId);
+  }
+
+  onCategoryInput(rowId: string, e: Event) {
+    const category = (e.target as HTMLInputElement).value;
+    const noteId = this.state.activeNoteId()!;
+    this.state.updateCategory(noteId, rowId, category);
+    clearTimeout(this.catTimers[rowId]);
+    this.catTimers[rowId] = setTimeout(() => this.api.patchRow(rowId, { category }), 300);
+  }
+
+  async cycleEntry(rowId: string, entryId: string, status: string) {
+    const noteId = this.state.activeNoteId()!;
+    await this.api.patchEntry(entryId, { status: status as any });
+    this.state.cycleEntry(noteId, rowId, entryId, status as any);
+  }
+
+  async deleteEntry(rowId: string, entryId: string) {
+    const noteId = this.state.activeNoteId()!;
+    await this.api.deleteEntry(entryId);
+    this.state.removeEntry(noteId, rowId, entryId);
+  }
+}

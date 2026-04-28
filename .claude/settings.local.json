@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(cp webfetch-1777391580371-u5wcb0.bin design.tar.gz)",
+      "Bash(tar -tzf design.tar.gz)",
+      "Bash(gzip -dc design.tar.gz)",
+      "Bash(file design_out.bin)",
+      "Bash(tar -xzf design.tar.gz)",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from main import app; print\\('FastAPI app OK, routes:', [r.path for r in app.routes]\\)\")",
+      "Bash(npm --version)",
+      "Bash(npx @angular/cli version)",
+      "Bash(npx @angular/cli new frontend --routing=false --style=css --skip-tests --skip-git --defaults)",
+      "Bash(python3 -c ' *)",
+      "Bash(npx ng *)"
+    ]
+  }
+}
