@@ -1,0 +1,67 @@
+@let code = entry().code;
+@let sigs = state.signals()[code] ?? [];
+@let active = sigs.filter(s => s.status === 'active');
+@let inactive = sigs.filter(s => s.status !== 'active');
+
+@if (active.length === 0 && !showForm()) {
+  <div class="sig-empty">尚無有效訊號<br>點擊下方新增第一筆</div>
+}
+
+@if (active.length > 0) {
+  <div class="signals-list" style="margin-bottom:12px">
+    @for (sig of active; track sig.id) {
+      <app-signal-item [sig]="sig"
+        (statusChange)="updateSig(code, sig, $event.status, $event.reason)"
+        (delete)="deleteSig(code, sig.id)" />
+    }
+  </div>
+}
+
+@if (showForm()) {
+  <div class="sig-add-form">
+    <div class="sig-form-row">
+      <select class="sig-form-select" [value]="form.direction" (change)="form.direction=asStr($event)">
+        <option value="enter">進場</option>
+        <option value="exit">出場</option>
+        <option value="watch">觀察</option>
+      </select>
+      <select class="sig-form-select" [value]="form.source" (change)="onSourceChange($event)">
+        @for (s of state.sources(); track s) { <option [value]="s">{{ s }}</option> }
+        <option value="__new__">＋ 新增來源</option>
+      </select>
+      <input class="sig-form-input" placeholder="價格條件 (選填)" style="max-width:160px"
+        [value]="form.price" (input)="form.price=asStr($event)" />
+    </div>
+    @if (addingSrc()) {
+      <div class="sig-form-row" style="margin-bottom:10px">
+        <input class="sig-form-input" placeholder="新來源名稱" [value]="newSrc()"
+          (input)="newSrc.set(asStr($event))" (keydown.enter)="confirmSrc()" autofocus />
+        <button class="sig-add-btn" style="font-size:12px;padding:7px 12px" (click)="confirmSrc()">新增</button>
+        <button class="sig-action-btn" (click)="addingSrc.set(false)">取消</button>
+      </div>
+    }
+    <textarea class="sig-form-textarea" placeholder="訊號描述 (如: 回測5日線有守可進場)"
+      [value]="form.condition" (input)="form.condition=asStr($event)"></textarea>
+    <div style="display:flex;gap:8px">
+      <button class="sig-add-btn" (click)="addSignal(code)">新增訊號</button>
+      <button class="sig-action-btn" (click)="showForm.set(false)">取消</button>
+    </div>
+  </div>
+} @else {
+  <button class="sig-open-add" (click)="showForm.set(true)">＋ 新增訊號</button>
+}
+
+@if (inactive.length > 0) {
+  <details style="margin-top:16px">
+    <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;padding:4px 0;user-select:none">
+      歷史訊號 ({{ inactive.length }})
+    </summary>
+    <div class="signals-list" style="margin-top:8px">
+      @for (sig of inactive; track sig.id) {
+        <app-signal-item [sig]="sig"
+          (statusChange)="updateSig(code, sig, $event.status, $event.reason)"
+          (delete)="deleteSig(code, sig.id)" />
+      }
+    </div>
+  </details>
+}

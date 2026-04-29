@@ -47,7 +47,7 @@ import { Note } from '../../models/types';
       {{ state.syncing() ? '⏳ 同步中…' : '🔄 同步股票資料' }}
     </button>
     @if (state.syncMsg()) {
-      <div class="sync-msg">{{ state.syncMsg() }}</div>
+      <div class="sync-msg" style="white-space:pre-line">{{ state.syncMsg() }}</div>
     }
   </div>
 </div>
@@ -84,15 +84,19 @@ export class SidebarComponent {
     this.state.syncing.set(true);
     this.state.syncMsg.set('');
     try {
-      const res = await this.api.syncStocks();
+      const res = await this.api.syncStocks() as any;
       const stocks = await this.api.getStocks();
       this.stock.apply(stocks);
-      this.state.syncMsg.set(res.message);
+      let msg = res.message ?? '同步完成';
+      if ((res.prices_synced ?? 0) === 0 && res.log?.length) {
+        msg += '\n' + (res.log as string[]).join('\n');
+      }
+      this.state.syncMsg.set(msg);
     } catch (e: any) {
       this.state.syncMsg.set('同步失敗：' + (e.message ?? ''));
     } finally {
       this.state.syncing.set(false);
-      setTimeout(() => this.state.syncMsg.set(''), 6000);
+      setTimeout(() => this.state.syncMsg.set(''), 12000);
     }
   }
 }

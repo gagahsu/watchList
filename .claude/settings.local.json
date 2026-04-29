@@ -14,7 +14,10 @@
       "Bash(npx @angular/cli version)",
       "Bash(npx @angular/cli new frontend --routing=false --style=css --skip-tests --skip-git --defaults)",
       "Bash(python3 -c ' *)",
-      "Bash(npx ng *)"
+      "Bash(npx ng *)",
+      "Bash(python -c \"from routers.stocks import router; print\\('stocks router OK'\\)\")",
+      "Bash(python -c \"from routers.stocks import router; from finmind import FinMindError; print\\('OK'\\)\")",
+      "Bash(python -c \"from routers.stocks import router; print\\('OK'\\)\")"
     ]
   }
 }

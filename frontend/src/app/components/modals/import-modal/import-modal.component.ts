@@ -8,7 +8,7 @@ import { Note, Row } from '../../../models/types';
 @Component({
   selector: 'app-import-modal',
   template: `
-<div class="modal-overlay" (click)="closeIfBg($event)">
+<div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeIfBg($event)">
   <div class="modal-box" style="width:480px;max-height:90vh;overflow-y:auto">
     <div class="modal-title">📥 匯入 CSV 筆記</div>
 
@@ -130,6 +130,11 @@ export class ImportModalComponent {
     this.close();
   }
 
+  private mdOnOverlay = false;
+  trackMd(e: MouseEvent) { this.mdOnOverlay = e.target === e.currentTarget; }
+  closeIfBg(e: MouseEvent) {
+    if (this.mdOnOverlay && e.target === e.currentTarget) this.close();
+    this.mdOnOverlay = false;
+  }
   close() { this.state.importing.set(false); }
-  closeIfBg(e: MouseEvent) { if (e.target === e.currentTarget) this.close(); }
 }

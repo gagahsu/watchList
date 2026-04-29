@@ -15,7 +15,7 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
 @let e = target.entry;
 @let closeInfo = stock.closeMap()[e.code];
 
-<div class="modal-overlay" (click)="closeIfBg($event)">
+<div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeIfBg($event)">
   <div class="detail-modal-box">
     <!-- Header -->
     <div class="detail-header">
@@ -66,7 +66,7 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
             <div class="detail-status-row">
               @for (s of statuses; track s) {
                 <button class="status-btn status-btn-{{ s }}" [class.active]="status()===s"
-                  (click)="status.set(s)">{{ label(s) }}</button>
+                  (click)="setStatus(s)">{{ label(s) }}</button>
               }
             </div>
           </div>
@@ -141,6 +141,7 @@ export class StockDetailModalComponent {
   statusClass() { return STATUS_CLASS[this.status()]; }
   statusLabel() { return STATUS_LABELS[this.status()]; }
   label(s: string) { return STATUS_LABELS[s]; }
+  setStatus(s: string) { this.status.set(s as Entry['status']); }
   asStr(e: Event) { return (e.target as HTMLInputElement).value; }
   asTxtStr(e: Event) { return (e.target as HTMLTextAreaElement).value; }
   activeSigCount(code: string) { return (this.state.signals()[code] ?? []).filter(s => s.status === 'active').length; }
@@ -166,5 +167,10 @@ export class StockDetailModalComponent {
   }
 
   close() { this.state.editTarget.set(null); }
-  closeIfBg(e: MouseEvent) { if (e.target === e.currentTarget) this.close(); }
+  private mdOnOverlay = false;
+  trackMd(e: MouseEvent) { this.mdOnOverlay = e.target === e.currentTarget; }
+  closeIfBg(e: MouseEvent) {
+    if (this.mdOnOverlay && e.target === e.currentTarget) this.close();
+    this.mdOnOverlay = false;
+  }
 }

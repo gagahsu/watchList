@@ -25,9 +25,9 @@ app.include_router(stocks.router,  prefix="/api")
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "browser")
 INDEX_HTML  = os.path.join(STATIC_DIR, "index.html")
 
-# Serve Angular static assets (JS, CSS, etc.) if the build exists
+# Serve Angular build static files (JS/CSS chunks) if the build exists
 if os.path.isdir(STATIC_DIR):
-    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+    app.mount("/static-files", StaticFiles(directory=STATIC_DIR), name="static_files")
 
 # Fallback: serve index.html for any non-API route (Angular client-side routing)
 @app.get("/{full_path:path}", include_in_schema=False)

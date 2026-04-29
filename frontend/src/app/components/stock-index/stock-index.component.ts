@@ -59,8 +59,18 @@ interface IndexRow {
               {{ statusLabel(row.bestStatus) }}
             </span>
           </td>
-          <td style="font-family:'JetBrains Mono',monospace;font-size:13px">
-            {{ closePrice(row.code) }}
+          <td>
+            @let ci = stock.closeMap()[row.code];
+            @if (ci?.close != null) {
+              <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text)">
+                {{ ci!.close!.toLocaleString() }}
+              </div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px">
+                {{ ci!.updatedAt }}
+              </div>
+            } @else {
+              <span style="color:var(--border)">—</span>
+            }
           </td>
           <td (click)="$event.stopPropagation()">
             <div class="idx-refs">
@@ -83,7 +93,7 @@ interface IndexRow {
 export class StockIndexComponent {
   search = signal('');
 
-  constructor(public state: AppStateService, private stock: StockService) {}
+  constructor(public state: AppStateService, public stock: StockService) {}
 
   index = computed<IndexRow[]>(() => {
     const map: Record<string, IndexRow> = {};
@@ -112,10 +122,6 @@ export class StockIndexComponent {
   statusClass(s: string) { return STATUS_CLASS[s]; }
   statusLabel(s: string) { return STATUS_LABELS[s]; }
   sigCount(code: string) { return (this.state.signals()[code] ?? []).filter(s => s.status === 'active').length; }
-  closePrice(code: string) {
-    const c = this.stock.closeMap()[code]?.close;
-    return c != null ? Number(c).toLocaleString() : '—';
-  }
   asStr(e: Event) { return (e.target as HTMLInputElement).value; }
 
   goToNote(noteId: string) {

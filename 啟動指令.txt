@@ -1,0 +1,19 @@
+啟動方式
+
+  生產模式（FastAPI 服務 Angular）：
+  # 1. 每次前端有改動後重新 build
+  cd frontend && npx ng build
+
+  # 2. 啟動後端
+  cd .. && python run.py
+  # 開啟 http://localhost:8000
+
+  開發模式（Angular dev server + FastAPI）：
+  # Terminal 1 — 後端
+  python run.py
+
+  # Terminal 2 — 前端 (with HMR + proxy)
+  cd frontend && npx ng serve
+  # 開啟 http://localhost:4200
+
+

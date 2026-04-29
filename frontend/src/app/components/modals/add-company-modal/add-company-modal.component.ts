@@ -7,7 +7,7 @@ import { STATUS_LABELS, uid } from '../../../utils';
 @Component({
   selector: 'app-add-company-modal',
   template: `
-<div class="modal-overlay" (click)="closeIfBg($event)">
+<div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeIfBg($event)">
   <div class="modal-box">
     <div class="modal-title">新增股票</div>
 
@@ -38,7 +38,7 @@ import { STATUS_LABELS, uid } from '../../../utils';
       <div class="status-selector">
         @for (s of statuses; track s) {
           <button class="status-btn status-btn-{{ s }}" [class.active]="status()===s"
-            (click)="status.set(s)">{{ label(s) }}</button>
+            (click)="setStatus(s)">{{ label(s) }}</button>
         }
       </div>
     </div>
@@ -65,6 +65,7 @@ export class AddCompanyModalComponent {
   ) {}
 
   label(s: string) { return STATUS_LABELS[s]; }
+  setStatus(s: string) { this.status.set(s as 'watching' | 'tracking' | 'holding'); }
   asStr(e: Event) { return (e.target as HTMLInputElement).value; }
 
   onCode(e: Event) {
@@ -96,6 +97,11 @@ export class AddCompanyModalComponent {
     this.close();
   }
 
+  private mdOnOverlay = false;
+  trackMd(e: MouseEvent) { this.mdOnOverlay = e.target === e.currentTarget; }
+  closeIfBg(e: MouseEvent) {
+    if (this.mdOnOverlay && e.target === e.currentTarget) this.close();
+    this.mdOnOverlay = false;
+  }
   close() { this.state.addToRowId.set(null); }
-  closeIfBg(e: MouseEvent) { if (e.target === e.currentTarget) this.close(); }
 }

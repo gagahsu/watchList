@@ -1,5 +1,6 @@
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, timedelta
@@ -12,73 +13,130 @@ TOKEN = (
 BASE = "https://api.finmindtrade.com/api/v4/data"
 
 
+class FinMindError(Exception):
+    pass
+
+
+def _check_body(body: dict) -> dict:
+    api_status = body.get("status", 200)
+    if api_status != 200:
+        raise FinMindError(f"FinMind API error {api_status}: {body.get('msg', 'unknown')}")
+    return body
+
+
 def _get(params: dict) -> dict:
+    """GET request — works for TaiwanStockInfo and other metadata datasets."""
     url = f"{BASE}?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers={"User-Agent": "WatchList/1.0"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return _check_body(json.loads(r.read().decode("utf-8")))
+    except urllib.error.HTTPError as e:
+        raise FinMindError(f"HTTP {e.code}: {e.reason}") from e
+    except urllib.error.URLError as e:
+        raise FinMindError(f"Network error: {e.reason}") from e
+
+
+def _post(params: dict) -> dict:
+    """POST with form-encoded body — required for TaiwanStockPrice."""
+    data = urllib.parse.urlencode(params).encode("utf-8")
+    req = urllib.request.Request(
+        BASE, data=data,
+        headers={
+            "User-Agent": "WatchList/1.0",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return _check_body(json.loads(r.read().decode("utf-8")))
+    except urllib.error.HTTPError as e:
+        # Try to read the error body for more detail
+        try:
+            detail = e.read().decode("utf-8")
+        except Exception:
+            detail = ""
+        raise FinMindError(f"HTTP {e.code}: {e.reason} {detail}") from e
+    except urllib.error.URLError as e:
+        raise FinMindError(f"Network error: {e.reason}") from e
 
 
 def fetch_stock_info() -> list[dict]:
-    """Return all TW stock records: stock_id, stock_name, type, industry_category."""
     data = _get({"dataset": "TaiwanStockInfo", "token": TOKEN})
     return data.get("data", [])
 
 
 def fetch_prices_for_date(trading_date: str) -> list[dict]:
-    """Return all stocks' daily price for a specific date (bulk, no data_id)."""
+    """Bulk price fetch — free tier may not allow this without data_id."""
     data = _get({
-        "dataset": "TaiwanStockDailyPrice",
+        "dataset":    "TaiwanStockPrice",
         "start_date": trading_date,
-        "end_date": trading_date,
-        "token": TOKEN,
+        "end_date":   trading_date,
+        "token":      TOKEN,
     })
     return data.get("data", [])
 
 
 def fetch_price_for_stock(stock_id: str) -> dict | None:
-    """Return the latest daily price record for one stock (last 7 days)."""
-    start = (date.today() - timedelta(days=7)).isoformat()
-    end = date.today().isoformat()
+    """Latest daily price for one stock, looking back up to 14 calendar days."""
+    start = (date.today() - timedelta(days=14)).isoformat()
+    end   = date.today().isoformat()
     data = _get({
-        "dataset": "TaiwanStockDailyPrice",
-        "data_id": stock_id,
+        "dataset":    "TaiwanStockPrice",
+        "data_id":    stock_id,
         "start_date": start,
-        "end_date": end,
-        "token": TOKEN,
+        "end_date":   end,
+        "token":      TOKEN,
     })
     records = data.get("data", [])
     return max(records, key=lambda p: p["date"]) if records else None
 
 
-def find_latest_prices() -> tuple[dict, str]:
+def find_latest_prices_bulk() -> tuple[dict, str, str]:
     """
-    Try the past 7 calendar days in reverse until we find a trading day.
-    Returns (price_map, trading_date) where price_map is {stock_id: close}.
-    Falls back to per-stock fetch for watchlist codes if bulk returns nothing.
+    Try bulk price fetch for recent trading days.
+    Returns (price_map, trading_date, error_msg).
     """
+    last_err = ""
     for days_back in range(7):
         d = (date.today() - timedelta(days=days_back)).isoformat()
         try:
             records = fetch_prices_for_date(d)
             if records:
-                price_map = {r["stock_id"]: r["close"] for r in records}
+                price_map    = {r["stock_id"]: r["close"] for r in records}
                 trading_date = max(r["date"] for r in records)
-                return price_map, trading_date
-        except Exception:
-            continue
-    return {}, ""
+                return price_map, trading_date, ""
+        except FinMindError as e:
+            last_err = str(e)
+            break   # auth/rate-limit error — no point retrying other dates
+        except Exception as e:
+            last_err = str(e)
+    return {}, "", last_err
 
 
-def fetch_prices_for_codes(codes: list[str]) -> dict:
-    """Fetch latest price one-by-one for a list of stock codes. Rate-limited to 1 req/s."""
+def fetch_prices_for_codes(
+    codes: list[str], delay: float = 0.3
+) -> tuple[dict[str, float], dict[str, str], list[str]]:
+    """
+    Per-stock price fetch.
+    Returns (price_map, date_map, errors_list).
+    date_map: {code -> actual trading date string from API data}
+    """
     price_map: dict[str, float] = {}
+    date_map:  dict[str, str]   = {}
+    errors: list[str] = []
     for code in codes:
         try:
             rec = fetch_price_for_stock(code)
             if rec:
                 price_map[code] = rec["close"]
-        except Exception:
-            pass
-        time.sleep(0.5)
-    return price_map
+                date_map[code]  = rec["date"]   # actual trading date, e.g. "2026-04-28"
+            else:
+                errors.append(f"{code}: 無資料")
+        except FinMindError as e:
+            errors.append(f"{code}: {e}")
+        except Exception as e:
+            errors.append(f"{code}: {e}")
+        time.sleep(delay)
+    return price_map, date_map, errors
