@@ -124,7 +124,7 @@ export class ImportModalComponent {
   async submit() {
     const rows = this.rows();
     if (!rows || rows.length === 0) return;
-    const note: Note = { id: uid(), title: this.title() || '匯入筆記', createdAt: Date.now(), rows };
+    const note: Note = { id: uid(), title: this.title() || '匯入筆記', description: '', createdAt: Date.now(), rows };
     await this.api.createNote(note);
     this.state.addNoteToFront(note);
     this.close();

@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
-  Note, Row, Entry, Signal, Trade, StockInfo,
+  Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market,
 } from '../models/types';
 
@@ -37,13 +37,14 @@ export class ApiService {
       this.get<string[]>('/sources'),
       this.get<Record<string, Market>>('/trade-markets'),
       this.get<StockInfo[]>('/stocks'),
+      this.get<TrackedStock[]>('/tracked'),
     ]);
   }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   createNote(note: Partial<Note>) { return this.post<Note>('/notes', note); }
   deleteNote(id: string) { return this.delete<{ok:boolean}>(`/notes/${id}`); }
-  patchNote(id: string, body: {title: string}) { return this.patch(`/notes/${id}`, body); }
+  patchNote(id: string, body: {title?: string; description?: string}) { return this.patch(`/notes/${id}`, body); }
 
   // ── Rows ──────────────────────────────────────────────────────────────────
   createRow(noteId: string, row: Partial<Row>) {
@@ -81,10 +82,19 @@ export class ApiService {
     return this.put(`/trade-markets/${code}`, { market });
   }
 
+  // ── Tracked Stocks ────────────────────────────────────────────────────────
+  addTracked(body: Partial<TrackedStock> & { code: string }) {
+    return this.post<TrackedStock>('/tracked', { ...body, addedAt: body.addedAt ?? Date.now() });
+  }
+  patchTracked(code: string, body: { status?: TrackingStatus; thesis?: string; memo?: string }) {
+    return this.patch<TrackedStock>(`/tracked/${code}`, body);
+  }
+  deleteTracked(code: string) { return this.delete<{ok:boolean}>(`/tracked/${code}`); }
+
   // ── Sources ───────────────────────────────────────────────────────────────
   addSource(name: string) { return this.post<string[]>('/sources', { name }); }
 
   // ── Stocks ────────────────────────────────────────────────────────────────
   getStocks() { return this.get<StockInfo[]>('/stocks'); }
-  syncStocks() { return this.post<{message: string}>('/stocks/sync', {}); }
+  syncStocks(force = false) { return this.post<{message: string; all_up_to_date?: boolean; skipped?: number}>('/stocks/sync', { force }); }
 }

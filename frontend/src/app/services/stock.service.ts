@@ -21,7 +21,13 @@ export class StockService {
 
   apply(stks: StockInfo[]) { this._list.set(stks); }
 
-  search(query: string, limit = 8): [string, string][] {
+  readonly industryMap = computed(() => {
+    const m: Record<string, string> = {};
+    this._list().forEach(s => (m[s.code] = s.industry));
+    return m;
+  });
+
+  search(query: string, limit = 8): [string, string, string][] {
     if (!query) return [];
     const list = this._list();
     const byCode = list.filter(s => s.code.startsWith(query));
@@ -29,7 +35,11 @@ export class StockService {
       query.length >= 2
         ? list.filter(s => !s.code.startsWith(query) && s.name.includes(query))
         : [];
-    return [...byCode, ...byName].slice(0, limit).map(s => [s.code, s.name]);
+    const byIndustry =
+      query.length >= 2
+        ? list.filter(s => !s.code.startsWith(query) && !s.name.includes(query) && s.industry.includes(query))
+        : [];
+    return [...byCode, ...byName, ...byIndustry].slice(0, limit).map(s => [s.code, s.name, s.industry]);
   }
 
   nameToEntry(name: string): StockInfo | undefined {

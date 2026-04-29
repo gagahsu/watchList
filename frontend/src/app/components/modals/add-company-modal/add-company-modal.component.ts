@@ -21,6 +21,7 @@ import { STATUS_LABELS, uid } from '../../../utils';
             <div class="autocomplete-item" (click)="pick(item[0], item[1])">
               <span class="ac-code">{{ item[0] }}</span>
               <span>{{ item[1] }}</span>
+              @if (item[2]) { <span class="ac-industry">{{ item[2] }}</span> }
             </div>
           }
         </div>
@@ -55,7 +56,7 @@ export class AddCompanyModalComponent {
   code   = signal('');
   name   = signal('');
   status = signal<'watching'|'tracking'|'holding'>('watching');
-  sugg   = signal<[string, string][]>([]);
+  sugg   = signal<[string, string, string][]>([]);
   statuses = ['watching', 'tracking', 'holding'];
 
   constructor(
@@ -73,8 +74,15 @@ export class AddCompanyModalComponent {
     this.code.set(v);
     if (v.length >= 1) {
       this.sugg.set(this.stock.search(v, 8));
-      const name = this.stock.codeToName()[v];
-      if (name) this.name.set(name);
+      // code → name (exact code match)
+      const byCode = this.stock.codeToName()[v];
+      if (byCode) {
+        this.name.set(byCode);
+      } else {
+        // name → code (exact name match, e.g. user typed "聯發科")
+        const byName = this.stock.nameToEntry(v);
+        if (byName) { this.code.set(byName.code); this.name.set(byName.name); this.sugg.set([]); }
+      }
     } else {
       this.sugg.set([]);
       if (!v) this.name.set('');
@@ -84,16 +92,21 @@ export class AddCompanyModalComponent {
   pick(c: string, n: string) { this.code.set(c); this.name.set(n); this.sugg.set([]); }
 
   async submit() {
-    if (!this.code().trim()) return;
-    const entry = {
-      id: uid(), code: this.code().trim(),
-      name: this.name().trim() || this.code().trim(),
-      status: this.status(), thesis: '', memo: '',
-    };
-    const rowId = this.state.addToRowId()!;
-    const noteId = this.state.activeNoteId()!;
-    await this.api.createEntry(rowId, entry);
-    this.state.addEntry(noteId, rowId, entry);
+    const code = this.code().trim();
+    if (!code) return;
+    const name = this.name().trim() || code;
+    const rowId = this.state.addToRowId();
+
+    if (rowId) {
+      // Add to a note row (existing behaviour)
+      const entry = { id: uid(), code, name, status: this.status(), thesis: '', memo: '' };
+      await this.api.createEntry(rowId, entry);
+      this.state.addEntry(this.state.activeNoteId()!, rowId, entry);
+    } else {
+      // Add directly to tracked stocks
+      const t = await this.api.addTracked({ code, status: this.status(), thesis: '', memo: '', addedAt: Date.now() });
+      this.state.addTracked(t);
+    }
     this.close();
   }
 
@@ -103,5 +116,5 @@ export class AddCompanyModalComponent {
     if (this.mdOnOverlay && e.target === e.currentTarget) this.close();
     this.mdOnOverlay = false;
   }
-  close() { this.state.addToRowId.set(null); }
+  close() { this.state.addToRowId.set(null); this.state.addingDirect.set(false); }
 }

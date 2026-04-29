@@ -23,6 +23,7 @@ export interface Row {
 export interface Note {
   id: string;
   title: string;
+  description: string;
   createdAt: number;
   rows: Row[];
 }
@@ -51,14 +52,22 @@ export interface Trade {
 export interface StockInfo {
   code: string;
   name: string;
+  industry: string;
   close: number | null;
   updatedAt: string | null;
 }
 
-export interface EditTarget {
-  rowId: string;
-  entry: Entry;
+export interface TrackedStock {
+  code: string;
+  status: TrackingStatus;
+  thesis: string;
+  memo: string;
+  addedAt: number;
 }
+
+export type EditTarget =
+  | { kind: 'tracked'; code: string }
+  | { kind: 'entry';   rowId: string; entry: Entry };
 
 export interface FifoResult {
   realizedPnL: number;

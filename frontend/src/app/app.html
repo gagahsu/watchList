@@ -55,7 +55,7 @@
   </div>
 
   <!-- Modals -->
-  @if (state.addToRowId()) { <app-add-company-modal /> }
+  @if (state.addToRowId() || state.addingDirect()) { <app-add-company-modal /> }
   @if (state.editTarget())  { <app-stock-detail-modal /> }
   @if (state.importing())   { <app-import-modal /> }
 }

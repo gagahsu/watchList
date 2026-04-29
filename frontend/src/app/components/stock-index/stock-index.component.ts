@@ -1,5 +1,6 @@
 import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
+import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { STATUS_CLASS, STATUS_LABELS } from '../../utils';
 
@@ -21,17 +22,22 @@ interface IndexRow {
   <div class="empty-state">
     <div class="empty-icon" style="font-size:36px;opacity:0.4">🔍</div>
     <div class="empty-title">尚無個股資料</div>
-    <div class="empty-sub">在筆記中新增股票後，<br>即可在此看到反向索引。</div>
+    <div class="empty-sub">直接新增個股開始追蹤，<br>或在筆記中整理供應鏈主題。</div>
+    <button class="empty-btn" (click)="quickAddStock()">＋ 新增個股</button>
   </div>
 } @else {
   <div class="index-summary">
     共 {{ filtered().length }} 支股票，跨 {{ state.notes().length }} 份筆記
     <span style="opacity:0.6"> · 點擊任一列開啟個股詳情</span>
   </div>
+  <div class="index-toolbar">
+    <button class="idx-add-btn" (click)="quickAddStock()">＋ 新增個股</button>
+  </div>
   <table class="index-table">
     <thead><tr>
       <th style="width:80px">代碼</th>
       <th style="width:120px">名稱</th>
+      <th style="width:110px">產業別</th>
       <th style="width:80px">狀態</th>
       <th style="width:90px">收盤價</th>
       <th>出現在</th>
@@ -51,6 +57,9 @@ interface IndexRow {
             <div style="display:flex;align-items:center;gap:5px">
               <span class="idx-name">{{ row.name }}</span>
             </div>
+          </td>
+          <td>
+            <span class="idx-industry">{{ stock.industryMap()[row.code] || '—' }}</span>
           </td>
           <td>
             <span class="company-chip {{ statusClass(row.bestStatus) }}"
@@ -93,15 +102,25 @@ interface IndexRow {
 export class StockIndexComponent {
   search = signal('');
 
-  constructor(public state: AppStateService, public stock: StockService) {}
+  constructor(public state: AppStateService, public stock: StockService, private api: ApiService) {}
 
   index = computed<IndexRow[]>(() => {
-    const map: Record<string, IndexRow> = {};
     const rank: Record<string, number> = { holding: 2, tracking: 1, watching: 0 };
+    const map: Record<string, IndexRow> = {};
+
+    // Primary: tracked stocks
+    this.state.tracked().forEach(t => {
+      const name = this.stock.codeToName()[t.code] || t.code;
+      map[t.code] = { code: t.code, name, bestStatus: t.status, refs: [] };
+    });
+
+    // Supplement with note entries (add refs, may override status if higher)
     this.state.notes().forEach(note =>
       note.rows.forEach(row =>
         row.entries.forEach(e => {
-          if (!map[e.code]) map[e.code] = { code: e.code, name: e.name, bestStatus: 'watching', refs: [] };
+          if (!map[e.code]) {
+            map[e.code] = { code: e.code, name: e.name, bestStatus: e.status, refs: [] };
+          }
           map[e.code].refs.push({ noteId: note.id, noteTitle: note.title, category: row.category });
           if (rank[e.status] > rank[map[e.code].bestStatus]) map[e.code].bestStatus = e.status;
         }),
@@ -124,17 +143,14 @@ export class StockIndexComponent {
   sigCount(code: string) { return (this.state.signals()[code] ?? []).filter(s => s.status === 'active').length; }
   asStr(e: Event) { return (e.target as HTMLInputElement).value; }
 
+  quickAddStock() { this.state.addingDirect.set(true); }
+
   goToNote(noteId: string) {
     this.state.activeNoteId.set(noteId);
     this.state.view.set('notes');
   }
 
   openStock(code: string) {
-    for (const note of this.state.notes()) {
-      for (const row of note.rows) {
-        const entry = row.entries.find(e => e.code === code);
-        if (entry) { this.state.editTarget.set({ rowId: row.id, entry }); return; }
-      }
-    }
+    this.state.editTarget.set({ kind: 'tracked', code });
   }
 }

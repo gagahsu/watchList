@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
@@ -25,6 +25,9 @@ import { Note } from '../../models/types';
         (click)="selectNote(note.id)">
         <div class="note-item-body">
           <div class="note-item-title">{{ note.title || '未命名筆記' }}</div>
+          @if (note.description) {
+            <div class="note-item-desc">{{ note.description }}</div>
+          }
           <div class="note-item-date">{{ fmtD(note.createdAt) }} · {{ note.rows.length }} 個產業</div>
         </div>
         <button class="note-item-del" (click)="deleteNote($event, note.id)" title="刪除">✕</button>
@@ -38,14 +41,21 @@ import { Note } from '../../models/types';
   </div>
 
   <div class="sidebar-footer">
+    <button class="sidebar-add sidebar-add-primary" (click)="quickAddStock()">＋ 快速新增個股</button>
     <button class="sidebar-add" (click)="addNote()">＋ 新增筆記</button>
     <button class="sidebar-add" style="border-style:solid;opacity:0.8" (click)="state.importing.set(true)">
       📥 匯入 CSV
     </button>
     <button class="sidebar-add" style="border-style:solid;opacity:0.8"
-      [disabled]="state.syncing()" (click)="syncStocks()">
+      [disabled]="state.syncing()" (click)="syncStocks(false)">
       {{ state.syncing() ? '⏳ 同步中…' : '🔄 同步股票資料' }}
     </button>
+    @if (allUpToDate() && !state.syncing()) {
+      <button class="sidebar-add" style="border-style:solid;font-size:11px;opacity:0.65;padding:7px"
+        [disabled]="state.syncing()" (click)="syncStocks(true)">
+        ↺ 強制重新更新
+      </button>
+    }
     @if (state.syncMsg()) {
       <div class="sync-msg" style="white-space:pre-line">{{ state.syncMsg() }}</div>
     }
@@ -55,6 +65,7 @@ import { Note } from '../../models/types';
 })
 export class SidebarComponent {
   fmtD = fmtD;
+  allUpToDate = signal(false);
 
   constructor(
     public state: AppStateService,
@@ -68,8 +79,13 @@ export class SidebarComponent {
     this.state.sidebarOpen.set(false);
   }
 
+  quickAddStock() {
+    this.state.sidebarOpen.set(false);
+    this.state.addingDirect.set(true);
+  }
+
   async addNote() {
-    const note: Note = { id: uid(), title: '新筆記', createdAt: Date.now(), rows: [] };
+    const note: Note = { id: uid(), title: '新筆記', description: '', createdAt: Date.now(), rows: [] };
     await this.api.createNote(note);
     this.state.addNote(note);
   }
@@ -80,23 +96,25 @@ export class SidebarComponent {
     this.state.removeNote(id);
   }
 
-  async syncStocks() {
+  async syncStocks(force = false) {
     this.state.syncing.set(true);
     this.state.syncMsg.set('');
+    this.allUpToDate.set(false);
     try {
-      const res = await this.api.syncStocks() as any;
+      const res = await this.api.syncStocks(force) as any;
       const stocks = await this.api.getStocks();
       this.stock.apply(stocks);
       let msg = res.message ?? '同步完成';
-      if ((res.prices_synced ?? 0) === 0 && res.log?.length) {
+      if ((res.prices_synced ?? 0) === 0 && !res.all_up_to_date && res.log?.length) {
         msg += '\n' + (res.log as string[]).join('\n');
       }
       this.state.syncMsg.set(msg);
+      this.allUpToDate.set(res.all_up_to_date ?? false);
     } catch (e: any) {
       this.state.syncMsg.set('同步失敗：' + (e.message ?? ''));
     } finally {
       this.state.syncing.set(false);
-      setTimeout(() => this.state.syncMsg.set(''), 12000);
+      setTimeout(() => { this.state.syncMsg.set(''); this.allUpToDate.set(false); }, 30000);
     }
   }
 }

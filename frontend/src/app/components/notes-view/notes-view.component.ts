@@ -17,6 +17,12 @@ import { uid } from '../../utils';
     <button class="empty-btn" (click)="addNote()">＋ 新增筆記</button>
   </div>
 } @else {
+  <!-- Description -->
+  <textarea class="note-description" rows="3"
+    [value]="state.activeNote()!.description"
+    placeholder="加入描述…"
+    (input)="onDescriptionInput($event)"></textarea>
+
   <!-- Legend -->
   <div class="legend">
     @for (s of statuses; track s) {
@@ -45,7 +51,7 @@ import { uid } from '../../utils';
                   <app-company-chip [entry]="entry"
                     (cycled)="cycleEntry(row.id, entry.id, $event)"
                     (deleted)="deleteEntry(row.id, entry.id)"
-                    (edit)="state.editTarget.set({rowId: row.id, entry})" />
+                    (edit)="state.editTarget.set({kind:'entry', rowId: row.id, entry})" />
                 }
                 <button class="add-company-btn" (click)="state.addToRowId.set(row.id)">＋ 新增</button>
               </div>
@@ -71,6 +77,7 @@ import { uid } from '../../utils';
 export class NotesViewComponent {
   statuses = ['holding', 'tracking', 'watching'];
   private catTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+  private descTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(public state: AppStateService, private api: ApiService) {}
 
@@ -81,7 +88,7 @@ export class NotesViewComponent {
 
   async addNote() {
     const { uid: u } = await import('../../utils');
-    const note = { id: u(), title: '新筆記', createdAt: Date.now(), rows: [] };
+    const note = { id: u(), title: '新筆記', description: '', createdAt: Date.now(), rows: [] };
     await this.api.createNote(note);
     this.state.addNote(note as any);
   }
@@ -97,6 +104,14 @@ export class NotesViewComponent {
     const noteId = this.state.activeNoteId()!;
     await this.api.deleteRow(rowId);
     this.state.removeRow(noteId, rowId);
+  }
+
+  onDescriptionInput(e: Event) {
+    const description = (e.target as HTMLTextAreaElement).value;
+    const noteId = this.state.activeNoteId()!;
+    this.state.updateNoteDescription(noteId, description);
+    if (this.descTimer) clearTimeout(this.descTimer);
+    this.descTimer = setTimeout(() => this.api.patchNote(noteId, { description }), 500);
   }
 
   onCategoryInput(rowId: string, e: Event) {

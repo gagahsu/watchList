@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
   EditTarget, Entry, MainView, Market, Note,
-  Row, Signal, Trade,
+  Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
@@ -14,6 +14,7 @@ export class AppStateService {
   trades       = signal<Record<string, Trade[]>>({});
   sources      = signal<string[]>([]);
   tradeMarkets = signal<Record<string, Market>>({});
+  tracked      = signal<TrackedStock[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
@@ -21,6 +22,7 @@ export class AppStateService {
   sidebarOpen  = signal(false);
   editTarget   = signal<EditTarget | null>(null);
   addToRowId   = signal<string | null>(null);
+  addingDirect = signal(false);
   importing    = signal(false);
   syncing      = signal(false);
   syncMsg      = signal('');
@@ -58,6 +60,10 @@ export class AppStateService {
 
   updateNoteTitle(id: string, title: string) {
     this.notes.update(ns => ns.map(n => (n.id === id ? { ...n, title } : n)));
+  }
+
+  updateNoteDescription(id: string, description: string) {
+    this.notes.update(ns => ns.map(n => (n.id === id ? { ...n, description } : n)));
   }
 
   addNoteToFront(note: Note) {
@@ -101,6 +107,19 @@ export class AppStateService {
 
   saveEntry(noteId: string, rowId: string, updated: Entry) {
     this._mutEntry(noteId, rowId, updated.id, () => updated);
+  }
+
+  // ── Tracked stock mutations ───────────────────────────────────────────────
+  addTracked(t: TrackedStock) {
+    this.tracked.update(ts => ts.some(x => x.code === t.code) ? ts : [t, ...ts]);
+  }
+
+  updateTracked(updated: TrackedStock) {
+    this.tracked.update(ts => ts.map(t => t.code === updated.code ? updated : t));
+  }
+
+  removeTracked(code: string) {
+    this.tracked.update(ts => ts.filter(t => t.code !== code));
   }
 
   // ── Signal mutations ──────────────────────────────────────────────────────
