@@ -16,7 +16,6 @@ def _fetch_full_tree(conn) -> list[dict]:
         "SELECT id, row_id, code, name, status, thesis, memo, position FROM entries ORDER BY position ASC"
     ).fetchall()
 
-    # entries grouped by row_id
     entry_map: dict[str, list] = {}
     for e in entries_rows:
         entry_map.setdefault(e["row_id"], []).append({
@@ -24,7 +23,6 @@ def _fetch_full_tree(conn) -> list[dict]:
             "status": e["status"], "thesis": e["thesis"], "memo": e["memo"],
         })
 
-    # rows grouped by note_id
     row_map: dict[str, list] = {}
     for r in rows_rows:
         row_map.setdefault(r["note_id"], []).append({
@@ -43,18 +41,26 @@ def _fetch_full_tree(conn) -> list[dict]:
 
 def _insert_note_tree(conn, note: NoteIn):
     conn.execute(
-        "INSERT OR REPLACE INTO notes(id, title, description, created_at) VALUES (?,?,?,?)",
+        "INSERT INTO notes(id, title, description, created_at) VALUES (%s,%s,%s,%s)"
+        " ON CONFLICT(id) DO UPDATE SET"
+        "  title=EXCLUDED.title, description=EXCLUDED.description, created_at=EXCLUDED.created_at",
         (note.id, note.title, note.description, note.createdAt),
     )
     for pos, row in enumerate(note.rows):
         conn.execute(
-            "INSERT OR REPLACE INTO rows(id, note_id, category, position) VALUES (?,?,?,?)",
+            "INSERT INTO rows(id, note_id, category, position) VALUES (%s,%s,%s,%s)"
+            " ON CONFLICT(id) DO UPDATE SET"
+            "  note_id=EXCLUDED.note_id, category=EXCLUDED.category, position=EXCLUDED.position",
             (row.id, note.id, row.category, pos),
         )
         for epos, entry in enumerate(row.entries):
             conn.execute(
-                "INSERT OR REPLACE INTO entries(id, row_id, code, name, status, thesis, memo, position) "
-                "VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO entries(id, row_id, code, name, status, thesis, memo, position)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+                " ON CONFLICT(id) DO UPDATE SET"
+                "  row_id=EXCLUDED.row_id, code=EXCLUDED.code, name=EXCLUDED.name,"
+                "  status=EXCLUDED.status, thesis=EXCLUDED.thesis, memo=EXCLUDED.memo,"
+                "  position=EXCLUDED.position",
                 (entry.id, row.id, entry.code, entry.name, entry.status,
                  entry.thesis, entry.memo, epos),
             )
@@ -82,15 +88,15 @@ def create_note(note: NoteIn):
 @router.patch("/notes/{note_id}")
 def patch_note(note_id: str, body: NotePatch):
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM notes WHERE id=?", (note_id,)).fetchone()
+        row = conn.execute("SELECT id FROM notes WHERE id=%s", (note_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Note not found")
         if body.title is not None:
-            conn.execute("UPDATE notes SET title=? WHERE id=?", (body.title, note_id))
+            conn.execute("UPDATE notes SET title=%s WHERE id=%s", (body.title, note_id))
         if body.description is not None:
-            conn.execute("UPDATE notes SET description=? WHERE id=?", (body.description, note_id))
+            conn.execute("UPDATE notes SET description=%s WHERE id=%s", (body.description, note_id))
         note = conn.execute(
-            "SELECT id, title, description, created_at FROM notes WHERE id=?", (note_id,)
+            "SELECT id, title, description, created_at FROM notes WHERE id=%s", (note_id,)
         ).fetchone()
     return {"id": note["id"], "title": note["title"], "description": note["description"],
             "createdAt": note["created_at"]}
@@ -99,10 +105,10 @@ def patch_note(note_id: str, body: NotePatch):
 @router.delete("/notes/{note_id}")
 def delete_note(note_id: str):
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM notes WHERE id=?", (note_id,)).fetchone()
+        row = conn.execute("SELECT id FROM notes WHERE id=%s", (note_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Note not found")
-        conn.execute("DELETE FROM notes WHERE id=?", (note_id,))
+        conn.execute("DELETE FROM notes WHERE id=%s", (note_id,))
     return {"ok": True}
 
 
@@ -111,19 +117,25 @@ def delete_note(note_id: str):
 @router.post("/notes/{note_id}/rows", response_model=RowOut, status_code=201)
 def create_row(note_id: str, row: RowIn):
     with get_db() as conn:
-        if not conn.execute("SELECT id FROM notes WHERE id=?", (note_id,)).fetchone():
+        if not conn.execute("SELECT id FROM notes WHERE id=%s", (note_id,)).fetchone():
             raise HTTPException(404, "Note not found")
         pos = conn.execute(
-            "SELECT COALESCE(MAX(position)+1, 0) FROM rows WHERE note_id=?", (note_id,)
+            "SELECT COALESCE(MAX(position)+1, 0) FROM rows WHERE note_id=%s", (note_id,)
         ).fetchone()[0]
         conn.execute(
-            "INSERT OR REPLACE INTO rows(id, note_id, category, position) VALUES (?,?,?,?)",
+            "INSERT INTO rows(id, note_id, category, position) VALUES (%s,%s,%s,%s)"
+            " ON CONFLICT(id) DO UPDATE SET"
+            "  note_id=EXCLUDED.note_id, category=EXCLUDED.category, position=EXCLUDED.position",
             (row.id, note_id, row.category, pos),
         )
         for epos, entry in enumerate(row.entries):
             conn.execute(
-                "INSERT OR REPLACE INTO entries(id, row_id, code, name, status, thesis, memo, position) "
-                "VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO entries(id, row_id, code, name, status, thesis, memo, position)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+                " ON CONFLICT(id) DO UPDATE SET"
+                "  row_id=EXCLUDED.row_id, code=EXCLUDED.code, name=EXCLUDED.name,"
+                "  status=EXCLUDED.status, thesis=EXCLUDED.thesis, memo=EXCLUDED.memo,"
+                "  position=EXCLUDED.position",
                 (entry.id, row.id, entry.code, entry.name, entry.status,
                  entry.thesis, entry.memo, epos),
             )
@@ -137,21 +149,21 @@ def create_row(note_id: str, row: RowIn):
 @router.patch("/rows/{row_id}")
 def patch_row(row_id: str, body: RowPatch):
     with get_db() as conn:
-        row = conn.execute("SELECT id, category FROM rows WHERE id=?", (row_id,)).fetchone()
+        row = conn.execute("SELECT id, category FROM rows WHERE id=%s", (row_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Row not found")
         if body.category is not None:
-            conn.execute("UPDATE rows SET category=? WHERE id=?", (body.category, row_id))
-        updated = conn.execute("SELECT id, category FROM rows WHERE id=?", (row_id,)).fetchone()
+            conn.execute("UPDATE rows SET category=%s WHERE id=%s", (body.category, row_id))
+        updated = conn.execute("SELECT id, category FROM rows WHERE id=%s", (row_id,)).fetchone()
     return {"id": updated["id"], "category": updated["category"]}
 
 
 @router.delete("/rows/{row_id}")
 def delete_row(row_id: str):
     with get_db() as conn:
-        if not conn.execute("SELECT id FROM rows WHERE id=?", (row_id,)).fetchone():
+        if not conn.execute("SELECT id FROM rows WHERE id=%s", (row_id,)).fetchone():
             raise HTTPException(404, "Row not found")
-        conn.execute("DELETE FROM rows WHERE id=?", (row_id,))
+        conn.execute("DELETE FROM rows WHERE id=%s", (row_id,))
     return {"ok": True}
 
 
@@ -160,14 +172,18 @@ def delete_row(row_id: str):
 @router.post("/rows/{row_id}/entries", response_model=EntryOut, status_code=201)
 def create_entry(row_id: str, entry: EntryIn):
     with get_db() as conn:
-        if not conn.execute("SELECT id FROM rows WHERE id=?", (row_id,)).fetchone():
+        if not conn.execute("SELECT id FROM rows WHERE id=%s", (row_id,)).fetchone():
             raise HTTPException(404, "Row not found")
         pos = conn.execute(
-            "SELECT COALESCE(MAX(position)+1, 0) FROM entries WHERE row_id=?", (row_id,)
+            "SELECT COALESCE(MAX(position)+1, 0) FROM entries WHERE row_id=%s", (row_id,)
         ).fetchone()[0]
         conn.execute(
-            "INSERT OR REPLACE INTO entries(id, row_id, code, name, status, thesis, memo, position) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO entries(id, row_id, code, name, status, thesis, memo, position)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+            " ON CONFLICT(id) DO UPDATE SET"
+            "  row_id=EXCLUDED.row_id, code=EXCLUDED.code, name=EXCLUDED.name,"
+            "  status=EXCLUDED.status, thesis=EXCLUDED.thesis, memo=EXCLUDED.memo,"
+            "  position=EXCLUDED.position",
             (entry.id, row_id, entry.code, entry.name, entry.status,
              entry.thesis, entry.memo, pos),
         )
@@ -179,7 +195,7 @@ def create_entry(row_id: str, entry: EntryIn):
 def patch_entry(entry_id: str, body: EntryPatch):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, code, name, status, thesis, memo FROM entries WHERE id=?", (entry_id,)
+            "SELECT id, code, name, status, thesis, memo FROM entries WHERE id=%s", (entry_id,)
         ).fetchone()
         if not row:
             raise HTTPException(404, "Entry not found")
@@ -191,7 +207,7 @@ def patch_entry(entry_id: str, body: EntryPatch):
             "memo":   body.memo   if body.memo   is not None else row["memo"],
         }
         conn.execute(
-            "UPDATE entries SET code=?, name=?, status=?, thesis=?, memo=? WHERE id=?",
+            "UPDATE entries SET code=%s, name=%s, status=%s, thesis=%s, memo=%s WHERE id=%s",
             (updates["code"], updates["name"], updates["status"],
              updates["thesis"], updates["memo"], entry_id),
         )
@@ -201,7 +217,7 @@ def patch_entry(entry_id: str, body: EntryPatch):
 @router.delete("/entries/{entry_id}")
 def delete_entry(entry_id: str):
     with get_db() as conn:
-        if not conn.execute("SELECT id FROM entries WHERE id=?", (entry_id,)).fetchone():
+        if not conn.execute("SELECT id FROM entries WHERE id=%s", (entry_id,)).fetchone():
             raise HTTPException(404, "Entry not found")
-        conn.execute("DELETE FROM entries WHERE id=?", (entry_id,))
+        conn.execute("DELETE FROM entries WHERE id=%s", (entry_id,))
     return {"ok": True}

@@ -30,7 +30,7 @@ def get_all_signals():
 def get_signals(code: str):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM signals WHERE code=? ORDER BY date DESC", (code,)
+            "SELECT * FROM signals WHERE code=%s ORDER BY date DESC", (code,)
         ).fetchall()
     return [_row_to_signal(r) for r in rows]
 
@@ -39,36 +39,40 @@ def get_signals(code: str):
 def create_signal(code: str, sig: SignalIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO signals"
+            "INSERT INTO signals"
             "(id, code, date, direction, source, condition_text, price, status, invalid_reason)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            " ON CONFLICT(id) DO UPDATE SET"
+            "  code=EXCLUDED.code, date=EXCLUDED.date, direction=EXCLUDED.direction,"
+            "  source=EXCLUDED.source, condition_text=EXCLUDED.condition_text,"
+            "  price=EXCLUDED.price, status=EXCLUDED.status, invalid_reason=EXCLUDED.invalid_reason",
             (sig.id, code, sig.date, sig.direction, sig.source,
              sig.condition, sig.price, sig.status, sig.invalidReason),
         )
-        row = conn.execute("SELECT * FROM signals WHERE id=?", (sig.id,)).fetchone()
+        row = conn.execute("SELECT * FROM signals WHERE id=%s", (sig.id,)).fetchone()
     return _row_to_signal(row)
 
 
 @router.patch("/signals/{signal_id}")
 def patch_signal(signal_id: str, body: SignalPatch):
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM signals WHERE id=?", (signal_id,)).fetchone()
+        row = conn.execute("SELECT * FROM signals WHERE id=%s", (signal_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Signal not found")
         status = body.status if body.status is not None else row["status"]
         reason = body.invalidReason if body.invalidReason is not None else row["invalid_reason"]
         conn.execute(
-            "UPDATE signals SET status=?, invalid_reason=? WHERE id=?",
+            "UPDATE signals SET status=%s, invalid_reason=%s WHERE id=%s",
             (status, reason, signal_id),
         )
-        updated = conn.execute("SELECT * FROM signals WHERE id=?", (signal_id,)).fetchone()
+        updated = conn.execute("SELECT * FROM signals WHERE id=%s", (signal_id,)).fetchone()
     return _row_to_signal(updated)
 
 
 @router.delete("/signals/{signal_id}")
 def delete_signal(signal_id: str):
     with get_db() as conn:
-        if not conn.execute("SELECT id FROM signals WHERE id=?", (signal_id,)).fetchone():
+        if not conn.execute("SELECT id FROM signals WHERE id=%s", (signal_id,)).fetchone():
             raise HTTPException(404, "Signal not found")
-        conn.execute("DELETE FROM signals WHERE id=?", (signal_id,))
+        conn.execute("DELETE FROM signals WHERE id=%s", (signal_id,))
     return {"ok": True}

@@ -17,3 +17,25 @@
   # 開啟 http://localhost:4200
 
 
+supabase:XDeSFJDVRqQKFeHO
+
+$env:DATABASE_URL = "postgresql://postgres:XDeSFJDVRqQKFeHO@db.sckvoxvnkbwprwyunddb.supabase.co:5432/postgres"
+  python -c "from database import init_db; init_db()"
+  python migrate_to_supabase.py
+
+DATABASE_URL="postgresql://postgres:XDeSFJDVRqQKFeHO@db.sckvoxvnkbwprwyunddb.supabase.co:5432/postgres" python -c "from database import init_db; init_db()"
+
+資料搬移算完成，但還有兩步：
+
+  1. 本地測試確認（建議）
+  # 還在 backend/ 目錄，$env:DATABASE_URL 已設好
+  python run.py
+  開起來後測試一下 app 功能正不正常，確認讀的是 Supabase 的資料。
+
+  2. 部署到 Render
+  - 把目前的程式碼 push 到 GitHub
+  - 在 Render 建立 Web Service，指向你的 repo
+  - Start Command 設為：cd backend && pip install -r requirements.txt && python run.py
+  - 加一個 Environment Variable：DATABASE_URL = 你的 Supabase 連線字串
+
+  這樣就完整了。你想先測本地，還是直接設定 Render？

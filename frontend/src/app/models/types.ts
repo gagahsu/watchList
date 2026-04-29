@@ -3,7 +3,7 @@ export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'index' | 'signals';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio';
 
 export interface Entry {
   id: string;

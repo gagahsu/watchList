@@ -2,7 +2,7 @@ import { Component, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
-import { fmtD, uid } from '../../utils';
+import { uid } from '../../utils';
 import { Note } from '../../models/types';
 
 @Component({
@@ -19,69 +19,90 @@ import { Note } from '../../models/types';
     </div>
   </div>
 
-  <div class="sidebar-notes">
-    @for (note of state.notes(); track note.id) {
-      <div class="note-item" [class.active]="state.activeNoteId()===note.id"
-        (click)="selectNote(note.id)">
-        <div class="note-item-body">
-          <div class="note-item-title">{{ note.title || '未命名筆記' }}</div>
-          @if (note.description) {
-            <div class="note-item-desc">{{ note.description }}</div>
-          }
-          <div class="note-item-date">{{ fmtD(note.createdAt) }} · {{ note.rows.length }} 個產業</div>
+  <div class="sidebar-nav">
+    <!-- 筆記 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">筆記</span>
+      <button class="sidebar-nav-item" (click)="addNote()">
+        <span class="nav-icon">＋</span> 新增筆記
+      </button>
+      <button class="sidebar-nav-item" (click)="openImport()">
+        <span class="nav-icon">📥</span> 匯入 CSV
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('notes-list') || isActive('notes')"
+        (click)="navigate('notes-list')">
+        <span class="nav-icon">📚</span> 筆記列表
+        @if (state.notes().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.notes().length }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 個股 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">個股</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('index')" (click)="navigate('index')">
+        <span class="nav-icon">🔍</span> 個股索引
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('signals')" (click)="navigate('signals')">
+        <span class="nav-icon">📡</span> 訊號總覽
+        @if (state.activeSignalCount() > 0) {
+          <span class="sidebar-nav-badge">{{ state.activeSignalCount() }}</span>
+        }
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
+        <span class="nav-icon">💼</span> 投資組合
+      </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 設定 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">設定</span>
+      <button class="sidebar-nav-item" [disabled]="state.syncing()" (click)="syncStocks()">
+        <span class="nav-icon">🔄</span>
+        {{ state.syncing() ? '同步中…' : '同步股票資料' }}
+      </button>
+      <div class="sidebar-setting-row">
+        <span>手續費折扣</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input class="sidebar-setting-input" type="number" min="1" max="10" step="0.1"
+            [value]="discountDisplay()"
+            (change)="onDiscountChange($event)" />
+          <span style="font-size:13px;color:var(--text-muted)">折</span>
         </div>
-        <button class="note-item-del" (click)="deleteNote($event, note.id)" title="刪除">✕</button>
       </div>
-    }
-    @if (state.notes().length === 0) {
-      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;line-height:1.6">
-        尚無筆記<br>點擊下方新增
-      </div>
-    }
+    </div>
   </div>
 
-  <div class="sidebar-footer">
-    <button class="sidebar-add sidebar-add-primary" (click)="quickAddStock()">＋ 快速新增個股</button>
-    <button class="sidebar-add" (click)="addNote()">＋ 新增筆記</button>
-    <button class="sidebar-add" style="border-style:solid;opacity:0.8" (click)="state.importing.set(true)">
-      📥 匯入 CSV
-    </button>
-    <button class="sidebar-add" style="border-style:solid;opacity:0.8"
-      [disabled]="state.syncing()" (click)="syncStocks(false)">
-      {{ state.syncing() ? '⏳ 同步中…' : '🔄 同步股票資料' }}
-    </button>
-    @if (allUpToDate() && !state.syncing()) {
-      <button class="sidebar-add" style="border-style:solid;font-size:11px;opacity:0.65;padding:7px"
-        [disabled]="state.syncing()" (click)="syncStocks(true)">
-        ↺ 強制重新更新
-      </button>
-    }
-    @if (state.syncMsg()) {
-      <div class="sync-msg" style="white-space:pre-line">{{ state.syncMsg() }}</div>
-    }
-  </div>
+  @if (state.syncMsg()) {
+    <div class="sync-msg" style="margin:0 8px 8px;white-space:pre-line">{{ state.syncMsg() }}</div>
+  }
 </div>
   `,
 })
 export class SidebarComponent {
-  fmtD = fmtD;
-  allUpToDate = signal(false);
-
   constructor(
     public state: AppStateService,
     private api: ApiService,
     private stock: StockService,
   ) {}
 
-  selectNote(id: string) {
-    this.state.activeNoteId.set(id);
-    this.state.view.set('notes');
+  isActive(view: string) {
+    return this.state.view() === view;
+  }
+
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio') {
+    this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
 
-  quickAddStock() {
+  openImport() {
+    this.state.importing.set(true);
     this.state.sidebarOpen.set(false);
-    this.state.addingDirect.set(true);
   }
 
   async addNote() {
@@ -90,18 +111,18 @@ export class SidebarComponent {
     this.state.addNote(note);
   }
 
-  async deleteNote(e: Event, id: string) {
-    e.stopPropagation();
-    await this.api.deleteNote(id);
-    this.state.removeNote(id);
+  discountDisplay() { return +(this.state.feeDiscount() * 10).toFixed(1); }
+
+  onDiscountChange(e: Event) {
+    const v = parseFloat((e.target as HTMLInputElement).value);
+    if (!isNaN(v) && v >= 1 && v <= 10) this.state.setFeeDiscount(v / 10);
   }
 
-  async syncStocks(force = false) {
+  async syncStocks() {
     this.state.syncing.set(true);
     this.state.syncMsg.set('');
-    this.allUpToDate.set(false);
     try {
-      const res = await this.api.syncStocks(force) as any;
+      const res = await this.api.syncStocks(false) as any;
       const stocks = await this.api.getStocks();
       this.stock.apply(stocks);
       let msg = res.message ?? '同步完成';
@@ -109,12 +130,11 @@ export class SidebarComponent {
         msg += '\n' + (res.log as string[]).join('\n');
       }
       this.state.syncMsg.set(msg);
-      this.allUpToDate.set(res.all_up_to_date ?? false);
     } catch (e: any) {
       this.state.syncMsg.set('同步失敗：' + (e.message ?? ''));
     } finally {
       this.state.syncing.set(false);
-      setTimeout(() => { this.state.syncMsg.set(''); this.allUpToDate.set(false); }, 30000);
+      setTimeout(() => this.state.syncMsg.set(''), 30000);
     }
   }
 }

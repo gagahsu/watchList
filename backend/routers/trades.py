@@ -27,7 +27,7 @@ def get_all_trades():
 def get_trades(code: str):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM trades WHERE code=? ORDER BY date ASC", (code,)
+            "SELECT * FROM trades WHERE code=%s ORDER BY date ASC", (code,)
         ).fetchall()
     return [_row_to_trade(r) for r in rows]
 
@@ -36,21 +36,24 @@ def get_trades(code: str):
 def create_trade(code: str, trade: TradeIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO trades(id, code, date, type, shares, price, fee, sig_ref)"
-            " VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO trades(id, code, date, type, shares, price, fee, sig_ref)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+            " ON CONFLICT(id) DO UPDATE SET"
+            "  code=EXCLUDED.code, date=EXCLUDED.date, type=EXCLUDED.type,"
+            "  shares=EXCLUDED.shares, price=EXCLUDED.price, fee=EXCLUDED.fee, sig_ref=EXCLUDED.sig_ref",
             (trade.id, code, trade.date, trade.type, trade.shares,
              trade.price, trade.fee, trade.sigRef),
         )
-        row = conn.execute("SELECT * FROM trades WHERE id=?", (trade.id,)).fetchone()
+        row = conn.execute("SELECT * FROM trades WHERE id=%s", (trade.id,)).fetchone()
     return _row_to_trade(row)
 
 
 @router.delete("/trades/{trade_id}")
 def delete_trade(trade_id: str):
     with get_db() as conn:
-        if not conn.execute("SELECT id FROM trades WHERE id=?", (trade_id,)).fetchone():
+        if not conn.execute("SELECT id FROM trades WHERE id=%s", (trade_id,)).fetchone():
             raise HTTPException(404, "Trade not found")
-        conn.execute("DELETE FROM trades WHERE id=?", (trade_id,))
+        conn.execute("DELETE FROM trades WHERE id=%s", (trade_id,))
     return {"ok": True}
 
 
@@ -67,8 +70,8 @@ def get_trade_markets():
 def set_trade_market(code: str, body: MarketIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trade_markets(code, market) VALUES (?,?)"
-            " ON CONFLICT(code) DO UPDATE SET market=excluded.market",
+            "INSERT INTO trade_markets(code, market) VALUES (%s,%s)"
+            " ON CONFLICT(code) DO UPDATE SET market=EXCLUDED.market",
             (code, body.market),
         )
     return {"code": code, "market": body.market}

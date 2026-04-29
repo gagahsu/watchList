@@ -22,7 +22,7 @@ export class TradesTabComponent {
 
   asStr(e: Event) { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
   sorted(trades: Trade[]) { return [...trades].sort((a, b) => b.date.localeCompare(a.date)); }
-  fmtAvg(n: number, mkt: string) { return mkt === 'us' ? n.toFixed(2) : Math.round(n).toLocaleString(); }
+  fmtAvg(n: number, mkt: string) { return mkt === 'us' ? n.toFixed(2) : n % 1 === 0 ? n.toLocaleString() : n.toFixed(2); }
   fmtNum(n: number, mkt: string) { return mkt === 'us' ? n.toFixed(2) : n.toLocaleString(); }
   resultFor(fifo: ReturnType<typeof calcFIFO>, id: string) { return fifo.results.find(r => r.id === id) ?? null; }
 

@@ -23,11 +23,12 @@ def get_tracked():
 def add_tracked(body: TrackedIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO tracked_stocks(code, status, thesis, memo, added_at) VALUES(?,?,?,?,?)",
+            "INSERT INTO tracked_stocks(code, status, thesis, memo, added_at) VALUES (%s,%s,%s,%s,%s)"
+            " ON CONFLICT DO NOTHING",
             (body.code, body.status, body.thesis, body.memo, body.addedAt),
         )
         row = conn.execute(
-            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks WHERE code=?", (body.code,)
+            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks WHERE code=%s", (body.code,)
         ).fetchone()
     return _row_out(row)
 
@@ -35,16 +36,16 @@ def add_tracked(body: TrackedIn):
 @router.patch("/tracked/{code}", response_model=TrackedOut)
 def patch_tracked(code: str, body: TrackedPatch):
     with get_db() as conn:
-        if not conn.execute("SELECT code FROM tracked_stocks WHERE code=?", (code,)).fetchone():
+        if not conn.execute("SELECT code FROM tracked_stocks WHERE code=%s", (code,)).fetchone():
             raise HTTPException(404, "Not tracked")
         if body.status is not None:
-            conn.execute("UPDATE tracked_stocks SET status=? WHERE code=?", (body.status, code))
+            conn.execute("UPDATE tracked_stocks SET status=%s WHERE code=%s", (body.status, code))
         if body.thesis is not None:
-            conn.execute("UPDATE tracked_stocks SET thesis=? WHERE code=?", (body.thesis, code))
+            conn.execute("UPDATE tracked_stocks SET thesis=%s WHERE code=%s", (body.thesis, code))
         if body.memo is not None:
-            conn.execute("UPDATE tracked_stocks SET memo=? WHERE code=?", (body.memo, code))
+            conn.execute("UPDATE tracked_stocks SET memo=%s WHERE code=%s", (body.memo, code))
         row = conn.execute(
-            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks WHERE code=?", (code,)
+            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks WHERE code=%s", (code,)
         ).fetchone()
     return _row_out(row)
 
@@ -52,5 +53,5 @@ def patch_tracked(code: str, body: TrackedPatch):
 @router.delete("/tracked/{code}")
 def delete_tracked(code: str):
     with get_db() as conn:
-        conn.execute("DELETE FROM tracked_stocks WHERE code=?", (code,))
+        conn.execute("DELETE FROM tracked_stocks WHERE code=%s", (code,))
     return {"ok": True}

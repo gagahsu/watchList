@@ -22,7 +22,12 @@
       "Bash(where python *)",
       "Bash(pip list *)",
       "Bash(pip3 list *)",
-      "Bash(python -m pip list)"
+      "Bash(python -m pip list)",
+      "Bash(git add *)",
+      "WebSearch",
+      "WebFetch(domain:render.com)",
+      "WebFetch(domain:supabase.com)",
+      "Bash(claude mcp *)"
     ]
   }
 }

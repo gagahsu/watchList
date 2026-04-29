@@ -9,9 +9,6 @@ venv/
 ENV/
 env/
 
-# Databases
-*.db
-*.sqlite3
 
 # Node.js
 node_modules/
@@ -37,6 +34,5 @@ Thumbs.db
 *.swo
 
 # Project specific
-backend/watchlist.db
 frontend/node_modules/
 frontend/dist/

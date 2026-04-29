@@ -74,7 +74,7 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
             with get_db() as conn:
                 up_to_date = {r["code"] for r in
                               conn.execute(
-                                  "SELECT code FROM stocks WHERE updated_at=?", (today,)
+                                  "SELECT code FROM stocks WHERE updated_at=%s", (today,)
                               ).fetchall()}
             skipped = all_codes & up_to_date
             codes   = list(all_codes - up_to_date)
@@ -107,12 +107,12 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
             conn.execute(
                 """
                 INSERT INTO stocks(code, name, industry, close, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT(code) DO UPDATE SET
-                    name       = excluded.name,
-                    industry   = excluded.industry,
-                    close      = COALESCE(excluded.close,      close),
-                    updated_at = COALESCE(excluded.updated_at, updated_at)
+                    name       = EXCLUDED.name,
+                    industry   = EXCLUDED.industry,
+                    close      = COALESCE(EXCLUDED.close,      stocks.close),
+                    updated_at = COALESCE(EXCLUDED.updated_at, stocks.updated_at)
                 """,
                 (code, name, industry, close, upd),
             )

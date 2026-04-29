@@ -5,6 +5,8 @@ import { ApiService } from './services/api.service';
 import { StockService } from './services/stock.service';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { NotesViewComponent } from './components/notes-view/notes-view.component';
+import { NotesListViewComponent } from './components/notes-list-view/notes-list-view.component';
+import { PortfolioViewComponent } from './components/portfolio-view/portfolio-view.component';
 import { StockIndexComponent } from './components/stock-index/stock-index.component';
 import { SignalsViewComponent } from './components/signals-view/signals-view.component';
 import { AddCompanyModalComponent } from './components/modals/add-company-modal/add-company-modal.component';
@@ -14,9 +16,9 @@ import { ImportModalComponent } from './components/modals/import-modal/import-mo
 @Component({
   selector: 'app-root',
   imports: [
-    SidebarComponent, NotesViewComponent, StockIndexComponent,
-    SignalsViewComponent, AddCompanyModalComponent,
-    StockDetailModalComponent, ImportModalComponent,
+    SidebarComponent, NotesViewComponent, NotesListViewComponent,
+    StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
+    AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
   ],
   templateUrl: './app.html',
 })
@@ -57,4 +59,15 @@ export class App implements OnInit {
   }
 
   reload() { window.location.reload(); }
+
+  pageTitle() {
+    const titles: Record<string, string> = {
+      'notes-list': '筆記列表',
+      'notes': 'WatchList',
+      'index': '個股索引',
+      'signals': '訊號總覽',
+      'portfolio': '投資組合',
+    };
+    return titles[this.state.view()] ?? 'WatchList';
+  }
 }

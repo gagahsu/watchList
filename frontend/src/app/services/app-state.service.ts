@@ -18,7 +18,7 @@ export class AppStateService {
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
-  view         = signal<MainView>('notes');
+  view         = signal<MainView>('notes-list');
   sidebarOpen  = signal(false);
   editTarget   = signal<EditTarget | null>(null);
   addToRowId   = signal<string | null>(null);
@@ -28,6 +28,13 @@ export class AppStateService {
   syncMsg      = signal('');
   loading      = signal(true);
   error        = signal<string | null>(null);
+  feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
+
+  setFeeDiscount(v: number) {
+    const clamped = Math.max(0.1, Math.min(1, v));
+    this.feeDiscount.set(clamped);
+    localStorage.setItem('fee_discount', String(clamped));
+  }
 
   // ── Computed ──────────────────────────────────────────────────────────────
   activeNote = computed(() =>
@@ -47,6 +54,7 @@ export class AppStateService {
   addNote(note: Note) {
     this.notes.update(ns => [note, ...ns]);
     this.activeNoteId.set(note.id);
+    this.view.set('notes');
     this.sidebarOpen.set(false);
   }
 
