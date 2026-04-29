@@ -17,7 +17,12 @@
       "Bash(npx ng *)",
       "Bash(python -c \"from routers.stocks import router; print\\('stocks router OK'\\)\")",
       "Bash(python -c \"from routers.stocks import router; from finmind import FinMindError; print\\('OK'\\)\")",
-      "Bash(python -c \"from routers.stocks import router; print\\('OK'\\)\")"
+      "Bash(python -c \"from routers.stocks import router; print\\('OK'\\)\")",
+      "Bash(pnpm *)",
+      "Bash(where python *)",
+      "Bash(pip list *)",
+      "Bash(pip3 list *)",
+      "Bash(python -m pip list)"
     ]
   }
 }

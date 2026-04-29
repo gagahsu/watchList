@@ -30,9 +30,10 @@ def get_db():
 
 DDL = """
 CREATE TABLE IF NOT EXISTS notes (
-    id         TEXT PRIMARY KEY,
-    title      TEXT NOT NULL DEFAULT '',
-    created_at INTEGER NOT NULL
+    id          TEXT PRIMARY KEY,
+    title       TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    created_at  INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS rows (
@@ -93,8 +94,18 @@ CREATE TABLE IF NOT EXISTS trade_markets (
 CREATE TABLE IF NOT EXISTS stocks (
     code       TEXT PRIMARY KEY,
     name       TEXT NOT NULL DEFAULT '',
+    industry   TEXT NOT NULL DEFAULT '',
     close      REAL,
     updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tracked_stocks (
+    code     TEXT PRIMARY KEY,
+    status   TEXT NOT NULL DEFAULT 'watching'
+             CHECK(status IN ('holding','tracking','watching')),
+    thesis   TEXT NOT NULL DEFAULT '',
+    memo     TEXT NOT NULL DEFAULT '',
+    added_at INTEGER NOT NULL
 );
 """
 
@@ -102,5 +113,12 @@ CREATE TABLE IF NOT EXISTS stocks (
 def init_db():
     with get_db() as conn:
         conn.executescript(DDL)
+        # migrate existing databases that predate the description column
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(notes)").fetchall()}
+        if "description" not in cols:
+            conn.execute("ALTER TABLE notes ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+        stock_cols = {r[1] for r in conn.execute("PRAGMA table_info(stocks)").fetchall()}
+        if "industry" not in stock_cols:
+            conn.execute("ALTER TABLE stocks ADD COLUMN industry TEXT NOT NULL DEFAULT ''")
         for src in DEFAULT_SOURCES:
             conn.execute("INSERT OR IGNORE INTO sources(name) VALUES (?)", (src,))

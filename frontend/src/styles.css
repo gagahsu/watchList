@@ -147,7 +147,7 @@ app-root { display:flex; height:100vh; overflow:hidden; }
 .empty-btn:hover { background:#9A7220; }
 
 /* Stock Detail Modal */
-.detail-modal-box { background:white; border-radius:14px; padding:0; width:460px; max-width:94vw; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 64px rgba(0,0,0,0.18); animation:modal-in 0.18s ease; overflow:hidden; }
+.detail-modal-box { background:white; border-radius:14px; padding:0; width:600px; max-width:96vw; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 64px rgba(0,0,0,0.18); animation:modal-in 0.18s ease; overflow:hidden; }
 .detail-header { background:var(--gold); padding:18px 22px; display:flex; align-items:center; gap:14px; }
 .detail-header-code { font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; color:white; line-height:1; }
 .detail-header-name { font-size:15px; color:rgba(255,255,255,0.85); margin-top:3px; }
@@ -220,18 +220,20 @@ app-root { display:flex; height:100vh; overflow:hidden; }
 
 /* Trades */
 .trade-summary { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+.trade-summary-3 { grid-template-columns:1fr 1fr 1fr; }
 .trade-summary-card { background:var(--sidebar-bg); border-radius:10px; padding:12px 14px; border:1px solid var(--border); }
 .trade-summary-card.pnl-pos { background:#E8F5EE; border-color:#A8D9BC; }
 .trade-summary-card.pnl-neg { background:#FEF0F0; border-color:#F8BCBC; }
 .tsc-label { font-size:11px; color:var(--text-muted); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:4px; }
 .tsc-value { font-size:18px; font-weight:700; color:var(--text); font-family:'JetBrains Mono',monospace; }
 .tsc-value.pos { color:var(--holding); } .tsc-value.neg { color:var(--red); }
+.pos { color:var(--holding); } .neg { color:var(--red); }
 .tsc-sub { font-size:11px; color:var(--text-muted); margin-top:3px; }
 .market-toggle { display:flex; gap:4px; margin-bottom:14px; }
 .market-btn { padding:5px 14px; border-radius:16px; border:1.5px solid var(--border); background:none; font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; color:var(--text-muted); }
 .market-btn.active { background:var(--gold); color:white; border-color:var(--gold); }
 .trade-list { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
-.trade-item { display:grid; grid-template-columns:72px 56px 1fr 1fr 1fr 80px; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; border:1px solid var(--border); background:white; font-size:12px; transition:background 0.1s; }
+.trade-item { display:grid; grid-template-columns:72px 56px 1fr 1fr 1fr 80px 20px; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; border:1px solid var(--border); background:white; font-size:12px; transition:background 0.1s; }
 .trade-item:hover { background:var(--row-hover); }
 .trade-date { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-muted); }
 .trade-type { padding:2px 7px; border-radius:8px; font-size:11px; font-weight:700; text-align:center; }
@@ -242,7 +244,7 @@ app-root { display:flex; height:100vh; overflow:hidden; }
 .trade-pnl.pos { color:var(--holding); } .trade-pnl.neg { color:var(--red); }
 .trade-del-btn { background:none; border:none; cursor:pointer; color:var(--border); font-size:13px; padding:2px 4px; transition:color 0.15s; text-align:right; }
 .trade-del-btn:hover { color:var(--red); }
-.trade-header-row { display:grid; grid-template-columns:72px 56px 1fr 1fr 1fr 80px; gap:8px; padding:0 12px 6px; font-size:10px; color:var(--text-muted); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; border-bottom:1px solid var(--border); margin-bottom:6px; }
+.trade-header-row { display:grid; grid-template-columns:72px 56px 1fr 1fr 1fr 80px 20px; gap:8px; padding:0 12px 6px; font-size:10px; color:var(--text-muted); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; border-bottom:1px solid var(--border); margin-bottom:6px; }
 .trade-form { background:var(--sidebar-bg); border-radius:10px; padding:14px; border:1px solid var(--border); margin-top:4px; }
 .trade-form-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
 .trade-form-label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }

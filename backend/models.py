@@ -51,17 +51,20 @@ class RowOut(BaseModel):
 class NoteIn(BaseModel):
     id: str
     title: str = ""
+    description: str = ""
     createdAt: int
     rows: list[RowIn] = []
 
 
 class NotePatch(BaseModel):
     title: Optional[str] = None
+    description: Optional[str] = None
 
 
 class NoteOut(BaseModel):
     id: str
     title: str
+    description: str
     createdAt: int
     rows: list[RowOut]
 
@@ -113,6 +116,29 @@ class TradeOut(BaseModel):
     price: float
     fee: float
     sigRef: str
+
+
+# ── Tracked Stocks ───────────────────────────────────
+class TrackedIn(BaseModel):
+    code: str
+    status: str = "watching"
+    thesis: str = ""
+    memo: str = ""
+    addedAt: int
+
+
+class TrackedPatch(BaseModel):
+    status: Optional[str] = None
+    thesis: Optional[str] = None
+    memo: Optional[str] = None
+
+
+class TrackedOut(BaseModel):
+    code: str
+    status: str
+    thesis: str
+    memo: str
+    addedAt: int
 
 
 # ── Sources ──────────────────────────────────────────

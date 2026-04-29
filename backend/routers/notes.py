@@ -7,7 +7,7 @@ router = APIRouter()
 
 def _fetch_full_tree(conn) -> list[dict]:
     notes_rows = conn.execute(
-        "SELECT id, title, created_at FROM notes ORDER BY created_at DESC"
+        "SELECT id, title, description, created_at FROM notes ORDER BY created_at DESC"
     ).fetchall()
     rows_rows = conn.execute(
         "SELECT id, note_id, category, position FROM rows ORDER BY position ASC"
@@ -34,8 +34,8 @@ def _fetch_full_tree(conn) -> list[dict]:
 
     return [
         {
-            "id": n["id"], "title": n["title"], "createdAt": n["created_at"],
-            "rows": row_map.get(n["id"], []),
+            "id": n["id"], "title": n["title"], "description": n["description"],
+            "createdAt": n["created_at"], "rows": row_map.get(n["id"], []),
         }
         for n in notes_rows
     ]
@@ -43,8 +43,8 @@ def _fetch_full_tree(conn) -> list[dict]:
 
 def _insert_note_tree(conn, note: NoteIn):
     conn.execute(
-        "INSERT OR REPLACE INTO notes(id, title, created_at) VALUES (?,?,?)",
-        (note.id, note.title, note.createdAt),
+        "INSERT OR REPLACE INTO notes(id, title, description, created_at) VALUES (?,?,?,?)",
+        (note.id, note.title, note.description, note.createdAt),
     )
     for pos, row in enumerate(note.rows):
         conn.execute(
@@ -87,10 +87,13 @@ def patch_note(note_id: str, body: NotePatch):
             raise HTTPException(404, "Note not found")
         if body.title is not None:
             conn.execute("UPDATE notes SET title=? WHERE id=?", (body.title, note_id))
+        if body.description is not None:
+            conn.execute("UPDATE notes SET description=? WHERE id=?", (body.description, note_id))
         note = conn.execute(
-            "SELECT id, title, created_at FROM notes WHERE id=?", (note_id,)
+            "SELECT id, title, description, created_at FROM notes WHERE id=?", (note_id,)
         ).fetchone()
-    return {"id": note["id"], "title": note["title"], "createdAt": note["created_at"]}
+    return {"id": note["id"], "title": note["title"], "description": note["description"],
+            "createdAt": note["created_at"]}
 
 
 @router.delete("/notes/{note_id}")
