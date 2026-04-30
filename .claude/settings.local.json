@@ -29,7 +29,23 @@
       "WebFetch(domain:supabase.com)",
       "Bash(claude mcp *)",
       "mcp__supabase__list_projects",
-      "Bash(nslookup *)"
+      "Bash(nslookup *)",
+      "Read(//mnt/c/Users/yunch/Documents/GitHub/**)",
+      "Bash(python3 -m pip install yfinance --quiet)",
+      "PowerShell(python --version; python -m pip install yfinance --quiet 2>&1 | Select-Object -Last 5)",
+      "PowerShell(python -c \"import yfinance; t = yfinance.Ticker\\('2330.TW'\\); print\\(t.fast_info.last_price\\)\")",
+      "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\.venv\\\\Scripts\\\\python.exe\" -m pip install yfinance --quiet 2>&1 | Select-Object -Last 3)",
+      "PowerShell($env:PYTHONPATH = \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\"; python -c \"import sys; sys.path.insert\\(0,'C:/Users/yunch/Documents/GitHub/watchList/backend'\\); from routers import quotes; print\\('quotes router OK'\\)\")",
+      "PowerShell(python -c \"import fastapi; print\\(fastapi.__version__\\)\")",
+      "PowerShell(C:\\\\Users\\\\yunch\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe -c \"import fastapi; import yfinance; print\\('fastapi', fastapi.__version__, 'yfinance', yfinance.__version__\\)\")",
+      "PowerShell(C:\\\\Users\\\\yunch\\\\AppData\\\\Local\\\\Python\\\\pythoncore-3.14-64\\\\python.exe -c \"import fastapi; print\\('fastapi OK'\\)\")",
+      "PowerShell(python -c \"import sys; print\\('\\\\n'.join\\(sys.path\\)\\)\")",
+      "PowerShell(Select-String *)",
+      "PowerShell(uv run *)",
+      "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import fastapi, yfinance; print\\('OK'\\)\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\\\\.venv\\\\Scripts\\\\python.exe\" -m pip install yfinance --quiet 2>&1 | Select-Object -Last 5)",
+      "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import fastapi, yfinance; t = yfinance.Ticker\\('2330.TW'\\); print\\('fastapi OK, yfinance OK, 2330 price:', t.fast_info.last_price\\)\")",
+      "mcp__supabase__execute_sql"
     ]
   }
 }

@@ -97,6 +97,11 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
             log.append("所有個股均已是今日最新，無需更新")
 
     # ── 4. Upsert: preserve existing price when no new data ───────────────────
+    # Deduplicate by stock_id — FinMind occasionally returns duplicate rows
+    seen: dict[str, dict] = {}
+    for s in stock_info:
+        seen.setdefault(s["stock_id"], s)
+
     with get_db() as conn:
         rows = [
             (
@@ -106,7 +111,7 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
                 price_map.get(s["stock_id"]),
                 date_map.get(s["stock_id"]),
             )
-            for s in stock_info
+            for s in seen.values()
         ]
         conn.execute_values(
             """

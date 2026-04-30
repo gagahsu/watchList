@@ -99,16 +99,17 @@ export class AddCompanyModalComponent {
     const rowId = this.state.addToRowId();
 
     if (rowId) {
-      // Add to a note row (existing behaviour)
       const entry = { id: uid(), code, name, status: this.status(), thesis: '', memo: '' };
       await this.api.createEntry(rowId, entry);
       this.state.addEntry(this.state.activeNoteId()!, rowId, entry);
+      this.close();
+      this.state.editTarget.set({ kind: 'entry', rowId, entry });
     } else {
-      // Add directly to tracked stocks
       const t = await this.api.addTracked({ code, status: this.status(), thesis: '', memo: '', addedAt: Date.now() });
       this.state.addTracked(t);
+      this.close();
+      this.state.editTarget.set({ kind: 'tracked', code });
     }
-    this.close();
   }
 
   private mdOnOverlay = false;
