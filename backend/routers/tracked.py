@@ -15,7 +15,8 @@ def _row_out(r) -> dict:
 def get_tracked():
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks ORDER BY added_at DESC"
+            "SELECT code, status, thesis, memo, stop_loss, take_profit, added_at"
+            " FROM tracked_stocks ORDER BY added_at DESC"
         ).fetchall()
     return [_row_out(r) for r in rows]
 

@@ -15,6 +15,8 @@ interface Holding {
   sellCost: number | null;
   unrealizedPct: number | null;
   market: string;
+  stopLoss: string;
+  takeProfit: string;
 }
 
 @Component({
@@ -78,7 +80,15 @@ interface Holding {
               {{ h.code }}
             </span>
           </td>
-          <td><span style="font-weight:600">{{ h.name }}</span></td>
+          <td>
+            <span style="font-weight:600">{{ h.name }}</span>
+            @if (h.stopLoss || h.takeProfit) {
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px">
+                @if (h.stopLoss)   { <span>停損 {{ h.stopLoss }}</span> }
+                @if (h.takeProfit) { <span>停利 {{ h.takeProfit }}</span> }
+              </div>
+            }
+          </td>
           <td style="text-align:right;font-family:'JetBrains Mono',monospace">
             {{ h.holdingShares.toLocaleString() }}
           </td>
@@ -212,6 +222,9 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
       if (fifo.holdingShares <= 0) continue;
 
       const name = this.stock.codeToName()[code] || code;
+      const tracked = this.state.tracked().find(t => t.code === code);
+      const stopLoss   = tracked?.stopLoss   ?? '';
+      const takeProfit = tracked?.takeProfit ?? '';
       const ci = this.stock.closeMap()[code];
       const lp = this.livePrice();
       const currentPrice = code in lp ? lp[code] : (ci?.close ?? null);
@@ -224,7 +237,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
       const sellCost = currentPrice != null ? currentPrice * fifo.holdingShares * (feeRate + taxRate) : null;
       const netUnrealized = unrealized != null && sellCost != null ? unrealized - sellCost : null;
 
-      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market });
+      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit });
     }
 
     return result.sort((a, b) => a.code.localeCompare(b.code));
