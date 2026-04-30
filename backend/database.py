@@ -2,6 +2,9 @@ import psycopg2
 import psycopg2.extras
 import contextlib
 import os
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -109,6 +112,9 @@ class _Conn:
     def execute(self, sql, params=()):
         self._cur.execute(sql, params or ())
         return self._cur
+
+    def execute_values(self, sql, values, page_size=500):
+        psycopg2.extras.execute_values(self._cur, sql, values, page_size=page_size)
 
     def commit(self):
         self._conn.commit()

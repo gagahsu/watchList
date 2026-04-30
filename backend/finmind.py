@@ -109,8 +109,8 @@ def find_latest_prices_bulk() -> tuple[dict, str, str]:
                 return price_map, trading_date, ""
         except FinMindError as e:
             last_err = str(e)
-            # 401/403 = auth error, no point retrying; 400 = likely free-tier restriction
-            if "401" in last_err or "403" in last_err:
+            # 400/401/403 = auth or free-tier restriction, no point retrying other dates
+            if any(code in last_err for code in ("400", "401", "403")):
                 break
         except Exception as e:
             last_err = str(e)

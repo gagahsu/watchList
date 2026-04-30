@@ -27,7 +27,9 @@
       "WebSearch",
       "WebFetch(domain:render.com)",
       "WebFetch(domain:supabase.com)",
-      "Bash(claude mcp *)"
+      "Bash(claude mcp *)",
+      "mcp__supabase__list_projects",
+      "Bash(nslookup *)"
     ]
   }
 }

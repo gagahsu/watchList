@@ -98,24 +98,28 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
 
     # ── 4. Upsert: preserve existing price when no new data ───────────────────
     with get_db() as conn:
-        for s in stock_info:
-            code     = s["stock_id"]
-            name     = s["stock_name"]
-            industry = s.get("industry_category", "")
-            close    = price_map.get(code)
-            upd      = date_map.get(code)
-            conn.execute(
-                """
-                INSERT INTO stocks(code, name, industry, close, updated_at)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT(code) DO UPDATE SET
-                    name       = EXCLUDED.name,
-                    industry   = EXCLUDED.industry,
-                    close      = COALESCE(EXCLUDED.close,      stocks.close),
-                    updated_at = COALESCE(EXCLUDED.updated_at, stocks.updated_at)
-                """,
-                (code, name, industry, close, upd),
+        rows = [
+            (
+                s["stock_id"],
+                s["stock_name"],
+                s.get("industry_category", ""),
+                price_map.get(s["stock_id"]),
+                date_map.get(s["stock_id"]),
             )
+            for s in stock_info
+        ]
+        conn.execute_values(
+            """
+            INSERT INTO stocks(code, name, industry, close, updated_at)
+            VALUES %s
+            ON CONFLICT(code) DO UPDATE SET
+                name       = EXCLUDED.name,
+                industry   = EXCLUDED.industry,
+                close      = COALESCE(EXCLUDED.close,      stocks.close),
+                updated_at = COALESCE(EXCLUDED.updated_at, stocks.updated_at)
+            """,
+            rows,
+        )
 
     prices_synced = len(price_map)
 
