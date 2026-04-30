@@ -17,6 +17,7 @@ import { Note } from '../../models/types';
         <div class="sidebar-brand-sub">投資研究筆記</div>
       </div>
     </div>
+    <button class="sidebar-close-btn" (click)="state.sidebarOpen.set(false)" aria-label="關閉側邊欄">×</button>
   </div>
 
   <div class="sidebar-nav">
