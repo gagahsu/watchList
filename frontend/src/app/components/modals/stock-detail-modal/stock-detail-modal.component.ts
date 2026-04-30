@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, ViewChild, signal } from '@angular/core';
 import { AppStateService } from '../../../services/app-state.service';
 import { ApiService } from '../../../services/api.service';
 import { StockService } from '../../../services/stock.service';
@@ -123,7 +123,7 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
       </div>
     } @else {
       <div class="detail-footer">
-        <button class="btn-primary" style="flex:none;padding:10px 20px" (click)="close()">完成</button>
+        <button class="btn-primary" style="flex:none;padding:10px 20px" (click)="done()">完成</button>
       </div>
     }
   </div>
@@ -131,6 +131,8 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
   `,
 })
 export class StockDetailModalComponent {
+  @ViewChild(TradesTabComponent) tradesTab?: TradesTabComponent;
+
   tab        = signal<'info'|'signals'|'trades'>('info');
   code       = signal('');
   name       = signal('');
@@ -203,6 +205,13 @@ export class StockDetailModalComponent {
   async removeTracked() {
     await this.api.deleteTracked(this.code());
     this.state.removeTracked(this.code());
+    this.close();
+  }
+
+  async done() {
+    if (this.tab() === 'trades' && this.tradesTab) {
+      await this.tradesTab.saveSLTP(this.code());
+    }
     this.close();
   }
 

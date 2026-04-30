@@ -1,4 +1,4 @@
-import { Component, Input, signal } from '@angular/core';
+import { Component, Input, OnInit, signal } from '@angular/core';
 import { AppStateService } from '../../../../services/app-state.service';
 import { ApiService } from '../../../../services/api.service';
 import { StockService } from '../../../../services/stock.service';
@@ -9,7 +9,7 @@ import { calcFIFO, fmtMoney, uid } from '../../../../utils';
   selector: 'app-trades-tab',
   templateUrl: './trades-tab.component.html',
 })
-export class TradesTabComponent {
+export class TradesTabComponent implements OnInit {
   @Input() entry!: () => { code: string };
 
   showForm   = signal(false);
@@ -21,6 +21,8 @@ export class TradesTabComponent {
   calcFIFO = calcFIFO;
 
   constructor(public state: AppStateService, private api: ApiService, public stock: StockService) {}
+
+  ngOnInit() { this.initSLTP(this.entry().code); }
 
   asStr(e: Event) { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
   sorted(trades: Trade[]) { return [...trades].sort((a, b) => b.date.localeCompare(a.date)); }

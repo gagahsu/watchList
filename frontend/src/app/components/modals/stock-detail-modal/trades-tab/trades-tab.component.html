@@ -16,14 +16,12 @@
     <div class="sl-tp-group">
       <span class="sl-tp-tag sl-tag">停損</span>
       <input class="sl-tp-input" placeholder="如：跌破 19.5"
-        [value]="slVal()" (focus)="initSLTP(code)"
-        (input)="slVal.set(asStr($event))" (blur)="saveSLTP(code)" />
+        [value]="slVal()" (input)="slVal.set(asStr($event))" />
     </div>
     <div class="sl-tp-group">
       <span class="sl-tp-tag tp-tag">停利</span>
       <input class="sl-tp-input" placeholder="如：漲至 25"
-        [value]="tpVal()" (focus)="initSLTP(code)"
-        (input)="tpVal.set(asStr($event))" (blur)="saveSLTP(code)" />
+        [value]="tpVal()" (input)="tpVal.set(asStr($event))" />
     </div>
   </div>
 </div>
