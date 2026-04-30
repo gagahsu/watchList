@@ -444,14 +444,11 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
   .chip-name { font-size:13px; }
   .add-company-btn { font-size:13px; padding:3px 8px; }
 
-  /* Portfolio table: scrollable */
+  /* Tables inside scroll wrappers: override width:100% so the table can overflow */
   .table-scroll-wrap { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .table-scroll-wrap > .supply-table { width:auto; min-width:520px; }
 
-  /* Signals table (sov-table): hide 狀態 (3rd) and 日期 (6th) */
-  .sov-table thead th:nth-child(3),
-  .sov-table tbody td:nth-child(3),
-  .sov-table thead th:nth-child(6),
-  .sov-table tbody td:nth-child(6) { display:none; }
+  /* Signals table (sov-table): remove nth-child hiding (rely on horizontal scroll instead) */
 
   /* Index table: hide 產業別 (3rd) and 收盤價 (5th) */
   .index-table thead th:nth-child(3),

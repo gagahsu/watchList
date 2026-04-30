@@ -35497,9 +35497,9 @@ function SignalsViewComponent_Conditional_1_Template(rf, ctx) {
     \u0275\u0275domElementEnd();
   }
 }
-function SignalsViewComponent_Conditional_2_For_23_Conditional_11_Template(rf, ctx) {
+function SignalsViewComponent_Conditional_2_For_24_Conditional_11_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "span", 18);
+    \u0275\u0275domElementStart(0, "span", 19);
     \u0275\u0275text(1);
     \u0275\u0275domElementEnd();
   }
@@ -35509,19 +35509,19 @@ function SignalsViewComponent_Conditional_2_For_23_Conditional_11_Template(rf, c
     \u0275\u0275textInterpolate1(" ", r_r5.activeCount, " ");
   }
 }
-function SignalsViewComponent_Conditional_2_For_23_Conditional_12_Template(rf, ctx) {
+function SignalsViewComponent_Conditional_2_For_24_Conditional_12_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "span", 19);
+    \u0275\u0275domElementStart(0, "span", 20);
     \u0275\u0275text(1, "\u2014");
     \u0275\u0275domElementEnd();
   }
 }
-function SignalsViewComponent_Conditional_2_For_23_Conditional_14_Template(rf, ctx) {
+function SignalsViewComponent_Conditional_2_For_24_Conditional_14_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 20)(1, "span", 22);
+    \u0275\u0275domElementStart(0, "div", 21)(1, "span", 23);
     \u0275\u0275text(2);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(3, "span", 23);
+    \u0275\u0275domElementStart(3, "span", 24);
     \u0275\u0275text(4);
     \u0275\u0275domElementEnd()();
   }
@@ -35536,39 +35536,39 @@ function SignalsViewComponent_Conditional_2_For_23_Conditional_14_Template(rf, c
     \u0275\u0275textInterpolate1(" ", r_r5.latestSig.condition, " ");
   }
 }
-function SignalsViewComponent_Conditional_2_For_23_Conditional_15_Template(rf, ctx) {
+function SignalsViewComponent_Conditional_2_For_24_Conditional_15_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "span", 19);
+    \u0275\u0275domElementStart(0, "span", 20);
     \u0275\u0275text(1, "\u2014");
     \u0275\u0275domElementEnd();
   }
 }
-function SignalsViewComponent_Conditional_2_For_23_Template(rf, ctx) {
+function SignalsViewComponent_Conditional_2_For_24_Template(rf, ctx) {
   if (rf & 1) {
     const _r4 = \u0275\u0275getCurrentView();
-    \u0275\u0275domElementStart(0, "tr", 12);
-    \u0275\u0275domListener("click", function SignalsViewComponent_Conditional_2_For_23_Template_tr_click_0_listener() {
+    \u0275\u0275domElementStart(0, "tr", 13);
+    \u0275\u0275domListener("click", function SignalsViewComponent_Conditional_2_For_24_Template_tr_click_0_listener() {
       const r_r5 = \u0275\u0275restoreView(_r4).$implicit;
       const ctx_r1 = \u0275\u0275nextContext(2);
       return \u0275\u0275resetView(ctx_r1.open(r_r5.code));
     });
-    \u0275\u0275domElementStart(1, "td")(2, "span", 13);
+    \u0275\u0275domElementStart(1, "td")(2, "span", 14);
     \u0275\u0275text(3);
     \u0275\u0275domElementEnd()();
-    \u0275\u0275domElementStart(4, "td", 14);
+    \u0275\u0275domElementStart(4, "td", 15);
     \u0275\u0275text(5);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(6, "td")(7, "span", 15);
-    \u0275\u0275domElement(8, "span", 16);
+    \u0275\u0275domElementStart(6, "td")(7, "span", 16);
+    \u0275\u0275domElement(8, "span", 17);
     \u0275\u0275text(9);
     \u0275\u0275domElementEnd()();
-    \u0275\u0275domElementStart(10, "td", 17);
-    \u0275\u0275conditionalCreate(11, SignalsViewComponent_Conditional_2_For_23_Conditional_11_Template, 2, 1, "span", 18)(12, SignalsViewComponent_Conditional_2_For_23_Conditional_12_Template, 2, 0, "span", 19);
+    \u0275\u0275domElementStart(10, "td", 18);
+    \u0275\u0275conditionalCreate(11, SignalsViewComponent_Conditional_2_For_24_Conditional_11_Template, 2, 1, "span", 19)(12, SignalsViewComponent_Conditional_2_For_24_Conditional_12_Template, 2, 0, "span", 20);
     \u0275\u0275domElementEnd();
     \u0275\u0275domElementStart(13, "td");
-    \u0275\u0275conditionalCreate(14, SignalsViewComponent_Conditional_2_For_23_Conditional_14_Template, 5, 5, "div", 20)(15, SignalsViewComponent_Conditional_2_For_23_Conditional_15_Template, 2, 0, "span", 19);
+    \u0275\u0275conditionalCreate(14, SignalsViewComponent_Conditional_2_For_24_Conditional_14_Template, 5, 5, "div", 21)(15, SignalsViewComponent_Conditional_2_For_24_Conditional_15_Template, 2, 0, "span", 20);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(16, "td", 21);
+    \u0275\u0275domElementStart(16, "td", 22);
     \u0275\u0275text(17);
     \u0275\u0275domElementEnd()();
   }
@@ -35606,27 +35606,27 @@ function SignalsViewComponent_Conditional_2_Template(rf, ctx) {
     \u0275\u0275domElementEnd();
     \u0275\u0275text(5, " \u986F\u793A\u7121\u6709\u6548\u8A0A\u865F ");
     \u0275\u0275domElementEnd()();
-    \u0275\u0275domElementStart(6, "table", 6)(7, "thead")(8, "tr")(9, "th", 7);
-    \u0275\u0275text(10, "\u4EE3\u78BC");
+    \u0275\u0275domElementStart(6, "div", 6)(7, "table", 7)(8, "thead")(9, "tr")(10, "th", 8);
+    \u0275\u0275text(11, "\u4EE3\u78BC");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(11, "th");
-    \u0275\u0275text(12, "\u540D\u7A31");
+    \u0275\u0275domElementStart(12, "th");
+    \u0275\u0275text(13, "\u540D\u7A31");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(13, "th", 8);
-    \u0275\u0275text(14, "\u72C0\u614B");
+    \u0275\u0275domElementStart(14, "th", 9);
+    \u0275\u0275text(15, "\u72C0\u614B");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(15, "th", 9);
-    \u0275\u0275text(16, "\u6709\u6548");
+    \u0275\u0275domElementStart(16, "th", 10);
+    \u0275\u0275text(17, "\u6709\u6548");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(17, "th");
-    \u0275\u0275text(18, "\u6700\u65B0\u8A0A\u865F");
+    \u0275\u0275domElementStart(18, "th");
+    \u0275\u0275text(19, "\u6700\u65B0\u8A0A\u865F");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(19, "th", 10);
-    \u0275\u0275text(20, "\u65E5\u671F");
+    \u0275\u0275domElementStart(20, "th", 11);
+    \u0275\u0275text(21, "\u65E5\u671F");
     \u0275\u0275domElementEnd()()();
-    \u0275\u0275domElementStart(21, "tbody");
-    \u0275\u0275repeaterCreate(22, SignalsViewComponent_Conditional_2_For_23_Template, 18, 9, "tr", 11, _forTrack05);
-    \u0275\u0275domElementEnd()();
+    \u0275\u0275domElementStart(22, "tbody");
+    \u0275\u0275repeaterCreate(23, SignalsViewComponent_Conditional_2_For_24_Template, 18, 9, "tr", 12, _forTrack05);
+    \u0275\u0275domElementEnd()()();
   }
   if (rf & 2) {
     const ctx_r1 = \u0275\u0275nextContext();
@@ -35634,7 +35634,7 @@ function SignalsViewComponent_Conditional_2_Template(rf, ctx) {
     \u0275\u0275textInterpolate1("", ctx_r1.rows().length, " \u652F\u500B\u80A1");
     \u0275\u0275advance(2);
     \u0275\u0275domProperty("checked", ctx_r1.showAll());
-    \u0275\u0275advance(18);
+    \u0275\u0275advance(19);
     \u0275\u0275repeater(ctx_r1.rows());
   }
 }
@@ -35706,9 +35706,9 @@ var SignalsViewComponent = class _SignalsViewComponent {
   static \u0275fac = function SignalsViewComponent_Factory(__ngFactoryType__) {
     return new (__ngFactoryType__ || _SignalsViewComponent)(\u0275\u0275directiveInject(AppStateService), \u0275\u0275directiveInject(StockService));
   };
-  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _SignalsViewComponent, selectors: [["app-signals-view"]], decls: 3, vars: 1, consts: [[1, "sov-empty"], [1, "empty-btn", 2, "margin-top", "12px", 3, "click"], [2, "display", "flex", "align-items", "center", "gap", "12px", "margin-bottom", "16px"], [2, "font-size", "13px", "color", "var(--text-muted)"], [2, "display", "flex", "align-items", "center", "gap", "6px", "font-size", "13px", "color", "var(--text-muted)", "cursor", "pointer", "margin-left", "auto"], ["type", "checkbox", 3, "change", "checked"], [1, "supply-table", "sov-table"], [2, "width", "70px"], [2, "width", "76px"], [2, "width", "68px", "text-align", "center"], [2, "width", "72px", "text-align", "right"], [1, "sov-row"], [1, "sov-row", 3, "click"], [2, "font-family", "'JetBrains Mono',monospace", "font-weight", "600", "color", "var(--gold)"], [2, "font-weight", "600"], [2, "font-size", "11px", "padding", "2px 7px"], [1, "chip-dot"], [2, "text-align", "center"], [2, "background", "var(--gold)", "color", "white", "border-radius", "10px", "padding", "1px 8px", "font-size", "12px", "font-weight", "600"], [2, "color", "var(--border)", "font-size", "12px"], [2, "display", "flex", "align-items", "baseline", "gap", "7px", "min-width", "0"], [2, "text-align", "right", "font-size", "12px", "color", "var(--text-muted)", "white-space", "nowrap"], [2, "font-size", "11px", "padding", "1px 6px", "flex-shrink", "0"], [2, "font-size", "13px", "color", "var(--text)", "overflow", "hidden", "text-overflow", "ellipsis", "white-space", "nowrap"]], template: function SignalsViewComponent_Template(rf, ctx) {
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _SignalsViewComponent, selectors: [["app-signals-view"]], decls: 3, vars: 1, consts: [[1, "sov-empty"], [1, "empty-btn", 2, "margin-top", "12px", 3, "click"], [2, "display", "flex", "align-items", "center", "gap", "12px", "margin-bottom", "16px"], [2, "font-size", "13px", "color", "var(--text-muted)"], [2, "display", "flex", "align-items", "center", "gap", "6px", "font-size", "13px", "color", "var(--text-muted)", "cursor", "pointer", "margin-left", "auto"], ["type", "checkbox", 3, "change", "checked"], [1, "table-scroll-wrap"], [1, "supply-table", "sov-table"], [2, "width", "70px"], [2, "width", "76px"], [2, "width", "68px", "text-align", "center"], [2, "width", "72px", "text-align", "right"], [1, "sov-row"], [1, "sov-row", 3, "click"], [2, "font-family", "'JetBrains Mono',monospace", "font-weight", "600", "color", "var(--gold)"], [2, "font-weight", "600"], [2, "font-size", "11px", "padding", "2px 7px"], [1, "chip-dot"], [2, "text-align", "center"], [2, "background", "var(--gold)", "color", "white", "border-radius", "10px", "padding", "1px 8px", "font-size", "12px", "font-weight", "600"], [2, "color", "var(--border)", "font-size", "12px"], [2, "display", "flex", "align-items", "baseline", "gap", "7px", "min-width", "0"], [2, "text-align", "right", "font-size", "12px", "color", "var(--text-muted)", "white-space", "nowrap"], [2, "font-size", "11px", "padding", "1px 6px", "flex-shrink", "0"], [2, "font-size", "13px", "color", "var(--text)", "overflow", "hidden", "text-overflow", "ellipsis", "white-space", "nowrap"]], template: function SignalsViewComponent_Template(rf, ctx) {
     if (rf & 1) {
-      \u0275\u0275conditionalCreate(0, SignalsViewComponent_Conditional_0_Template, 5, 0, "div", 0)(1, SignalsViewComponent_Conditional_1_Template, 2, 0, "div", 0)(2, SignalsViewComponent_Conditional_2_Template, 24, 2);
+      \u0275\u0275conditionalCreate(0, SignalsViewComponent_Conditional_0_Template, 5, 0, "div", 0)(1, SignalsViewComponent_Conditional_1_Template, 2, 0, "div", 0)(2, SignalsViewComponent_Conditional_2_Template, 25, 2);
     }
     if (rf & 2) {
       \u0275\u0275conditional(ctx.rows().length === 0 && !ctx.showAll() ? 0 : ctx.rows().length === 0 ? 1 : 2);
@@ -35739,6 +35739,7 @@ var SignalsViewComponent = class _SignalsViewComponent {
     </label>
   </div>
 
+  <div class="table-scroll-wrap">
   <table class="supply-table sov-table">
     <thead>
       <tr>
@@ -35796,13 +35797,14 @@ var SignalsViewComponent = class _SignalsViewComponent {
       }
     </tbody>
   </table>
+  </div>
 }
   `
     }]
   }], () => [{ type: AppStateService }, { type: StockService }], null);
 })();
 (() => {
-  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(SignalsViewComponent, { className: "SignalsViewComponent", filePath: "src/app/components/signals-view/signals-view.component.ts", lineNumber: 98 });
+  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(SignalsViewComponent, { className: "SignalsViewComponent", filePath: "src/app/components/signals-view/signals-view.component.ts", lineNumber: 100 });
 })();
 
 // src/app/components/modals/add-company-modal/add-company-modal.component.ts
