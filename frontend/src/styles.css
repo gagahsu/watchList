@@ -167,7 +167,11 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .ac-industry { margin-left:auto; font-size:13px; color:var(--text-muted); white-space:nowrap; }
 
 /* Index toolbar */
-.index-toolbar { display:flex; justify-content:flex-end; margin-bottom:12px; }
+.index-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.index-filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.sortable { cursor:pointer; user-select:none; }
+.sortable:hover { color:var(--gold); }
+.sort-ind { font-size:11px; color:var(--gold); }
 .idx-add-btn { padding:8px 16px; background:var(--gold); color:white; border:none; border-radius:8px; font-family:inherit; font-size:15px; font-weight:700; cursor:pointer; transition:background 0.15s; }
 .idx-add-btn:hover { background:#9A7220; }
 
