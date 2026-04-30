@@ -1,6 +1,7 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, effect, signal, untracked } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { StockService } from '../../services/stock.service';
+import { ApiService } from '../../services/api.service';
 import { calcFIFO, fmtMoney } from '../../utils';
 
 interface Holding {
@@ -160,13 +161,42 @@ interface Holding {
 }
   `,
 })
-export class PortfolioViewComponent {
+export class PortfolioViewComponent implements OnInit, OnDestroy {
   expanded = signal<string | null>(null);
+  livePrice = signal<Record<string, number | null>>({});
   fmtMoney = fmtMoney;
   calcFIFO = calcFIFO;
   Math = Math;
 
-  constructor(public state: AppStateService, public stock: StockService) {}
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+
+  constructor(public state: AppStateService, public stock: StockService, private api: ApiService) {
+    effect(() => {
+      this.state.portfolioRefreshTick();
+      untracked(() => this.refreshQuotes());
+    });
+  }
+
+  ngOnInit() {
+    this.intervalId = setInterval(() => this.refreshQuotes(), 60_000);
+  }
+
+  ngOnDestroy() {
+    if (this.intervalId) clearInterval(this.intervalId);
+  }
+
+  async refreshQuotes() {
+    const items = this.holdings().map(h => ({ code: h.code, market: h.market }));
+    if (!items.length) return;
+    this.state.portfolioRefreshing.set(true);
+    try {
+      const data = await this.api.getQuotes(items);
+      this.livePrice.set(data);
+      this.state.portfolioLastUpdated.set(new Date());
+    } catch { /* fall back to FinMind close price */ } finally {
+      this.state.portfolioRefreshing.set(false);
+    }
+  }
 
   holdings = computed<Holding[]>(() => {
     const codes = new Set<string>([
@@ -183,7 +213,8 @@ export class PortfolioViewComponent {
 
       const name = this.stock.codeToName()[code] || code;
       const ci = this.stock.closeMap()[code];
-      const currentPrice = ci?.close ?? null;
+      const lp = this.livePrice();
+      const currentPrice = code in lp ? lp[code] : (ci?.close ?? null);
       const cost = fifo.avgCost * fifo.holdingShares;
       const unrealized = currentPrice != null ? (currentPrice - fifo.avgCost) * fifo.holdingShares : null;
       const unrealizedPct = unrealized != null && cost > 0 ? (unrealized / cost) * 100 : null;

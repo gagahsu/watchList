@@ -9,12 +9,12 @@ export const fmtDate = (d: number) =>
   new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
 
 export const STATUS_LABELS: Record<string, string> = {
-  holding: '已持有', tracking: '追蹤中', watching: '觀察中',
+  holding: '已持有', tracking: '追蹤中',
 };
 export const STATUS_CLASS: Record<string, string> = {
-  holding: 'chip-holding', tracking: 'chip-tracking', watching: 'chip-watching',
+  holding: 'chip-holding', tracking: 'chip-tracking',
 };
-export const STATUS_ORDER = ['watching', 'tracking', 'holding'];
+export const STATUS_ORDER = ['tracking', 'holding'];
 
 export const SIG_DIR_LABELS: Record<string, string> = {
   enter: '進場', exit: '出場', watch: '觀察',
@@ -101,11 +101,11 @@ export function parseCSV(
   const parseEntry = (str: string) => {
     str = str.trim().replace(/（/g, '(').replace(/）/g, ')');
     const m = str.match(/^(.+?)\((\d{4,6})\)$/);
-    if (m) return { id: uid(), name: m[1].trim(), code: m[2].trim(), status: 'watching' };
-    if (/^\d{4,6}$/.test(str)) return { id: uid(), name: stockDB[str] || str, code: str, status: 'watching' };
+    if (m) return { id: uid(), name: m[1].trim(), code: m[2].trim(), status: 'tracking' };
+    if (/^\d{4,6}$/.test(str)) return { id: uid(), name: stockDB[str] || str, code: str, status: 'tracking' };
     const byName = stockList.find(s => s.name === str);
-    if (byName) return { id: uid(), name: byName.name, code: byName.code, status: 'watching' };
-    return { id: uid(), name: str, code: '', status: 'watching' };
+    if (byName) return { id: uid(), name: byName.name, code: byName.code, status: 'tracking' };
+    return { id: uid(), name: str, code: '', status: 'tracking' };
   };
 
   const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/\s/g, ''));

@@ -59,11 +59,16 @@ def patch_signal(signal_id: str, body: SignalPatch):
         row = conn.execute("SELECT * FROM signals WHERE id=%s", (signal_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Signal not found")
-        status = body.status if body.status is not None else row["status"]
-        reason = body.invalidReason if body.invalidReason is not None else row["invalid_reason"]
+        status    = body.status        if body.status        is not None else row["status"]
+        reason    = body.invalidReason if body.invalidReason is not None else row["invalid_reason"]
+        direction = body.direction     if body.direction     is not None else row["direction"]
+        source    = body.source        if body.source        is not None else row["source"]
+        condition = body.condition     if body.condition     is not None else row["condition_text"]
+        price     = body.price         if body.price         is not None else row["price"]
         conn.execute(
-            "UPDATE signals SET status=%s, invalid_reason=%s WHERE id=%s",
-            (status, reason, signal_id),
+            "UPDATE signals SET status=%s, invalid_reason=%s, direction=%s,"
+            " source=%s, condition_text=%s, price=%s WHERE id=%s",
+            (status, reason, direction, source, condition, price, signal_id),
         )
         updated = conn.execute("SELECT * FROM signals WHERE id=%s", (signal_id,)).fetchone()
     return _row_to_signal(updated)

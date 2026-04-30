@@ -28,6 +28,9 @@ export class AppStateService {
   syncMsg      = signal('');
   loading      = signal(true);
   error        = signal<string | null>(null);
+  portfolioRefreshTick    = signal(0);
+  portfolioRefreshing     = signal(false);
+  portfolioLastUpdated    = signal<Date | null>(null);
   feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
 
   setFeeDiscount(v: number) {

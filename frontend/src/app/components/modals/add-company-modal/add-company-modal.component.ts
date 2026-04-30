@@ -3,6 +3,7 @@ import { AppStateService } from '../../../services/app-state.service';
 import { ApiService } from '../../../services/api.service';
 import { StockService } from '../../../services/stock.service';
 import { STATUS_LABELS, uid } from '../../../utils';
+import { TrackingStatus } from '../../../models/types';
 
 @Component({
   selector: 'app-add-company-modal',
@@ -55,9 +56,9 @@ import { STATUS_LABELS, uid } from '../../../utils';
 export class AddCompanyModalComponent {
   code   = signal('');
   name   = signal('');
-  status = signal<'watching'|'tracking'|'holding'>('watching');
+  status = signal<TrackingStatus>('tracking');
   sugg   = signal<[string, string, string][]>([]);
-  statuses = ['watching', 'tracking', 'holding'];
+  statuses = ['tracking', 'holding'];
 
   constructor(
     private state: AppStateService,
@@ -66,7 +67,7 @@ export class AddCompanyModalComponent {
   ) {}
 
   label(s: string) { return STATUS_LABELS[s]; }
-  setStatus(s: string) { this.status.set(s as 'watching' | 'tracking' | 'holding'); }
+  setStatus(s: string) { this.status.set(s as TrackingStatus); }
   asStr(e: Event) { return (e.target as HTMLInputElement).value; }
 
   onCode(e: Event) {

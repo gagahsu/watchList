@@ -33,8 +33,8 @@ DDL = [
         row_id   TEXT NOT NULL REFERENCES rows(id) ON DELETE CASCADE,
         code     TEXT NOT NULL,
         name     TEXT NOT NULL DEFAULT '',
-        status   TEXT NOT NULL DEFAULT 'watching'
-                 CHECK(status IN ('holding','tracking','watching')),
+        status   TEXT NOT NULL DEFAULT 'tracking'
+                 CHECK(status IN ('holding','tracking')),
         thesis   TEXT NOT NULL DEFAULT '',
         memo     TEXT NOT NULL DEFAULT '',
         position INTEGER NOT NULL DEFAULT 0
@@ -92,8 +92,8 @@ DDL = [
     """
     CREATE TABLE IF NOT EXISTS tracked_stocks (
         code     TEXT PRIMARY KEY,
-        status   TEXT NOT NULL DEFAULT 'watching'
-                 CHECK(status IN ('holding','tracking','watching')),
+        status   TEXT NOT NULL DEFAULT 'tracking'
+                 CHECK(status IN ('holding','tracking')),
         thesis   TEXT NOT NULL DEFAULT '',
         memo     TEXT NOT NULL DEFAULT '',
         added_at BIGINT NOT NULL

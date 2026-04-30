@@ -68,7 +68,7 @@ export class ApiService {
   createSignal(code: string, sig: Partial<Signal>) {
     return this.post<Signal>(`/signals/${code}`, sig);
   }
-  patchSignal(sigId: string, body: {status: SignalStatus; invalidReason: string}) {
+  patchSignal(sigId: string, body: Partial<Pick<Signal, 'status'|'invalidReason'|'direction'|'source'|'condition'|'price'>>) {
     return this.patch<Signal>(`/signals/${sigId}`, body);
   }
   deleteSignal(sigId: string) { return this.delete<{ok:boolean}>(`/signals/${sigId}`); }
@@ -97,4 +97,9 @@ export class ApiService {
   // ── Stocks ────────────────────────────────────────────────────────────────
   getStocks() { return this.get<StockInfo[]>('/stocks'); }
   syncStocks(force = false) { return this.post<{message: string; all_up_to_date?: boolean; skipped?: number}>('/stocks/sync', { force }); }
+
+  // ── Live Quotes (yfinance, ~15min delay) ──────────────────────────────────
+  getQuotes(items: {code: string; market: string}[]) {
+    return this.post<Record<string, number | null>>('/quotes', { items });
+  }
 }

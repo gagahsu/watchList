@@ -99,7 +99,7 @@ import { marked } from 'marked';
   `,
 })
 export class NotesViewComponent {
-  statuses = ['holding', 'tracking', 'watching'];
+  statuses = ['holding', 'tracking'];
   private catTimers: Record<string, ReturnType<typeof setTimeout>> = {};
   private descTimer: ReturnType<typeof setTimeout> | null = null;
   descEditing = signal(false);
@@ -127,7 +127,7 @@ export class NotesViewComponent {
 
   label(s: string) { return STATUS_LABELS[s]; }
   dotColor(s: string) {
-    return s === 'holding' ? 'var(--holding)' : s === 'tracking' ? 'var(--tracking)' : 'var(--watching)';
+    return s === 'holding' ? 'var(--holding)' : 'var(--tracking)';
   }
 
   async addNote() {

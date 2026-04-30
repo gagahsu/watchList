@@ -48,6 +48,10 @@ export class App implements OnInit {
   }
 
   fmtD = fmtD;
+
+  fmtPortfolioTime(d: Date) {
+    return d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+  }
   private titleTimer: ReturnType<typeof setTimeout> | null = null;
 
   onTitleInput(e: Event) {

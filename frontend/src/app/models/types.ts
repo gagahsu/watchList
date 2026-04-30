@@ -1,4 +1,4 @@
-export type TrackingStatus = 'holding' | 'tracking' | 'watching';
+export type TrackingStatus = 'holding' | 'tracking';
 export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
@@ -66,7 +66,7 @@ export interface TrackedStock {
 }
 
 export type EditTarget =
-  | { kind: 'tracked'; code: string }
+  | { kind: 'tracked'; code: string; tab?: 'info' | 'signals' | 'trades' }
   | { kind: 'entry';   rowId: string; entry: Entry };
 
 export interface FifoResult {

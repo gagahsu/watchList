@@ -134,10 +134,10 @@ export class StockDetailModalComponent {
   tab    = signal<'info'|'signals'|'trades'>('info');
   code   = signal('');
   name   = signal('');
-  status = signal<Entry['status']>('watching');
+  status = signal<Entry['status']>('tracking');
   thesis = signal('');
   memo   = signal('');
-  statuses = ['watching', 'tracking', 'holding'];
+  statuses = ['tracking', 'holding'];
 
   entryFn: () => { code: string } = () => ({ code: this.code() });
 
@@ -157,6 +157,7 @@ export class StockDetailModalComponent {
       this.code.set(c);
       this.name.set(stock.codeToName()[c] || c);
       if (t) { this.status.set(t.status); this.thesis.set(t.thesis); this.memo.set(t.memo); }
+      if (target.tab) this.tab.set(target.tab);
     }
   }
 

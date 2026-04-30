@@ -105,7 +105,7 @@ export class StockIndexComponent {
   constructor(public state: AppStateService, public stock: StockService, private api: ApiService) {}
 
   index = computed<IndexRow[]>(() => {
-    const rank: Record<string, number> = { holding: 2, tracking: 1, watching: 0 };
+    const rank: Record<string, number> = { holding: 1, tracking: 0 };
     const map: Record<string, IndexRow> = {};
 
     // Primary: tracked stocks

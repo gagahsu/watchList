@@ -8,7 +8,7 @@ class EntryIn(BaseModel):
     id: str
     code: str
     name: str = ""
-    status: str = "watching"
+    status: str = "tracking"
     thesis: str = ""
     memo: str = ""
 
@@ -83,7 +83,11 @@ class SignalIn(BaseModel):
 
 class SignalPatch(BaseModel):
     status: Optional[str] = None
-    invalidReason: Optional[str] = None  # camelCase matches frontend JSON key
+    invalidReason: Optional[str] = None
+    direction: Optional[str] = None
+    source: Optional[str] = None
+    condition: Optional[str] = None
+    price: Optional[str] = None
 
 
 class SignalOut(BaseModel):
@@ -121,7 +125,7 @@ class TradeOut(BaseModel):
 # ── Tracked Stocks ───────────────────────────────────
 class TrackedIn(BaseModel):
     code: str
-    status: str = "watching"
+    status: str = "tracking"
     thesis: str = ""
     memo: str = ""
     addedAt: int
