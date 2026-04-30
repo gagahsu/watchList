@@ -12,9 +12,11 @@ import { calcFIFO, fmtMoney, uid } from '../../../../utils';
 export class TradesTabComponent implements OnInit {
   @Input() entry!: () => { code: string };
 
-  showForm      = signal(false);
-  slVal         = signal('');
-  tpVal         = signal('');
+  showForm       = signal(false);
+  slVal          = signal('');
+  tpVal          = signal('');
+  slMode         = signal<'price'|'pct'>('price');
+  slPct          = signal('');
   selectedBroker = signal('');
   f = { type: 'buy', date: new Date().toISOString().slice(0, 10), shares: '', price: '', fee: '', note: '' };
 
@@ -48,11 +50,29 @@ export class TradesTabComponent implements OnInit {
     const t = this.trackedForCode(code);
     this.slVal.set(t?.stopLoss ?? '');
     this.tpVal.set(t?.takeProfit ?? '');
+    this.slMode.set('price');
+    this.slPct.set('');
+  }
+
+  calcSlPrice(avgCost: number): string {
+    const pct = parseFloat(this.slPct());
+    if (isNaN(pct) || pct <= 0 || avgCost <= 0) return '—';
+    return (avgCost * (1 - pct / 100)).toFixed(2) + ' 元';
   }
 
   async saveSLTP(code: string) {
+    let sl = this.slVal().trim();
+    if (this.slMode() === 'pct') {
+      const pct = parseFloat(this.slPct());
+      const trades = this.state.trades()[code] ?? [];
+      const mkt = this.state.tradeMarkets()[code] ?? 'tw';
+      const fifo = calcFIFO(trades, mkt);
+      sl = (!isNaN(pct) && fifo.avgCost > 0)
+        ? (fifo.avgCost * (1 - pct / 100)).toFixed(2)
+        : '';
+    }
     const updated = await this.api.patchTracked(code, {
-      stopLoss: this.slVal().trim(), takeProfit: this.tpVal().trim(),
+      stopLoss: sl, takeProfit: this.tpVal().trim(),
     });
     this.state.updateTracked(updated);
   }

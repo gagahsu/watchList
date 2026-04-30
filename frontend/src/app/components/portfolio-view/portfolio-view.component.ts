@@ -17,6 +17,7 @@ interface Holding {
   market: string;
   stopLoss: string;
   takeProfit: string;
+  stopLossHit: boolean;
 }
 
 @Component({
@@ -74,6 +75,7 @@ interface Holding {
     <tbody>
       @for (h of holdings(); track h.code) {
         <tr class="portfolio-row" [class.expanded]="expanded() === h.code"
+          [class.sl-alert]="h.stopLossHit"
           (click)="toggleExpand(h.code)">
           <td>
             <span style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--gold)">
@@ -83,9 +85,15 @@ interface Holding {
           <td>
             <span style="font-weight:600">{{ h.name }}</span>
             @if (h.stopLoss || h.takeProfit) {
-              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px">
-                @if (h.stopLoss)   { <span>停損 {{ h.stopLoss }}</span> }
-                @if (h.takeProfit) { <span>停利 {{ h.takeProfit }}</span> }
+              <div style="font-size:11px;margin-top:2px;display:flex;gap:8px">
+                @if (h.stopLoss) {
+                  <span [style.color]="h.stopLossHit ? 'var(--red)' : 'var(--text-muted)'">
+                    {{ h.stopLossHit ? '⚠ ' : '' }}停損 {{ h.stopLoss }}
+                  </span>
+                }
+                @if (h.takeProfit) {
+                  <span style="color:var(--text-muted)">停利 {{ h.takeProfit }}</span>
+                }
               </div>
             }
           </td>
@@ -237,7 +245,9 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
       const sellCost = currentPrice != null ? currentPrice * fifo.holdingShares * (feeRate + taxRate) : null;
       const netUnrealized = unrealized != null && sellCost != null ? unrealized - sellCost : null;
 
-      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit });
+      const slNum = parseFloat(stopLoss);
+      const stopLossHit = !isNaN(slNum) && slNum > 0 && currentPrice !== null && currentPrice < slNum;
+      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit, stopLossHit });
     }
 
     return result.sort((a, b) => a.code.localeCompare(b.code));

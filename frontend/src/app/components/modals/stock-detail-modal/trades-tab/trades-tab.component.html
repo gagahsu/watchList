@@ -10,18 +10,35 @@
 </div>
 
 <!-- 出場計畫 -->
-<div class="sl-tp-bar" (click)="initSLTP(code)">
-  <span class="sl-tp-label">出場計畫</span>
-  <div class="sl-tp-fields">
-    <div class="sl-tp-group">
-      <span class="sl-tp-tag sl-tag">停損</span>
-      <input class="sl-tp-input" placeholder="如：跌破 19.5"
-        [value]="slVal()" (input)="slVal.set(asStr($event))" />
+<div class="sl-tp-bar">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <span class="sl-tp-label" style="margin-bottom:0">出場計畫</span>
+    <div style="display:flex;gap:4px">
+      <button class="market-btn" style="font-size:12px;padding:3px 10px"
+        [class.active]="slMode()==='price'" (click)="slMode.set('price')">固定價格</button>
+      <button class="market-btn" style="font-size:12px;padding:3px 10px"
+        [class.active]="slMode()==='pct'" (click)="slMode.set('pct')">買入價計算</button>
     </div>
-    <div class="sl-tp-group">
+  </div>
+  <div class="sl-tp-fields">
+    <div class="sl-tp-group" style="flex:1.5">
+      <span class="sl-tp-tag sl-tag">停損</span>
+      @if (slMode() === 'price') {
+        <input class="sl-tp-input" type="number" min="0" step="0.01" placeholder="如：55.00"
+          [value]="slVal()" (input)="slVal.set(asStr($event))" />
+        <span class="sl-tp-unit">元</span>
+      } @else {
+        <input class="sl-tp-input" type="number" min="0" max="100" step="1" placeholder="如：20"
+          style="max-width:70px" [value]="slPct()" (input)="slPct.set(asStr($event))" />
+        <span class="sl-tp-unit">%</span>
+        <span class="sl-tp-calc">→ {{ calcSlPrice(fifo.avgCost) }}</span>
+      }
+    </div>
+    <div class="sl-tp-group" style="flex:1">
       <span class="sl-tp-tag tp-tag">停利</span>
-      <input class="sl-tp-input" placeholder="如：漲至 25"
+      <input class="sl-tp-input" type="number" min="0" step="0.01" placeholder="如：80.00"
         [value]="tpVal()" (input)="tpVal.set(asStr($event))" />
+      <span class="sl-tp-unit">元</span>
     </div>
   </div>
 </div>
