@@ -27,6 +27,17 @@ interface IndexRow {
         (click)="filterStatus.set(f.v)">{{ f.l }}</button>
     }
   </div>
+  @if (noteOptions().length > 0) {
+    <div style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:12px;color:var(--text-muted);margin-right:2px">筆記</span>
+      <select class="note-filter-select" [value]="filterNote()" (change)="filterNote.set(asStr($event))">
+        <option value="">全部</option>
+        @for (n of noteOptions(); track n.id) {
+          <option [value]="n.id">{{ n.title }}</option>
+        }
+      </select>
+    </div>
+  }
   <button class="sov-filter-btn" [class.active]="filterSignal()"
     (click)="filterSignal.update(v => !v)">有效訊號</button>
   <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">
@@ -104,11 +115,9 @@ interface IndexRow {
           </td>
           <td (click)="$event.stopPropagation()">
             <div class="idx-refs">
-              @for (ref of row.refs; track ref.noteId + ref.category) {
+              @for (ref of uniqueRefs(row.refs); track ref.noteId) {
                 <span class="idx-ref-tag" (click)="goToNote(ref.noteId)" [title]="'前往：' + ref.noteTitle">
-                  <span>{{ ref.noteTitle }}</span>
-                  <span class="idx-ref-sep">›</span>
-                  <span>{{ ref.category }}</span>
+                  {{ ref.noteTitle }}
                 </span>
               }
             </div>
@@ -124,8 +133,13 @@ export class StockIndexComponent {
   search       = signal('');
   filterStatus = signal<'all'|'tracking'|'holding'>('all');
   filterSignal = signal(false);
+  filterNote   = signal('');
   sortCol      = signal<'code'|'name'|'status'|'price'>('code');
   sortDir      = signal<'asc'|'desc'>('asc');
+
+  noteOptions = computed(() =>
+    this.state.notes().map(n => ({ id: n.id, title: n.title }))
+  );
 
   statusFilters: { v: 'all'|'tracking'|'holding'; l: string }[] = [
     { v: 'all',      l: '全部' },
@@ -168,9 +182,12 @@ export class StockIndexComponent {
     const dir  = this.sortDir();
     const statusRank: Record<string, number> = { holding: 1, tracking: 0 };
 
+    const fNote = this.filterNote();
+
     let list = this.index().filter(s => {
       if (fSt !== 'all' && s.bestStatus !== fSt) return false;
       if (fSig && this.sigCount(s.code) === 0) return false;
+      if (fNote && !s.refs.some(r => r.noteId === fNote)) return false;
       if (q && !s.code.includes(q) && !s.name.includes(q) &&
           !s.refs.some(r => r.noteTitle.includes(q) || r.category.includes(q))) return false;
       return true;
@@ -206,6 +223,11 @@ export class StockIndexComponent {
   statusLabel(s: string) { return STATUS_LABELS[s]; }
   sigCount(code: string) { return (this.state.signals()[code] ?? []).filter(s => s.status === 'active').length; }
   asStr(e: Event) { return (e.target as HTMLInputElement).value; }
+
+  uniqueRefs(refs: { noteId: string; noteTitle: string; category: string }[]) {
+    const seen = new Set<string>();
+    return refs.filter(r => seen.has(r.noteId) ? false : (seen.add(r.noteId), true));
+  }
 
   quickAddStock() { this.state.addingDirect.set(true); }
 
