@@ -279,7 +279,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
   }
 
   fmtPnL(n: number) {
-    const abs = Math.abs(n).toLocaleString();
+    const abs = Math.round(Math.abs(n)).toLocaleString();
     return (n >= 0 ? '+' : '-') + abs;
   }
 }
