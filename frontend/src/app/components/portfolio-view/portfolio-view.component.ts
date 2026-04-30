@@ -60,6 +60,7 @@ interface Holding {
     <div class="empty-sub">在個股詳情中新增交易記錄，<br>買進後即會顯示於此。</div>
   </div>
 } @else {
+  <div class="table-scroll-wrap">
   <table class="supply-table">
     <thead>
       <tr>
@@ -176,6 +177,7 @@ interface Holding {
       }
     </tbody>
   </table>
+  </div>
 }
   `,
 })

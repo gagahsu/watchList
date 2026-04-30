@@ -2230,6 +2230,10 @@ app-root {
   background: rgba(0, 0, 0, 0.3);
   z-index: 99;
 }
+.table-scroll-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 @media (max-width: 768px) {
   #sidebar {
     position: fixed;
@@ -2247,15 +2251,204 @@ app-root {
   }
   .main-toolbar {
     padding: 12px 16px;
+    gap: 8px;
+  }
+  .note-meta {
+    display: none;
+  }
+  .toolbar-back-btn {
+    padding: 5px 9px;
+    font-size: 12px;
   }
   .main-content {
     padding: 16px;
   }
   .note-title-input {
-    font-size: 19px;
+    font-size: 18px;
+  }
+  .view-tab {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .view-tabs {
+    padding: 0 16px;
+  }
+  .notes-list-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  .note-card {
+    padding: 14px;
+    min-height: 100px;
+  }
+  .note-tab {
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+  .supply-table td,
+  .supply-table thead th {
+    padding: 9px 10px;
+  }
+  .supply-table thead th {
+    font-size: 14px;
   }
   .td-category {
     width: 36%;
+  }
+  .company-chip {
+    font-size: 13px;
+    padding: 3px 7px 3px 6px;
+  }
+  .chip-name {
+    font-size: 13px;
+  }
+  .add-company-btn {
+    font-size: 13px;
+    padding: 3px 8px;
+  }
+  .table-scroll-wrap {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sov-table thead th:nth-child(3),
+  .sov-table tbody td:nth-child(3),
+  .sov-table thead th:nth-child(6),
+  .sov-table tbody td:nth-child(6) {
+    display: none;
+  }
+  .index-table thead th:nth-child(3),
+  .index-table tbody td:nth-child(3),
+  .index-table thead th:nth-child(5),
+  .index-table tbody td:nth-child(5) {
+    display: none;
+  }
+  .index-table td {
+    padding: 10px 10px;
+  }
+  .index-table thead th {
+    padding: 10px 10px;
+    font-size: 13px;
+  }
+  .idx-name {
+    font-size: 14px;
+  }
+  .idx-code {
+    font-size: 13px;
+  }
+  .idx-ref-tag {
+    font-size: 12px;
+    padding: 2px 7px;
+  }
+  .trade-item > *:nth-child(3),
+  .trade-header-row > *:nth-child(3),
+  .trade-item > *:nth-child(5),
+  .trade-header-row > *:nth-child(5) {
+    display: none;
+  }
+  .trade-item,
+  .trade-header-row {
+    grid-template-columns: 64px 44px 1fr 1fr 20px;
+  }
+  .trade-item {
+    padding: 8px 10px;
+  }
+  .trade-summary-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .tsc-value {
+    font-size: 17px;
+  }
+  .sl-tp-fields {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .sl-tp-group {
+    min-width: 140px;
+  }
+  .modal-overlay {
+    align-items: flex-end;
+  }
+  .detail-modal-box {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 14px 14px 0 0;
+    max-height: 90vh;
+  }
+  .detail-header {
+    padding: 14px 18px;
+  }
+  .detail-header-code {
+    font-size: 20px;
+  }
+  .detail-body {
+    padding: 14px 16px;
+  }
+  .detail-footer {
+    padding: 10px 16px;
+  }
+  .detail-tab {
+    font-size: 14px;
+    padding: 9px 6px;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 14px 14px 0 0;
+    padding: 20px 16px;
+  }
+  .modal-overlay {
+    padding: 0;
+  }
+  .sig-form-row {
+    gap: 6px;
+  }
+  .sig-form-select,
+  .sig-form-input {
+    font-size: 14px;
+    padding: 6px 8px;
+  }
+  .sov-filter-btn {
+    font-size: 13px;
+    padding: 4px 10px;
+  }
+  .index-filter-bar {
+    gap: 6px;
+  }
+  .legend-hint {
+    display: none;
+  }
+  .legend {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+  .empty-state {
+    padding: 48px 16px;
+  }
+  .empty-title {
+    font-size: 18px;
+  }
+  .index-toolbar {
+    margin-bottom: 8px;
+  }
+  .idx-add-btn {
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+}
+@media (max-width: 480px) {
+  .notes-list-grid {
+    grid-template-columns: 1fr;
+  }
+  .view-tab {
+    padding: 7px 8px;
+    font-size: 13px;
+  }
+  .main-toolbar {
+    gap: 6px;
+  }
+  .index-table thead th:nth-child(6),
+  .index-table tbody td:nth-child(6) {
+    display: none;
   }
 }
 

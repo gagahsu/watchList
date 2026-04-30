@@ -34269,7 +34269,7 @@ function PortfolioViewComponent_Conditional_18_Template(rf, ctx) {
     \u0275\u0275domElementEnd()();
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Conditional_1_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Conditional_1_Template(rf, ctx) {
   if (rf & 1) {
     \u0275\u0275domElementStart(0, "span");
     \u0275\u0275text(1);
@@ -34282,9 +34282,9 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Conditional_
     \u0275\u0275textInterpolate2(" ", h_r3.stopLossHit ? "\u26A0 " : "", "\u505C\u640D ", h_r3.stopLoss, " ");
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Conditional_2_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Conditional_2_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "span", 27);
+    \u0275\u0275domElementStart(0, "span", 28);
     \u0275\u0275text(1);
     \u0275\u0275domElementEnd();
   }
@@ -34294,11 +34294,11 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Conditional_
     \u0275\u0275textInterpolate1("\u505C\u5229 ", h_r3.takeProfit);
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 19);
-    \u0275\u0275conditionalCreate(1, PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Conditional_1_Template, 2, 4, "span", 26);
-    \u0275\u0275conditionalCreate(2, PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Conditional_2_Template, 2, 1, "span", 27);
+    \u0275\u0275domElementStart(0, "div", 20);
+    \u0275\u0275conditionalCreate(1, PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Conditional_1_Template, 2, 4, "span", 27);
+    \u0275\u0275conditionalCreate(2, PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Conditional_2_Template, 2, 1, "span", 28);
     \u0275\u0275domElementEnd();
   }
   if (rf & 2) {
@@ -34309,12 +34309,12 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Template(rf,
     \u0275\u0275conditional(h_r3.takeProfit ? 2 : -1);
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_15_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_15_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 28);
+    \u0275\u0275domElementStart(0, "div", 29);
     \u0275\u0275text(1);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(2, "div", 29);
+    \u0275\u0275domElementStart(2, "div", 30);
     \u0275\u0275text(3);
     \u0275\u0275domElementEnd();
   }
@@ -34329,38 +34329,38 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_15_Template(rf
     \u0275\u0275textInterpolate1(" \u51FA\u5834\u8CBB \u2212", ctx_r3.Math.round(h_r3.sellCost).toLocaleString(), " ");
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_16_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_16_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "span", 22);
+    \u0275\u0275domElementStart(0, "span", 23);
     \u0275\u0275text(1, "\u2014");
     \u0275\u0275domElementEnd();
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional_10_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_10_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 35);
+    \u0275\u0275domElementStart(0, "div", 36);
     \u0275\u0275text(1, " \u5C1A\u7121\u4EA4\u6613\u7D00\u9304 ");
     \u0275\u0275domElementEnd();
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional_11_For_14_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_For_14_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 37)(1, "span", 38);
+    \u0275\u0275domElementStart(0, "div", 38)(1, "span", 39);
     \u0275\u0275text(2);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(3, "span", 39);
+    \u0275\u0275domElementStart(3, "span", 40);
     \u0275\u0275text(4);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(5, "span", 40);
+    \u0275\u0275domElementStart(5, "span", 41);
     \u0275\u0275text(6);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(7, "span", 40);
+    \u0275\u0275domElementStart(7, "span", 41);
     \u0275\u0275text(8);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(9, "span", 41);
+    \u0275\u0275domElementStart(9, "span", 42);
     \u0275\u0275text(10);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(11, "span", 42);
+    \u0275\u0275domElementStart(11, "span", 43);
     \u0275\u0275text(12);
     \u0275\u0275domElementEnd()();
   }
@@ -34389,27 +34389,27 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional
     \u0275\u0275textInterpolate1(" ", (res_r8 == null ? null : res_r8.realized) != null ? ctx_r3.fmtMoney(res_r8.realized, h_r3.market) : "\u2014", " ");
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional_11_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 36)(1, "span");
+    \u0275\u0275domElementStart(0, "div", 37)(1, "span");
     \u0275\u0275text(2, "\u65E5\u671F");
     \u0275\u0275domElementEnd();
     \u0275\u0275domElementStart(3, "span");
     \u0275\u0275text(4, "\u985E\u578B");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(5, "span", 21);
+    \u0275\u0275domElementStart(5, "span", 22);
     \u0275\u0275text(6, "\u80A1\u6578");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(7, "span", 21);
+    \u0275\u0275domElementStart(7, "span", 22);
     \u0275\u0275text(8, "\u50F9\u683C");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(9, "span", 21);
+    \u0275\u0275domElementStart(9, "span", 22);
     \u0275\u0275text(10, "\u624B\u7E8C\u8CBB");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(11, "span", 21);
+    \u0275\u0275domElementStart(11, "span", 22);
     \u0275\u0275text(12, "\u5BE6\u73FE\u640D\u76CA");
     \u0275\u0275domElementEnd()();
-    \u0275\u0275repeaterCreate(13, PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional_11_For_14_Template, 13, 14, "div", 37, _forTrack1);
+    \u0275\u0275repeaterCreate(13, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_For_14_Template, 13, 14, "div", 38, _forTrack1);
   }
   if (rf & 2) {
     \u0275\u0275nextContext();
@@ -34418,14 +34418,14 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional
     \u0275\u0275repeater(trades_r9);
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Template(rf, ctx) {
   if (rf & 1) {
     const _r5 = \u0275\u0275getCurrentView();
-    \u0275\u0275domElementStart(0, "tr", 25)(1, "td", 30)(2, "div", 31)(3, "div", 32)(4, "span", 33);
+    \u0275\u0275domElementStart(0, "tr", 26)(1, "td", 31)(2, "div", 32)(3, "div", 33)(4, "span", 34);
     \u0275\u0275text(5, "\u4EA4\u6613\u7D00\u9304");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(6, "button", 34);
-    \u0275\u0275domListener("click", function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Template_button_click_6_listener($event) {
+    \u0275\u0275domElementStart(6, "button", 35);
+    \u0275\u0275domListener("click", function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Template_button_click_6_listener($event) {
       \u0275\u0275restoreView(_r5);
       const h_r3 = \u0275\u0275nextContext().$implicit;
       const ctx_r3 = \u0275\u0275nextContext(2);
@@ -34434,7 +34434,7 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Template(rf
     \u0275\u0275text(7, "\u7BA1\u7406");
     \u0275\u0275domElementEnd()();
     \u0275\u0275declareLet(8)(9);
-    \u0275\u0275conditionalCreate(10, PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional_10_Template, 2, 0, "div", 35)(11, PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Conditional_11_Template, 15, 0);
+    \u0275\u0275conditionalCreate(10, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_10_Template, 2, 0, "div", 36)(11, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_Template, 15, 0);
     \u0275\u0275domElementEnd()()();
   }
   if (rf & 2) {
@@ -34448,39 +34448,39 @@ function PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Template(rf
     \u0275\u0275conditional(trades_r10.length === 0 ? 10 : 11);
   }
 }
-function PortfolioViewComponent_Conditional_19_For_18_Template(rf, ctx) {
+function PortfolioViewComponent_Conditional_19_For_19_Template(rf, ctx) {
   if (rf & 1) {
     const _r2 = \u0275\u0275getCurrentView();
-    \u0275\u0275domElementStart(0, "tr", 16);
-    \u0275\u0275domListener("click", function PortfolioViewComponent_Conditional_19_For_18_Template_tr_click_0_listener() {
+    \u0275\u0275domElementStart(0, "tr", 17);
+    \u0275\u0275domListener("click", function PortfolioViewComponent_Conditional_19_For_19_Template_tr_click_0_listener() {
       const h_r3 = \u0275\u0275restoreView(_r2).$implicit;
       const ctx_r3 = \u0275\u0275nextContext(2);
       return \u0275\u0275resetView(ctx_r3.toggleExpand(h_r3.code));
     });
-    \u0275\u0275domElementStart(1, "td")(2, "span", 17);
+    \u0275\u0275domElementStart(1, "td")(2, "span", 18);
     \u0275\u0275text(3);
     \u0275\u0275domElementEnd()();
-    \u0275\u0275domElementStart(4, "td")(5, "span", 18);
+    \u0275\u0275domElementStart(4, "td")(5, "span", 19);
     \u0275\u0275text(6);
     \u0275\u0275domElementEnd();
-    \u0275\u0275conditionalCreate(7, PortfolioViewComponent_Conditional_19_For_18_Conditional_7_Template, 3, 2, "div", 19);
+    \u0275\u0275conditionalCreate(7, PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Template, 3, 2, "div", 20);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(8, "td", 20);
+    \u0275\u0275domElementStart(8, "td", 21);
     \u0275\u0275text(9);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(10, "td", 20);
+    \u0275\u0275domElementStart(10, "td", 21);
     \u0275\u0275text(11);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(12, "td", 20);
+    \u0275\u0275domElementStart(12, "td", 21);
     \u0275\u0275text(13);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(14, "td", 21);
-    \u0275\u0275conditionalCreate(15, PortfolioViewComponent_Conditional_19_For_18_Conditional_15_Template, 4, 7)(16, PortfolioViewComponent_Conditional_19_For_18_Conditional_16_Template, 2, 0, "span", 22);
+    \u0275\u0275domElementStart(14, "td", 22);
+    \u0275\u0275conditionalCreate(15, PortfolioViewComponent_Conditional_19_For_19_Conditional_15_Template, 4, 7)(16, PortfolioViewComponent_Conditional_19_For_19_Conditional_16_Template, 2, 0, "span", 23);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(17, "td", 23)(18, "span", 24);
+    \u0275\u0275domElementStart(17, "td", 24)(18, "span", 25);
     \u0275\u0275text(19, "\u25B6");
     \u0275\u0275domElementEnd()()();
-    \u0275\u0275conditionalCreate(20, PortfolioViewComponent_Conditional_19_For_18_Conditional_20_Template, 12, 3, "tr", 25);
+    \u0275\u0275conditionalCreate(20, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Template, 12, 3, "tr", 26);
   }
   if (rf & 2) {
     const h_r3 = ctx.$implicit;
@@ -34508,33 +34508,33 @@ function PortfolioViewComponent_Conditional_19_For_18_Template(rf, ctx) {
 }
 function PortfolioViewComponent_Conditional_19_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "table", 6)(1, "thead")(2, "tr")(3, "th", 11);
-    \u0275\u0275text(4, "\u4EE3\u78BC");
+    \u0275\u0275domElementStart(0, "div", 6)(1, "table", 11)(2, "thead")(3, "tr")(4, "th", 12);
+    \u0275\u0275text(5, "\u4EE3\u78BC");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(5, "th");
-    \u0275\u0275text(6, "\u540D\u7A31");
+    \u0275\u0275domElementStart(6, "th");
+    \u0275\u0275text(7, "\u540D\u7A31");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(7, "th", 12);
-    \u0275\u0275text(8, "\u6301\u80A1");
+    \u0275\u0275domElementStart(8, "th", 13);
+    \u0275\u0275text(9, "\u6301\u80A1");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(9, "th", 13);
-    \u0275\u0275text(10, "\u5747\u6210\u672C");
+    \u0275\u0275domElementStart(10, "th", 14);
+    \u0275\u0275text(11, "\u5747\u6210\u672C");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(11, "th", 13);
-    \u0275\u0275text(12, "\u73FE\u50F9");
+    \u0275\u0275domElementStart(12, "th", 14);
+    \u0275\u0275text(13, "\u73FE\u50F9");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(13, "th", 14);
-    \u0275\u0275text(14, "\u672A\u5BE6\u73FE\u640D\u76CA");
+    \u0275\u0275domElementStart(14, "th", 15);
+    \u0275\u0275text(15, "\u672A\u5BE6\u73FE\u640D\u76CA");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElement(15, "th", 15);
+    \u0275\u0275domElement(16, "th", 16);
     \u0275\u0275domElementEnd()();
-    \u0275\u0275domElementStart(16, "tbody");
-    \u0275\u0275repeaterCreate(17, PortfolioViewComponent_Conditional_19_For_18_Template, 21, 14, null, null, _forTrack03);
-    \u0275\u0275domElementEnd()();
+    \u0275\u0275domElementStart(17, "tbody");
+    \u0275\u0275repeaterCreate(18, PortfolioViewComponent_Conditional_19_For_19_Template, 21, 14, null, null, _forTrack03);
+    \u0275\u0275domElementEnd()()();
   }
   if (rf & 2) {
     const ctx_r3 = \u0275\u0275nextContext();
-    \u0275\u0275advance(17);
+    \u0275\u0275advance(18);
     \u0275\u0275repeater(ctx_r3.holdings());
   }
 }
@@ -34659,7 +34659,7 @@ var PortfolioViewComponent = class _PortfolioViewComponent {
   static \u0275fac = function PortfolioViewComponent_Factory(__ngFactoryType__) {
     return new (__ngFactoryType__ || _PortfolioViewComponent)(\u0275\u0275directiveInject(AppStateService), \u0275\u0275directiveInject(StockService), \u0275\u0275directiveInject(ApiService));
   };
-  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PortfolioViewComponent, selectors: [["app-portfolio-view"]], decls: 20, vars: 14, consts: [[1, "trade-summary", "trade-summary-3", 2, "margin-bottom", "20px"], [1, "trade-summary-card"], [1, "tsc-label"], [1, "tsc-value", 2, "font-size", "18px"], [1, "tsc-sub", 3, "pos", "neg"], [1, "empty-state"], [1, "supply-table"], [1, "tsc-sub"], [1, "empty-icon"], [1, "empty-title"], [1, "empty-sub"], [2, "width", "80px"], [2, "width", "80px", "text-align", "right"], [2, "width", "100px", "text-align", "right"], [2, "width", "130px", "text-align", "right"], [2, "width", "50px"], [1, "portfolio-row", 3, "click"], [2, "font-family", "'JetBrains Mono',monospace", "font-weight", "600", "color", "var(--gold)"], [2, "font-weight", "600"], [2, "font-size", "11px", "margin-top", "2px", "display", "flex", "gap", "8px"], [2, "text-align", "right", "font-family", "'JetBrains Mono',monospace"], [2, "text-align", "right"], [2, "color", "var(--border)"], [2, "text-align", "center"], [2, "color", "var(--text-muted)", "font-size", "12px", "transition", "transform 0.2s"], [1, "portfolio-detail-row"], [3, "color"], [2, "color", "var(--text-muted)"], [1, "trade-pnl", 3, "title"], [2, "font-size", "12px", "margin-top", "2px", "color", "var(--text-muted)"], ["colspan", "7", 2, "padding", "0"], [1, "portfolio-detail"], [1, "portfolio-detail-header"], [2, "font-size", "13px", "font-weight", "700", "color", "var(--text-muted)"], [1, "idx-add-btn", 2, "padding", "5px 12px", "font-size", "13px", 3, "click"], [2, "padding", "16px", "text-align", "center", "color", "var(--text-muted)", "font-size", "14px"], [1, "trade-header-row", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-item", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-date"], [1, "trade-type"], [1, "trade-num", 2, "text-align", "right"], [1, "trade-num", 2, "text-align", "right", "color", "var(--text-muted)"], [1, "trade-pnl", 2, "text-align", "right"]], template: function PortfolioViewComponent_Template(rf, ctx) {
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PortfolioViewComponent, selectors: [["app-portfolio-view"]], decls: 20, vars: 14, consts: [[1, "trade-summary", "trade-summary-3", 2, "margin-bottom", "20px"], [1, "trade-summary-card"], [1, "tsc-label"], [1, "tsc-value", 2, "font-size", "18px"], [1, "tsc-sub", 3, "pos", "neg"], [1, "empty-state"], [1, "table-scroll-wrap"], [1, "tsc-sub"], [1, "empty-icon"], [1, "empty-title"], [1, "empty-sub"], [1, "supply-table"], [2, "width", "80px"], [2, "width", "80px", "text-align", "right"], [2, "width", "100px", "text-align", "right"], [2, "width", "130px", "text-align", "right"], [2, "width", "50px"], [1, "portfolio-row", 3, "click"], [2, "font-family", "'JetBrains Mono',monospace", "font-weight", "600", "color", "var(--gold)"], [2, "font-weight", "600"], [2, "font-size", "11px", "margin-top", "2px", "display", "flex", "gap", "8px"], [2, "text-align", "right", "font-family", "'JetBrains Mono',monospace"], [2, "text-align", "right"], [2, "color", "var(--border)"], [2, "text-align", "center"], [2, "color", "var(--text-muted)", "font-size", "12px", "transition", "transform 0.2s"], [1, "portfolio-detail-row"], [3, "color"], [2, "color", "var(--text-muted)"], [1, "trade-pnl", 3, "title"], [2, "font-size", "12px", "margin-top", "2px", "color", "var(--text-muted)"], ["colspan", "7", 2, "padding", "0"], [1, "portfolio-detail"], [1, "portfolio-detail-header"], [2, "font-size", "13px", "font-weight", "700", "color", "var(--text-muted)"], [1, "idx-add-btn", 2, "padding", "5px 12px", "font-size", "13px", 3, "click"], [2, "padding", "16px", "text-align", "center", "color", "var(--text-muted)", "font-size", "14px"], [1, "trade-header-row", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-item", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-date"], [1, "trade-type"], [1, "trade-num", 2, "text-align", "right"], [1, "trade-num", 2, "text-align", "right", "color", "var(--text-muted)"], [1, "trade-pnl", 2, "text-align", "right"]], template: function PortfolioViewComponent_Template(rf, ctx) {
     if (rf & 1) {
       \u0275\u0275declareLet(0);
       \u0275\u0275domElementStart(1, "div", 0)(2, "div", 1)(3, "div", 2);
@@ -34682,7 +34682,7 @@ var PortfolioViewComponent = class _PortfolioViewComponent {
       \u0275\u0275domElementEnd();
       \u0275\u0275conditionalCreate(17, PortfolioViewComponent_Conditional_17_Template, 2, 6, "div", 4);
       \u0275\u0275domElementEnd()();
-      \u0275\u0275conditionalCreate(18, PortfolioViewComponent_Conditional_18_Template, 9, 0, "div", 5)(19, PortfolioViewComponent_Conditional_19_Template, 19, 0, "table", 6);
+      \u0275\u0275conditionalCreate(18, PortfolioViewComponent_Conditional_18_Template, 9, 0, "div", 5)(19, PortfolioViewComponent_Conditional_19_Template, 20, 0, "div", 6);
     }
     if (rf & 2) {
       const s_r11 = \u0275\u0275storeLet(ctx.summary());
@@ -34746,6 +34746,7 @@ var PortfolioViewComponent = class _PortfolioViewComponent {
     <div class="empty-sub">\u5728\u500B\u80A1\u8A73\u60C5\u4E2D\u65B0\u589E\u4EA4\u6613\u8A18\u9304\uFF0C<br>\u8CB7\u9032\u5F8C\u5373\u6703\u986F\u793A\u65BC\u6B64\u3002</div>
   </div>
 } @else {
+  <div class="table-scroll-wrap">
   <table class="supply-table">
     <thead>
       <tr>
@@ -34862,13 +34863,14 @@ var PortfolioViewComponent = class _PortfolioViewComponent {
       }
     </tbody>
   </table>
+  </div>
 }
   `
     }]
   }], () => [{ type: AppStateService }, { type: StockService }, { type: ApiService }], null);
 })();
 (() => {
-  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PortfolioViewComponent, { className: "PortfolioViewComponent", filePath: "src/app/components/portfolio-view/portfolio-view.component.ts", lineNumber: 182 });
+  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PortfolioViewComponent, { className: "PortfolioViewComponent", filePath: "src/app/components/portfolio-view/portfolio-view.component.ts", lineNumber: 184 });
 })();
 
 // src/app/components/stock-index/stock-index.component.ts
