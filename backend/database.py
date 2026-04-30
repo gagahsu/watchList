@@ -82,6 +82,16 @@ DDL = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS brokers (
+        id       TEXT PRIMARY KEY,
+        name     TEXT NOT NULL,
+        discount DOUBLE PRECISION NOT NULL DEFAULT 0.6,
+        min_fee  INTEGER NOT NULL DEFAULT 20,
+        rounding TEXT NOT NULL DEFAULT 'floor'
+                 CHECK(rounding IN ('floor','round','ceil'))
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS stocks (
         code       TEXT PRIMARY KEY,
         name       TEXT NOT NULL DEFAULT '',

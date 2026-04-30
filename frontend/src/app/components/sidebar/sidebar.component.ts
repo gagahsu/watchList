@@ -66,6 +66,12 @@ import { Note } from '../../models/types';
         <span class="nav-icon">🔄</span>
         {{ state.syncing() ? '同步中…' : '同步股票資料' }}
       </button>
+      <button class="sidebar-nav-item" (click)="openBrokers()">
+        <span class="nav-icon">🏦</span> 管理券商
+        @if (state.brokers().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
+        }
+      </button>
       <div class="sidebar-setting-row">
         <span>手續費折扣</span>
         <div style="display:flex;align-items:center;gap:4px">
@@ -99,6 +105,8 @@ export class SidebarComponent {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
+
+  openBrokers() { this.state.brokersOpen.set(true); this.state.sidebarOpen.set(false); }
 
   openImport() {
     this.state.importing.set(true);

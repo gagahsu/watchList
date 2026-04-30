@@ -68,6 +68,14 @@ export interface TrackedStock {
   addedAt: number;
 }
 
+export interface Broker {
+  id: string;
+  name: string;
+  discount: number;
+  minFee: number;
+  rounding: 'floor' | 'round' | 'ceil';
+}
+
 export type EditTarget =
   | { kind: 'tracked'; code: string; tab?: 'info' | 'signals' | 'trades' }
   | { kind: 'entry';   rowId: string; entry: Entry };

@@ -131,6 +131,19 @@
           [value]="f.fee" (input)="f.fee=asStr($event)" />
       </div>
     </div>
+    @if (state.brokers().length > 0) {
+      <div class="trade-form-row">
+        <div class="trade-form-group" style="flex:1">
+          <div class="trade-form-label">券商 <span style="color:var(--text-muted);font-size:11px">（選擇後自動帶入手續費）</span></div>
+          <select class="trade-form-select" (change)="onBrokerChange($event)">
+            <option value="">— 不選 —</option>
+            @for (b of state.brokers(); track b.id) {
+              <option [value]="b.id" [selected]="selectedBroker()===b.id">{{ b.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    }
     <div class="trade-form-row">
       <div class="trade-form-group" style="flex:1">
         <div class="trade-form-label">備註 / 進出場原因 <span style="color:var(--text-muted);font-size:11px">(選填)</span></div>

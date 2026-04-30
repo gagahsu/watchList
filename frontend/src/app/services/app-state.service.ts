@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  EditTarget, Entry, MainView, Market, Note,
+  Broker, EditTarget, Entry, MainView, Market, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -31,6 +31,8 @@ export class AppStateService {
   portfolioRefreshTick    = signal(0);
   portfolioRefreshing     = signal(false);
   portfolioLastUpdated    = signal<Date | null>(null);
+  brokers                 = signal<Broker[]>([]);
+  brokersOpen             = signal(false);
   feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
 
   setFeeDiscount(v: number) {

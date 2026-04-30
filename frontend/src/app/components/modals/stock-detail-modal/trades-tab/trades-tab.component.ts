@@ -12,9 +12,10 @@ import { calcFIFO, fmtMoney, uid } from '../../../../utils';
 export class TradesTabComponent implements OnInit {
   @Input() entry!: () => { code: string };
 
-  showForm   = signal(false);
-  slVal      = signal('');
-  tpVal      = signal('');
+  showForm      = signal(false);
+  slVal         = signal('');
+  tpVal         = signal('');
+  selectedBroker = signal('');
   f = { type: 'buy', date: new Date().toISOString().slice(0, 10), shares: '', price: '', fee: '', note: '' };
 
   fmtMoney = fmtMoney;
@@ -28,6 +29,20 @@ export class TradesTabComponent implements OnInit {
   sorted(trades: Trade[]) { return [...trades].sort((a, b) => b.date.localeCompare(a.date)); }
 
   trackedForCode(code: string) { return this.state.tracked().find(t => t.code === code); }
+
+  onBrokerChange(e: Event) {
+    this.selectedBroker.set(this.asStr(e));
+    this.recalcFee();
+  }
+
+  recalcFee() {
+    const b = this.state.brokers().find(x => x.id === this.selectedBroker());
+    if (!b || !this.f.shares || !this.f.price) return;
+    const raw = parseFloat(this.f.shares) * parseFloat(this.f.price) * 0.001425 * b.discount;
+    let fee = b.rounding === 'floor' ? Math.floor(raw) : b.rounding === 'ceil' ? Math.ceil(raw) : Math.round(raw);
+    fee = Math.max(fee, b.minFee);
+    this.f.fee = String(fee);
+  }
 
   initSLTP(code: string) {
     const t = this.trackedForCode(code);

@@ -153,6 +153,23 @@ class TrackedOut(BaseModel):
     addedAt: int
 
 
+# ── Brokers ──────────────────────────────────────────
+class BrokerIn(BaseModel):
+    id: str
+    name: str
+    discount: float = 0.6
+    minFee: int = 20
+    rounding: str = "floor"
+
+
+class BrokerOut(BaseModel):
+    id: str
+    name: str
+    discount: float
+    minFee: int
+    rounding: str
+
+
 # ── Sources ──────────────────────────────────────────
 class SourceIn(BaseModel):
     name: str

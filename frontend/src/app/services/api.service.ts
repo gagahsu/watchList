@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
-  TrackingStatus, SignalStatus, Market,
+  TrackingStatus, SignalStatus, Market, Broker,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +38,7 @@ export class ApiService {
       this.get<Record<string, Market>>('/trade-markets'),
       this.get<StockInfo[]>('/stocks'),
       this.get<TrackedStock[]>('/tracked'),
+      this.get<Broker[]>('/brokers'),
     ]);
   }
 
@@ -102,4 +103,10 @@ export class ApiService {
   getQuotes(items: {code: string; market: string}[]) {
     return this.post<Record<string, number | null>>('/quotes', { items });
   }
+
+  // ── Brokers ───────────────────────────────────────────────────────────────
+  getBrokers() { return this.get<Broker[]>('/brokers'); }
+  createBroker(b: Broker) { return this.post<Broker>('/brokers', b); }
+  updateBroker(id: string, b: Broker) { return this.put<Broker>(`/brokers/${id}`, b); }
+  deleteBroker(id: string) { return this.delete<{ok:boolean}>(`/brokers/${id}`); }
 }

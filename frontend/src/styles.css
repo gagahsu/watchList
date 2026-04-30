@@ -319,6 +319,14 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .sl-tag { background:#FCE8E8; color:#C0392B; }
 .tp-tag { background:#E8F5EE; color:var(--holding); }
 .sl-tp-input { flex:1; border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-size:13px; font-family:inherit; background:var(--panel-bg); color:var(--text); min-width:0; }
+.broker-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.broker-row:last-of-type { border-bottom:none; }
+.broker-row-name { font-weight:600; font-size:15px; min-width:80px; }
+.broker-row-meta { display:flex; gap:10px; flex:1; font-size:13px; color:var(--text-muted); }
+.broker-row-actions { display:flex; gap:6px; }
+.broker-form { background:var(--sidebar-bg); border:1px solid var(--border); border-radius:8px; padding:14px; }
+.broker-form-row { display:flex; gap:10px; margin-bottom:10px; }
+.broker-form-group { display:flex; flex-direction:column; gap:4px; }
 .market-btn { padding:5px 14px; border-radius:16px; border:1.5px solid var(--border); background:none; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.15s; color:var(--text-muted); }
 .market-btn.active { background:var(--gold); color:white; border-color:var(--gold); }
 .trade-list { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
