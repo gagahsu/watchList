@@ -123,10 +123,25 @@ export class TradesTabComponent implements OnInit {
     this.state.addTrade(code, trade);
     this.f.shares = ''; this.f.price = ''; this.f.fee = ''; this.f.note = '';
     this.showForm.set(false);
+    await this.syncStatus(code);
   }
 
   async deleteTrade(code: string, id: string) {
     await this.api.deleteTrade(id);
     this.state.deleteTrade(code, id);
+    await this.syncStatus(code);
+  }
+
+  private async syncStatus(code: string) {
+    const tracked = this.trackedForCode(code);
+    if (!tracked) return;
+    const trades = this.state.trades()[code] ?? [];
+    const mkt = this.state.tradeMarkets()[code] ?? 'tw';
+    const fifo = calcFIFO(trades, mkt);
+    const target = fifo.holdingShares > 0 ? 'holding' : 'tracking';
+    if (tracked.status !== target) {
+      const updated = await this.api.patchTracked(code, { status: target });
+      this.state.updateTracked(updated);
+    }
   }
 }
