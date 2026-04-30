@@ -72,15 +72,6 @@ import { Note } from '../../models/types';
           <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
         }
       </button>
-      <div class="sidebar-setting-row">
-        <span>手續費折扣</span>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input class="sidebar-setting-input" type="number" min="1" max="10" step="0.1"
-            [value]="discountDisplay()"
-            (change)="onDiscountChange($event)" />
-          <span style="font-size:13px;color:var(--text-muted)">折</span>
-        </div>
-      </div>
     </div>
   </div>
 

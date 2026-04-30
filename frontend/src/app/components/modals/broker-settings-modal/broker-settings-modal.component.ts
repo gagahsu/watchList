@@ -34,7 +34,7 @@ const ROUNDINGS = [
             <div class="broker-form-group" style="flex:1">
               <div class="modal-label">折扣</div>
               <div style="display:flex;align-items:center;gap:4px">
-                <input class="modal-input" type="number" min="1" max="10" step="0.1" style="width:60px"
+                <input class="modal-input" type="number" min="1" max="10" step="0.1" style="width:90px"
                   [value]="disp(editF.discount)" (input)="editF.discount=toDiscount($event)" />
                 <span style="font-size:13px;color:var(--text-muted)">折</span>
               </div>
@@ -87,7 +87,7 @@ const ROUNDINGS = [
           <div class="broker-form-group" style="flex:1">
             <div class="modal-label">折扣</div>
             <div style="display:flex;align-items:center;gap:4px">
-              <input class="modal-input" type="number" min="1" max="10" step="0.1" style="width:60px"
+              <input class="modal-input" type="number" min="1" max="10" step="0.1" style="width:90px"
                 [value]="disp(newF.discount)" (input)="newF.discount=toDiscount($event)" />
               <span style="font-size:13px;color:var(--text-muted)">折</span>
             </div>
