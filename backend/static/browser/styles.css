@@ -2305,6 +2305,11 @@ app-root {
     font-size: 13px;
     padding: 3px 8px;
   }
+  .main-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
   .table-scroll-wrap {
     display: block;
     overflow-x: auto;
@@ -2312,7 +2317,7 @@ app-root {
   }
   .table-scroll-wrap > .supply-table {
     width: auto;
-    min-width: 520px;
+    min-width: 660px;
   }
   .index-table thead th:nth-child(3),
   .index-table tbody td:nth-child(3),
@@ -2352,6 +2357,9 @@ app-root {
   }
   .trade-summary-3 {
     grid-template-columns: 1fr 1fr;
+  }
+  .trade-summary-3 > :nth-child(3) {
+    grid-column: 1 / -1;
   }
   .tsc-value {
     font-size: 17px;

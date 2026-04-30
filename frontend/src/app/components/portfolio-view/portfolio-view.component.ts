@@ -86,14 +86,14 @@ interface Holding {
           <td>
             <span style="font-weight:600">{{ h.name }}</span>
             @if (h.stopLoss || h.takeProfit) {
-              <div style="font-size:11px;margin-top:2px;display:flex;gap:8px">
+              <div style="font-size:11px;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap">
                 @if (h.stopLoss) {
-                  <span [style.color]="h.stopLossHit ? 'var(--red)' : 'var(--text-muted)'">
+                  <span style="white-space:nowrap" [style.color]="h.stopLossHit ? 'var(--red)' : 'var(--text-muted)'">
                     {{ h.stopLossHit ? '⚠ ' : '' }}停損 {{ h.stopLoss }}
                   </span>
                 }
                 @if (h.takeProfit) {
-                  <span style="color:var(--text-muted)">停利 {{ h.takeProfit }}</span>
+                  <span style="white-space:nowrap;color:var(--text-muted)">停利 {{ h.takeProfit }}</span>
                 }
               </div>
             }

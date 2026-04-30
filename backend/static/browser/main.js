@@ -34271,7 +34271,7 @@ function PortfolioViewComponent_Conditional_18_Template(rf, ctx) {
 }
 function PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Conditional_1_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "span");
+    \u0275\u0275domElementStart(0, "span", 29);
     \u0275\u0275text(1);
     \u0275\u0275domElementEnd();
   }
@@ -34311,10 +34311,10 @@ function PortfolioViewComponent_Conditional_19_For_19_Conditional_7_Template(rf,
 }
 function PortfolioViewComponent_Conditional_19_For_19_Conditional_15_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 29);
+    \u0275\u0275domElementStart(0, "div", 30);
     \u0275\u0275text(1);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(2, "div", 30);
+    \u0275\u0275domElementStart(2, "div", 31);
     \u0275\u0275text(3);
     \u0275\u0275domElementEnd();
   }
@@ -34338,29 +34338,29 @@ function PortfolioViewComponent_Conditional_19_For_19_Conditional_16_Template(rf
 }
 function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_10_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 36);
+    \u0275\u0275domElementStart(0, "div", 37);
     \u0275\u0275text(1, " \u5C1A\u7121\u4EA4\u6613\u7D00\u9304 ");
     \u0275\u0275domElementEnd();
   }
 }
 function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_For_14_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 38)(1, "span", 39);
+    \u0275\u0275domElementStart(0, "div", 39)(1, "span", 40);
     \u0275\u0275text(2);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(3, "span", 40);
+    \u0275\u0275domElementStart(3, "span", 41);
     \u0275\u0275text(4);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(5, "span", 41);
+    \u0275\u0275domElementStart(5, "span", 42);
     \u0275\u0275text(6);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(7, "span", 41);
+    \u0275\u0275domElementStart(7, "span", 42);
     \u0275\u0275text(8);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(9, "span", 42);
+    \u0275\u0275domElementStart(9, "span", 43);
     \u0275\u0275text(10);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(11, "span", 43);
+    \u0275\u0275domElementStart(11, "span", 44);
     \u0275\u0275text(12);
     \u0275\u0275domElementEnd()();
   }
@@ -34391,7 +34391,7 @@ function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional
 }
 function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275domElementStart(0, "div", 37)(1, "span");
+    \u0275\u0275domElementStart(0, "div", 38)(1, "span");
     \u0275\u0275text(2, "\u65E5\u671F");
     \u0275\u0275domElementEnd();
     \u0275\u0275domElementStart(3, "span");
@@ -34409,7 +34409,7 @@ function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional
     \u0275\u0275domElementStart(11, "span", 22);
     \u0275\u0275text(12, "\u5BE6\u73FE\u640D\u76CA");
     \u0275\u0275domElementEnd()();
-    \u0275\u0275repeaterCreate(13, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_For_14_Template, 13, 14, "div", 38, _forTrack1);
+    \u0275\u0275repeaterCreate(13, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_For_14_Template, 13, 14, "div", 39, _forTrack1);
   }
   if (rf & 2) {
     \u0275\u0275nextContext();
@@ -34421,10 +34421,10 @@ function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional
 function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Template(rf, ctx) {
   if (rf & 1) {
     const _r5 = \u0275\u0275getCurrentView();
-    \u0275\u0275domElementStart(0, "tr", 26)(1, "td", 31)(2, "div", 32)(3, "div", 33)(4, "span", 34);
+    \u0275\u0275domElementStart(0, "tr", 26)(1, "td", 32)(2, "div", 33)(3, "div", 34)(4, "span", 35);
     \u0275\u0275text(5, "\u4EA4\u6613\u7D00\u9304");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(6, "button", 35);
+    \u0275\u0275domElementStart(6, "button", 36);
     \u0275\u0275domListener("click", function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Template_button_click_6_listener($event) {
       \u0275\u0275restoreView(_r5);
       const h_r3 = \u0275\u0275nextContext().$implicit;
@@ -34434,7 +34434,7 @@ function PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Template(rf
     \u0275\u0275text(7, "\u7BA1\u7406");
     \u0275\u0275domElementEnd()();
     \u0275\u0275declareLet(8)(9);
-    \u0275\u0275conditionalCreate(10, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_10_Template, 2, 0, "div", 36)(11, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_Template, 15, 0);
+    \u0275\u0275conditionalCreate(10, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_10_Template, 2, 0, "div", 37)(11, PortfolioViewComponent_Conditional_19_For_19_Conditional_20_Conditional_11_Template, 15, 0);
     \u0275\u0275domElementEnd()()();
   }
   if (rf & 2) {
@@ -34659,7 +34659,7 @@ var PortfolioViewComponent = class _PortfolioViewComponent {
   static \u0275fac = function PortfolioViewComponent_Factory(__ngFactoryType__) {
     return new (__ngFactoryType__ || _PortfolioViewComponent)(\u0275\u0275directiveInject(AppStateService), \u0275\u0275directiveInject(StockService), \u0275\u0275directiveInject(ApiService));
   };
-  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PortfolioViewComponent, selectors: [["app-portfolio-view"]], decls: 20, vars: 14, consts: [[1, "trade-summary", "trade-summary-3", 2, "margin-bottom", "20px"], [1, "trade-summary-card"], [1, "tsc-label"], [1, "tsc-value", 2, "font-size", "18px"], [1, "tsc-sub", 3, "pos", "neg"], [1, "empty-state"], [1, "table-scroll-wrap"], [1, "tsc-sub"], [1, "empty-icon"], [1, "empty-title"], [1, "empty-sub"], [1, "supply-table"], [2, "width", "80px"], [2, "width", "80px", "text-align", "right"], [2, "width", "100px", "text-align", "right"], [2, "width", "130px", "text-align", "right"], [2, "width", "50px"], [1, "portfolio-row", 3, "click"], [2, "font-family", "'JetBrains Mono',monospace", "font-weight", "600", "color", "var(--gold)"], [2, "font-weight", "600"], [2, "font-size", "11px", "margin-top", "2px", "display", "flex", "gap", "8px"], [2, "text-align", "right", "font-family", "'JetBrains Mono',monospace"], [2, "text-align", "right"], [2, "color", "var(--border)"], [2, "text-align", "center"], [2, "color", "var(--text-muted)", "font-size", "12px", "transition", "transform 0.2s"], [1, "portfolio-detail-row"], [3, "color"], [2, "color", "var(--text-muted)"], [1, "trade-pnl", 3, "title"], [2, "font-size", "12px", "margin-top", "2px", "color", "var(--text-muted)"], ["colspan", "7", 2, "padding", "0"], [1, "portfolio-detail"], [1, "portfolio-detail-header"], [2, "font-size", "13px", "font-weight", "700", "color", "var(--text-muted)"], [1, "idx-add-btn", 2, "padding", "5px 12px", "font-size", "13px", 3, "click"], [2, "padding", "16px", "text-align", "center", "color", "var(--text-muted)", "font-size", "14px"], [1, "trade-header-row", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-item", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-date"], [1, "trade-type"], [1, "trade-num", 2, "text-align", "right"], [1, "trade-num", 2, "text-align", "right", "color", "var(--text-muted)"], [1, "trade-pnl", 2, "text-align", "right"]], template: function PortfolioViewComponent_Template(rf, ctx) {
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PortfolioViewComponent, selectors: [["app-portfolio-view"]], decls: 20, vars: 14, consts: [[1, "trade-summary", "trade-summary-3", 2, "margin-bottom", "20px"], [1, "trade-summary-card"], [1, "tsc-label"], [1, "tsc-value", 2, "font-size", "18px"], [1, "tsc-sub", 3, "pos", "neg"], [1, "empty-state"], [1, "table-scroll-wrap"], [1, "tsc-sub"], [1, "empty-icon"], [1, "empty-title"], [1, "empty-sub"], [1, "supply-table"], [2, "width", "80px"], [2, "width", "80px", "text-align", "right"], [2, "width", "100px", "text-align", "right"], [2, "width", "130px", "text-align", "right"], [2, "width", "50px"], [1, "portfolio-row", 3, "click"], [2, "font-family", "'JetBrains Mono',monospace", "font-weight", "600", "color", "var(--gold)"], [2, "font-weight", "600"], [2, "font-size", "11px", "margin-top", "2px", "display", "flex", "gap", "8px", "flex-wrap", "wrap"], [2, "text-align", "right", "font-family", "'JetBrains Mono',monospace"], [2, "text-align", "right"], [2, "color", "var(--border)"], [2, "text-align", "center"], [2, "color", "var(--text-muted)", "font-size", "12px", "transition", "transform 0.2s"], [1, "portfolio-detail-row"], [2, "white-space", "nowrap", 3, "color"], [2, "white-space", "nowrap", "color", "var(--text-muted)"], [2, "white-space", "nowrap"], [1, "trade-pnl", 3, "title"], [2, "font-size", "12px", "margin-top", "2px", "color", "var(--text-muted)"], ["colspan", "7", 2, "padding", "0"], [1, "portfolio-detail"], [1, "portfolio-detail-header"], [2, "font-size", "13px", "font-weight", "700", "color", "var(--text-muted)"], [1, "idx-add-btn", 2, "padding", "5px 12px", "font-size", "13px", 3, "click"], [2, "padding", "16px", "text-align", "center", "color", "var(--text-muted)", "font-size", "14px"], [1, "trade-header-row", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-item", 2, "grid-template-columns", "90px 52px 80px 90px 80px 1fr"], [1, "trade-date"], [1, "trade-type"], [1, "trade-num", 2, "text-align", "right"], [1, "trade-num", 2, "text-align", "right", "color", "var(--text-muted)"], [1, "trade-pnl", 2, "text-align", "right"]], template: function PortfolioViewComponent_Template(rf, ctx) {
     if (rf & 1) {
       \u0275\u0275declareLet(0);
       \u0275\u0275domElementStart(1, "div", 0)(2, "div", 1)(3, "div", 2);
@@ -34772,14 +34772,14 @@ var PortfolioViewComponent = class _PortfolioViewComponent {
           <td>
             <span style="font-weight:600">{{ h.name }}</span>
             @if (h.stopLoss || h.takeProfit) {
-              <div style="font-size:11px;margin-top:2px;display:flex;gap:8px">
+              <div style="font-size:11px;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap">
                 @if (h.stopLoss) {
-                  <span [style.color]="h.stopLossHit ? 'var(--red)' : 'var(--text-muted)'">
+                  <span style="white-space:nowrap" [style.color]="h.stopLossHit ? 'var(--red)' : 'var(--text-muted)'">
                     {{ h.stopLossHit ? '\u26A0 ' : '' }}\u505C\u640D {{ h.stopLoss }}
                   </span>
                 }
                 @if (h.takeProfit) {
-                  <span style="color:var(--text-muted)">\u505C\u5229 {{ h.takeProfit }}</span>
+                  <span style="white-space:nowrap;color:var(--text-muted)">\u505C\u5229 {{ h.takeProfit }}</span>
                 }
               </div>
             }
