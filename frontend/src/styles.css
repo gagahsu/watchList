@@ -307,6 +307,14 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .pos { color:var(--holding); } .neg { color:var(--red); }
 .tsc-sub { font-size:13px; color:var(--text-muted); margin-top:3px; }
 .market-toggle { display:flex; gap:4px; margin-bottom:14px; }
+.sl-tp-bar { background:var(--sidebar-bg); border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin-bottom:14px; }
+.sl-tp-label { font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:8px; }
+.sl-tp-fields { display:flex; gap:10px; align-items:stretch; }
+.sl-tp-group { display:flex; align-items:center; gap:6px; flex:1; }
+.sl-tp-tag { font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; white-space:nowrap; flex-shrink:0; }
+.sl-tag { background:#FCE8E8; color:#C0392B; }
+.tp-tag { background:#E8F5EE; color:var(--holding); }
+.sl-tp-input { flex:1; border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-size:13px; font-family:inherit; background:var(--panel-bg); color:var(--text); min-width:0; }
 .market-btn { padding:5px 14px; border-radius:16px; border:1.5px solid var(--border); background:none; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.15s; color:var(--text-muted); }
 .market-btn.active { background:var(--gold); color:white; border-color:var(--gold); }
 .trade-list { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }

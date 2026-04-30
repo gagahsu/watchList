@@ -9,6 +9,24 @@
   <button class="market-btn" [class.active]="mkt==='us'" (click)="setMarket(code,'us')">&#127482;&#127480; 美股</button>
 </div>
 
+<!-- 出場計畫 -->
+<div class="sl-tp-bar" (click)="initSLTP(code)">
+  <span class="sl-tp-label">出場計畫</span>
+  <div class="sl-tp-fields">
+    <div class="sl-tp-group">
+      <span class="sl-tp-tag sl-tag">停損</span>
+      <input class="sl-tp-input" placeholder="如：跌破 19.5"
+        [value]="slVal()" (focus)="initSLTP(code)" (input)="slVal.set(asStr($event))" />
+    </div>
+    <div class="sl-tp-group">
+      <span class="sl-tp-tag tp-tag">停利</span>
+      <input class="sl-tp-input" placeholder="如：漲至 25"
+        [value]="tpVal()" (focus)="initSLTP(code)" (input)="tpVal.set(asStr($event))" />
+    </div>
+    <button class="sig-action-btn" style="align-self:center" (click)="saveSLTP(code)">儲存</button>
+  </div>
+</div>
+
 @if (trades.length > 0) {
   @let unrealized = unrealizedPnL(fifo, code);
   @let ci = closeInfo(code);

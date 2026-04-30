@@ -12,7 +12,9 @@ import { calcFIFO, fmtMoney, uid } from '../../../../utils';
 export class TradesTabComponent {
   @Input() entry!: () => { code: string };
 
-  showForm = signal(false);
+  showForm   = signal(false);
+  slVal      = signal('');
+  tpVal      = signal('');
   f = { type: 'buy', date: new Date().toISOString().slice(0, 10), shares: '', price: '', fee: '', note: '' };
 
   fmtMoney = fmtMoney;
@@ -22,6 +24,21 @@ export class TradesTabComponent {
 
   asStr(e: Event) { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
   sorted(trades: Trade[]) { return [...trades].sort((a, b) => b.date.localeCompare(a.date)); }
+
+  trackedForCode(code: string) { return this.state.tracked().find(t => t.code === code); }
+
+  initSLTP(code: string) {
+    const t = this.trackedForCode(code);
+    this.slVal.set(t?.stopLoss ?? '');
+    this.tpVal.set(t?.takeProfit ?? '');
+  }
+
+  async saveSLTP(code: string) {
+    const updated = await this.api.patchTracked(code, {
+      stopLoss: this.slVal().trim(), takeProfit: this.tpVal().trim(),
+    });
+    this.state.updateTracked(updated);
+  }
   fmtAvg(n: number, mkt: string) { return mkt === 'us' ? n.toFixed(2) : n % 1 === 0 ? n.toLocaleString() : n.toFixed(2); }
   fmtNum(n: number, mkt: string) { return mkt === 'us' ? n.toFixed(2) : n.toLocaleString(); }
   resultFor(fifo: ReturnType<typeof calcFIFO>, id: string) { return fifo.results.find(r => r.id === id) ?? null; }
