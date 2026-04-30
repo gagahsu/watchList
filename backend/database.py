@@ -64,7 +64,8 @@ DDL = [
         shares  DOUBLE PRECISION NOT NULL,
         price   DOUBLE PRECISION NOT NULL,
         fee     DOUBLE PRECISION NOT NULL DEFAULT 0,
-        sig_ref TEXT NOT NULL DEFAULT ''
+        sig_ref TEXT NOT NULL DEFAULT '',
+        note    TEXT NOT NULL DEFAULT ''
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_trades_code ON trades(code)",
@@ -94,9 +95,11 @@ DDL = [
         code     TEXT PRIMARY KEY,
         status   TEXT NOT NULL DEFAULT 'tracking'
                  CHECK(status IN ('holding','tracking')),
-        thesis   TEXT NOT NULL DEFAULT '',
-        memo     TEXT NOT NULL DEFAULT '',
-        added_at BIGINT NOT NULL
+        thesis      TEXT NOT NULL DEFAULT '',
+        memo        TEXT NOT NULL DEFAULT '',
+        stop_loss   TEXT NOT NULL DEFAULT '',
+        take_profit TEXT NOT NULL DEFAULT '',
+        added_at    BIGINT NOT NULL
     )
     """,
 ]

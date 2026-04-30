@@ -7,7 +7,8 @@ router = APIRouter()
 
 def _row_out(r) -> dict:
     return {"code": r["code"], "status": r["status"], "thesis": r["thesis"],
-            "memo": r["memo"], "addedAt": r["added_at"]}
+            "memo": r["memo"], "stopLoss": r["stop_loss"], "takeProfit": r["take_profit"],
+            "addedAt": r["added_at"]}
 
 
 @router.get("/tracked", response_model=list[TrackedOut])
@@ -23,12 +24,14 @@ def get_tracked():
 def add_tracked(body: TrackedIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO tracked_stocks(code, status, thesis, memo, added_at) VALUES (%s,%s,%s,%s,%s)"
-            " ON CONFLICT DO NOTHING",
-            (body.code, body.status, body.thesis, body.memo, body.addedAt),
+            "INSERT INTO tracked_stocks(code, status, thesis, memo, stop_loss, take_profit, added_at)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            (body.code, body.status, body.thesis, body.memo,
+             body.stopLoss, body.takeProfit, body.addedAt),
         )
         row = conn.execute(
-            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks WHERE code=%s", (body.code,)
+            "SELECT code, status, thesis, memo, stop_loss, take_profit, added_at"
+            " FROM tracked_stocks WHERE code=%s", (body.code,)
         ).fetchone()
     return _row_out(row)
 
@@ -44,8 +47,13 @@ def patch_tracked(code: str, body: TrackedPatch):
             conn.execute("UPDATE tracked_stocks SET thesis=%s WHERE code=%s", (body.thesis, code))
         if body.memo is not None:
             conn.execute("UPDATE tracked_stocks SET memo=%s WHERE code=%s", (body.memo, code))
+        if body.stopLoss is not None:
+            conn.execute("UPDATE tracked_stocks SET stop_loss=%s WHERE code=%s", (body.stopLoss, code))
+        if body.takeProfit is not None:
+            conn.execute("UPDATE tracked_stocks SET take_profit=%s WHERE code=%s", (body.takeProfit, code))
         row = conn.execute(
-            "SELECT code, status, thesis, memo, added_at FROM tracked_stocks WHERE code=%s", (code,)
+            "SELECT code, status, thesis, memo, stop_loss, take_profit, added_at"
+            " FROM tracked_stocks WHERE code=%s", (code,)
         ).fetchone()
     return _row_out(row)
 

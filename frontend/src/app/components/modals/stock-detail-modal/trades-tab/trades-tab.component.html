@@ -74,6 +74,9 @@
         </span>
         <button class="trade-del-btn" (click)="deleteTrade(code, t.id)">✕</button>
       </div>
+      @if (t.note) {
+        <div class="trade-note">{{ t.note }}</div>
+      }
     }
   </div>
 }
@@ -109,6 +112,13 @@
         <div class="trade-form-label">手續費 ({{ curr }})</div>
         <input class="trade-form-input" inputmode="decimal" placeholder="如: 71"
           [value]="f.fee" (input)="f.fee=asStr($event)" />
+      </div>
+    </div>
+    <div class="trade-form-row">
+      <div class="trade-form-group" style="flex:1">
+        <div class="trade-form-label">備註 / 進出場原因 <span style="color:var(--text-muted);font-size:11px">(選填)</span></div>
+        <input class="trade-form-input" placeholder="如：突破季線進場、停損出場"
+          [value]="f.note" (input)="f.note=asStr($event)" />
       </div>
     </div>
     @if (mkt === 'tw' && f.type === 'sell' && calcTax() > 0) {

@@ -47,6 +47,7 @@ export interface Trade {
   price: number;
   fee: number;
   sigRef: string;
+  note: string;
 }
 
 export interface StockInfo {
@@ -62,6 +63,8 @@ export interface TrackedStock {
   status: TrackingStatus;
   thesis: string;
   memo: string;
+  stopLoss: string;
+  takeProfit: string;
   addedAt: number;
 }
 

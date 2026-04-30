@@ -97,11 +97,28 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
             <input class="detail-input" placeholder="如：全球 BMC 供應龍頭，AI 伺服器升級受惠"
               [value]="thesis()" (input)="thesis.set(asStr($event))" />
           </div>
-          <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-field">
             <div class="detail-label">研究摘要 <span class="detail-label-hint">詳細筆記、財報重點、風險…</span></div>
             <textarea class="detail-textarea" placeholder="貼上公司介紹、研究心得…"
               [value]="memo()" (input)="memo.set(asTxtStr($event))"></textarea>
           </div>
+          @if (!isEntry()) {
+            <div class="detail-field" style="margin-bottom:0">
+              <div class="detail-label">出場計畫</div>
+              <div style="display:flex;gap:10px">
+                <div style="flex:1">
+                  <div class="detail-label-hint" style="margin-bottom:4px">停損</div>
+                  <input class="detail-input" placeholder="如：跌破 19.5 或 5日線"
+                    [value]="stopLoss()" (input)="stopLoss.set(asStr($event))" />
+                </div>
+                <div style="flex:1">
+                  <div class="detail-label-hint" style="margin-bottom:4px">停利</div>
+                  <input class="detail-input" placeholder="如：漲至 25 或 15% 獲利"
+                    [value]="takeProfit()" (input)="takeProfit.set(asStr($event))" />
+                </div>
+              </div>
+            </div>
+          }
         }
         @case ('signals') {
           <app-signals-tab [entry]="entryFn" />
@@ -131,12 +148,14 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
   `,
 })
 export class StockDetailModalComponent {
-  tab    = signal<'info'|'signals'|'trades'>('info');
-  code   = signal('');
-  name   = signal('');
-  status = signal<Entry['status']>('tracking');
-  thesis = signal('');
-  memo   = signal('');
+  tab        = signal<'info'|'signals'|'trades'>('info');
+  code       = signal('');
+  name       = signal('');
+  status     = signal<Entry['status']>('tracking');
+  thesis     = signal('');
+  memo       = signal('');
+  stopLoss   = signal('');
+  takeProfit = signal('');
   statuses = ['tracking', 'holding'];
 
   entryFn: () => { code: string } = () => ({ code: this.code() });
@@ -156,7 +175,8 @@ export class StockDetailModalComponent {
       const c = target.code;
       this.code.set(c);
       this.name.set(stock.codeToName()[c] || c);
-      if (t) { this.status.set(t.status); this.thesis.set(t.thesis); this.memo.set(t.memo); }
+      if (t) { this.status.set(t.status); this.thesis.set(t.thesis); this.memo.set(t.memo);
+               this.stopLoss.set(t.stopLoss ?? ''); this.takeProfit.set(t.takeProfit ?? ''); }
       if (target.tab) this.tab.set(target.tab);
     }
   }
@@ -190,7 +210,8 @@ export class StockDetailModalComponent {
       await this.api.patchEntry(updated.id, updated);
       this.state.saveEntry(this.state.activeNoteId()!, target.rowId, updated);
     } else {
-      const patch = { status: this.status(), thesis: this.thesis().trim(), memo: this.memo().trim() };
+      const patch = { status: this.status(), thesis: this.thesis().trim(), memo: this.memo().trim(),
+                      stopLoss: this.stopLoss().trim(), takeProfit: this.takeProfit().trim() };
       const updated = await this.api.patchTracked(this.code(), patch);
       this.state.updateTracked(updated);
     }

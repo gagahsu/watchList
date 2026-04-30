@@ -13,7 +13,7 @@ export class TradesTabComponent {
   @Input() entry!: () => { code: string };
 
   showForm = signal(false);
-  f = { type: 'buy', date: new Date().toISOString().slice(0, 10), shares: '', price: '', fee: '' };
+  f = { type: 'buy', date: new Date().toISOString().slice(0, 10), shares: '', price: '', fee: '', note: '' };
 
   fmtMoney = fmtMoney;
   calcFIFO = calcFIFO;
@@ -63,11 +63,11 @@ export class TradesTabComponent {
     const trade: Trade = {
       id: uid(), date: this.f.date, type: this.f.type as Trade['type'],
       shares: parseFloat(this.f.shares), price: parseFloat(this.f.price),
-      fee: parseFloat(this.f.fee) || 0, sigRef: '',
+      fee: parseFloat(this.f.fee) || 0, sigRef: '', note: this.f.note.trim(),
     };
     await this.api.createTrade(code, trade);
     this.state.addTrade(code, trade);
-    this.f.shares = ''; this.f.price = ''; this.f.fee = '';
+    this.f.shares = ''; this.f.price = ''; this.f.fee = ''; this.f.note = '';
     this.showForm.set(false);
   }
 

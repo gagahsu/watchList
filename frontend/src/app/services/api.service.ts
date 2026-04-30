@@ -86,7 +86,7 @@ export class ApiService {
   addTracked(body: Partial<TrackedStock> & { code: string }) {
     return this.post<TrackedStock>('/tracked', { ...body, addedAt: body.addedAt ?? Date.now() });
   }
-  patchTracked(code: string, body: { status?: TrackingStatus; thesis?: string; memo?: string }) {
+  patchTracked(code: string, body: { status?: TrackingStatus; thesis?: string; memo?: string; stopLoss?: string; takeProfit?: string }) {
     return this.patch<TrackedStock>(`/tracked/${code}`, body);
   }
   deleteTracked(code: string) { return this.delete<{ok:boolean}>(`/tracked/${code}`); }

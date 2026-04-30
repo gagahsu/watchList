@@ -110,6 +110,7 @@ class TradeIn(BaseModel):
     price: float
     fee: float = 0
     sigRef: str = ""
+    note: str = ""
 
 
 class TradeOut(BaseModel):
@@ -120,6 +121,7 @@ class TradeOut(BaseModel):
     price: float
     fee: float
     sigRef: str
+    note: str
 
 
 # ── Tracked Stocks ───────────────────────────────────
@@ -128,6 +130,8 @@ class TrackedIn(BaseModel):
     status: str = "tracking"
     thesis: str = ""
     memo: str = ""
+    stopLoss: str = ""
+    takeProfit: str = ""
     addedAt: int
 
 
@@ -135,6 +139,8 @@ class TrackedPatch(BaseModel):
     status: Optional[str] = None
     thesis: Optional[str] = None
     memo: Optional[str] = None
+    stopLoss: Optional[str] = None
+    takeProfit: Optional[str] = None
 
 
 class TrackedOut(BaseModel):
@@ -142,6 +148,8 @@ class TrackedOut(BaseModel):
     status: str
     thesis: str
     memo: str
+    stopLoss: str
+    takeProfit: str
     addedAt: int
 
 

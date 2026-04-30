@@ -321,6 +321,7 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .trade-pnl.pos { color:var(--holding); } .trade-pnl.neg { color:var(--red); }
 .trade-del-btn { background:none; border:none; cursor:pointer; color:var(--border); font-size:15px; padding:2px 4px; transition:color 0.15s; text-align:right; }
 .trade-del-btn:hover { color:var(--red); }
+.trade-note { font-size:12px; color:var(--text-muted); padding:3px 0 6px 2px; font-style:italic; }
 .trade-header-row { display:grid; grid-template-columns:72px 56px 1fr 1fr 1fr 80px 20px; gap:8px; padding:0 12px 6px; font-size:12px; color:var(--text-muted); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; border-bottom:1px solid var(--border); margin-bottom:6px; }
 .trade-form { background:var(--sidebar-bg); border-radius:10px; padding:14px; border:1px solid var(--border); margin-top:4px; }
 .trade-form-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
