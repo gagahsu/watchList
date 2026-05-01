@@ -6,27 +6,22 @@ import { Liability } from '../../models/types';
 import { calcFIFO, uid } from '../../utils';
 
 const LIABILITY_TYPES = ['房貸', '車貸', '信用貸款', '信用卡', '學貸', '其他'];
+const LOAN_TYPES = new Set(['房貸', '車貸', '信用貸款', '學貸']);
 
-/**
- * Returns true when today is the liability's reminder day.
- * If reminderDay exceeds the actual last day of the current month (e.g. 31 in Feb),
- * the effective day is clamped to the last day, so the highlight fires early.
- */
 function isReminderToday(l: Liability): boolean {
   if (!l.reminderEnabled || !l.reminderDay) return false;
   const now = new Date();
   const todayDay = now.getDate();
   const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const effectiveDay = Math.min(l.reminderDay, lastDay);
-  return todayDay === effectiveDay;
+  return todayDay === Math.min(l.reminderDay, lastDay);
 }
 
 @Component({
   selector: 'app-balance-sheet-view',
   template: `
-@let totalAssets     = assetTotal();
-@let totalLiab       = liabilityTotal();
-@let netWorth        = totalAssets - totalLiab;
+@let totalAssets = assetTotal();
+@let totalLiab   = liabilityTotal();
+@let netWorth    = totalAssets - totalLiab;
 
 <!-- ── Summary ─────────────────────────────────────── -->
 <div class="bs-summary">
@@ -53,7 +48,6 @@ function isReminderToday(l: Liability): boolean {
     <span class="bs-section-total">{{ fmtNT(totalAssets) }}</span>
   </div>
 
-  <!-- Accounts -->
   @if (state.accounts().length > 0) {
     <div class="bs-sub-title">現金 / 帳戶</div>
     @for (a of state.accounts(); track a.id) {
@@ -67,7 +61,6 @@ function isReminderToday(l: Liability): boolean {
     }
   }
 
-  <!-- Holdings -->
   @if (holdingRows().length > 0) {
     <div class="bs-sub-title">持股市值</div>
     @for (h of holdingRows(); track h.code) {
@@ -104,7 +97,10 @@ function isReminderToday(l: Liability): boolean {
 
   @for (l of state.liabilities(); track l.id) {
     @let isAlert = isReminderToday(l);
+    @let isLoan  = isLoanType(l.type);
     @if (editId() === l.id) {
+
+      <!-- ── Edit form ── -->
       <div class="bs-edit-form" [class.bs-reminder-alert]="isAlert">
         <div class="broker-form-row">
           <div class="broker-form-group" style="flex:2">
@@ -122,7 +118,7 @@ function isReminderToday(l: Liability): boolean {
         </div>
         <div class="broker-form-row">
           <div class="broker-form-group" style="flex:1">
-            <div class="modal-label">金額 (NT$)</div>
+            <div class="modal-label">{{ isLoanType(editF.type) ? '未償餘額' : '金額' }}</div>
             <input class="modal-input" type="number" step="1" min="0"
               [value]="editF.amount" (input)="editF.amount=toNum($event)" />
           </div>
@@ -131,7 +127,42 @@ function isReminderToday(l: Liability): boolean {
             <input class="modal-input" [value]="editF.note" (input)="editF.note=asStr($event)" />
           </div>
         </div>
-        <div class="broker-form-row" style="align-items:flex-end">
+
+        <!-- Loan detail fields -->
+        @if (isLoanType(editF.type)) {
+          <div class="bs-loan-divider">貸款明細</div>
+          <div class="broker-form-row">
+            <div class="broker-form-group" style="flex:1">
+              <div class="modal-label">貸款總額</div>
+              <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
+                [value]="editF.totalAmount ?? ''" (input)="editF.totalAmount=toNumOrNull($event)" />
+            </div>
+            <div class="broker-form-group" style="flex:1">
+              <div class="modal-label">年利率 (%)</div>
+              <input class="modal-input" type="number" step="0.01" min="0" placeholder="選填"
+                [value]="editF.interestRate ?? ''" (input)="editF.interestRate=toNumOrNull($event)" />
+            </div>
+          </div>
+          <div class="broker-form-row">
+            <div class="broker-form-group" style="flex:1">
+              <div class="modal-label">總期數 (月)</div>
+              <input class="modal-input" type="number" step="1" min="1" placeholder="選填"
+                [value]="editF.periods ?? ''" (input)="editF.periods=toIntOrNull($event)" />
+            </div>
+            <div class="broker-form-group" style="flex:1">
+              <div class="modal-label">已還期數</div>
+              <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
+                [value]="editF.paidPeriods ?? ''" (input)="editF.paidPeriods=toIntOrNull($event)" />
+            </div>
+            <div class="broker-form-group" style="flex:1">
+              <div class="modal-label">每月還款</div>
+              <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
+                [value]="editF.monthlyPayment ?? ''" (input)="editF.monthlyPayment=toNumOrNull($event)" />
+            </div>
+          </div>
+        }
+
+        <div class="broker-form-row" style="align-items:flex-end;margin-top:4px">
           <div class="broker-form-group" style="flex:0 0 auto">
             <div class="modal-label">提醒</div>
             <label class="bs-toggle">
@@ -153,7 +184,10 @@ function isReminderToday(l: Liability): boolean {
           <button class="btn-cancel" (click)="editId.set(null)">取消</button>
         </div>
       </div>
+
     } @else {
+
+      <!-- ── Display row ── -->
       <div class="bs-row bs-liab-row" [class.bs-reminder-alert]="isAlert">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -166,6 +200,23 @@ function isReminderToday(l: Liability): boolean {
               </span>
             }
           </div>
+          <!-- Loan details summary -->
+          @if (isLoan && (l.totalAmount || l.periods || l.monthlyPayment || l.interestRate)) {
+            <div class="bs-loan-meta">
+              @if (l.totalAmount) { <span>總額 {{ fmtNT(l.totalAmount) }}</span> }
+              @if (l.interestRate) { <span>年利率 {{ l.interestRate }}%</span> }
+              @if (l.monthlyPayment) { <span>每月還款 {{ fmtNT(l.monthlyPayment) }}</span> }
+              @if (l.periods) {
+                <span>{{ l.paidPeriods ?? 0 }}/{{ l.periods }} 期</span>
+              }
+            </div>
+            @if (l.periods && l.paidPeriods != null) {
+              <div class="bs-progress-bar">
+                <div class="bs-progress-fill"
+                  [style.width.%]="progressPct(l.paidPeriods, l.periods)"></div>
+              </div>
+            }
+          }
           @if (l.note) {
             <div class="bs-row-note">{{ l.note }}</div>
           }
@@ -179,7 +230,7 @@ function isReminderToday(l: Liability): boolean {
     }
   }
 
-  <!-- Add form -->
+  <!-- ── Add form ── -->
   @if (showAddForm()) {
     <div class="bs-edit-form" style="margin-top:12px">
       <div class="broker-form-row">
@@ -199,17 +250,52 @@ function isReminderToday(l: Liability): boolean {
       </div>
       <div class="broker-form-row">
         <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">金額 (NT$)</div>
+          <div class="modal-label">{{ isLoanType(newF.type) ? '未償餘額' : '金額' }}</div>
           <input class="modal-input" type="number" step="1" min="0" placeholder="如：5000000"
             [value]="newF.amount" (input)="newF.amount=toNum($event)" />
         </div>
         <div class="broker-form-group" style="flex:2">
           <div class="modal-label">備註 (選填)</div>
-          <input class="modal-input" placeholder="如：每月繳款日15日"
+          <input class="modal-input" placeholder="如：玉山銀行"
             [value]="newF.note" (input)="newF.note=asStr($event)" />
         </div>
       </div>
-      <div class="broker-form-row" style="align-items:flex-end">
+
+      <!-- Loan detail fields -->
+      @if (isLoanType(newF.type)) {
+        <div class="bs-loan-divider">貸款明細</div>
+        <div class="broker-form-row">
+          <div class="broker-form-group" style="flex:1">
+            <div class="modal-label">貸款總額</div>
+            <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
+              [value]="newF.totalAmount ?? ''" (input)="newF.totalAmount=toNumOrNull($event)" />
+          </div>
+          <div class="broker-form-group" style="flex:1">
+            <div class="modal-label">年利率 (%)</div>
+            <input class="modal-input" type="number" step="0.01" min="0" placeholder="選填"
+              [value]="newF.interestRate ?? ''" (input)="newF.interestRate=toNumOrNull($event)" />
+          </div>
+        </div>
+        <div class="broker-form-row">
+          <div class="broker-form-group" style="flex:1">
+            <div class="modal-label">總期數 (月)</div>
+            <input class="modal-input" type="number" step="1" min="1" placeholder="選填"
+              [value]="newF.periods ?? ''" (input)="newF.periods=toIntOrNull($event)" />
+          </div>
+          <div class="broker-form-group" style="flex:1">
+            <div class="modal-label">已還期數</div>
+            <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
+              [value]="newF.paidPeriods ?? ''" (input)="newF.paidPeriods=toIntOrNull($event)" />
+          </div>
+          <div class="broker-form-group" style="flex:1">
+            <div class="modal-label">每月還款</div>
+            <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
+              [value]="newF.monthlyPayment ?? ''" (input)="newF.monthlyPayment=toNumOrNull($event)" />
+          </div>
+        </div>
+      }
+
+      <div class="broker-form-row" style="align-items:flex-end;margin-top:4px">
         <div class="broker-form-group" style="flex:0 0 auto">
           <div class="modal-label">提醒</div>
           <label class="bs-toggle">
@@ -252,7 +338,7 @@ function isReminderToday(l: Liability): boolean {
     .bs-sub-title { font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin:10px 0 6px; }
     .bs-row { display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--border); }
     .bs-row:last-of-type { border-bottom:none; }
-    .bs-liab-row { flex-wrap:wrap; }
+    .bs-liab-row { flex-wrap:wrap; align-items:flex-start; }
     .bs-row-name { font-weight:600; font-size:14px; flex:1; min-width:0; }
     .bs-row-meta { font-size:12px; color:var(--text-muted); white-space:nowrap; }
     .bs-row-amount { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; white-space:nowrap; }
@@ -268,6 +354,11 @@ function isReminderToday(l: Liability): boolean {
     .bs-reminder-tag-due { background:rgba(192,57,43,.12); color:var(--red); border-color:rgba(192,57,43,.3); }
     .bs-reminder-alert { border-left:3px solid var(--red,#c0392b); background:rgba(192,57,43,.04) !important; }
     .bs-alert-badge { font-size:12px; font-weight:700; color:var(--red,#c0392b); }
+    .bs-loan-divider { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin:10px 0 6px; padding-top:8px; border-top:1px solid var(--border); }
+    .bs-loan-meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; color:var(--text-muted); margin-top:4px; }
+    .bs-loan-meta span { white-space:nowrap; }
+    .bs-progress-bar { height:4px; background:var(--border); border-radius:2px; margin-top:5px; overflow:hidden; }
+    .bs-progress-fill { height:100%; background:var(--gold); border-radius:2px; transition:width .3s; }
     .text-danger { color:var(--red,#c0392b); }
     .text-muted-val { color:var(--text-muted); }
     @media (max-width:600px) {
@@ -279,6 +370,7 @@ function isReminderToday(l: Liability): boolean {
 export class BalanceSheetViewComponent {
   liabilityTypes = LIABILITY_TYPES;
   isReminderToday = isReminderToday;
+  isLoanType = (t: string) => LOAN_TYPES.has(t);
 
   showAddForm = signal(false);
   editId      = signal<string | null>(null);
@@ -292,17 +384,31 @@ export class BalanceSheetViewComponent {
   ) {}
 
   blankForm() {
-    return { name: '', type: '其他', amount: 0, reminderEnabled: false, reminderDay: 1, note: '' };
+    return {
+      name: '', type: '其他', amount: 0, note: '',
+      reminderEnabled: false, reminderDay: 1,
+      totalAmount: null as number | null,
+      periods: null as number | null,
+      paidPeriods: null as number | null,
+      interestRate: null as number | null,
+      monthlyPayment: null as number | null,
+    };
   }
 
-  asStr(e: Event)     { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
-  toNum(e: Event)     { return parseFloat((e.target as HTMLInputElement).value) || 0; }
-  toInt(e: Event)     { return parseInt((e.target as HTMLInputElement).value, 10) || 1; }
-  asChecked(e: Event) { return (e.target as HTMLInputElement).checked; }
+  asStr(e: Event)         { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
+  toNum(e: Event)         { return parseFloat((e.target as HTMLInputElement).value) || 0; }
+  toInt(e: Event)         { return parseInt((e.target as HTMLInputElement).value, 10) || 1; }
+  toNumOrNull(e: Event)   { const v = parseFloat((e.target as HTMLInputElement).value); return isNaN(v) || v === 0 ? null : v; }
+  toIntOrNull(e: Event)   { const v = parseInt((e.target as HTMLInputElement).value, 10); return isNaN(v) || v === 0 ? null : v; }
+  asChecked(e: Event)     { return (e.target as HTMLInputElement).checked; }
 
   fmtNT(n: number) {
     const abs = Math.abs(n);
     return `NT$${Math.round(abs).toLocaleString()}`;
+  }
+
+  progressPct(paid: number, total: number) {
+    return Math.min(100, Math.round((paid / total) * 100));
   }
 
   holdingRows = computed(() => {
@@ -348,6 +454,11 @@ export class BalanceSheetViewComponent {
       reminderEnabled: this.newF.reminderEnabled,
       reminderDay: this.newF.reminderEnabled ? this.newF.reminderDay : null,
       note: this.newF.note.trim(),
+      totalAmount: this.newF.totalAmount,
+      periods: this.newF.periods,
+      paidPeriods: this.newF.paidPeriods,
+      interestRate: this.newF.interestRate,
+      monthlyPayment: this.newF.monthlyPayment,
     };
     const saved = await this.api.createLiability(l);
     this.state.addLiability(saved);
@@ -356,10 +467,14 @@ export class BalanceSheetViewComponent {
 
   startEdit(l: Liability) {
     this.editF = {
-      name: l.name, type: l.type, amount: l.amount,
+      name: l.name, type: l.type, amount: l.amount, note: l.note,
       reminderEnabled: l.reminderEnabled,
       reminderDay: l.reminderDay ?? 1,
-      note: l.note,
+      totalAmount: l.totalAmount,
+      periods: l.periods,
+      paidPeriods: l.paidPeriods,
+      interestRate: l.interestRate,
+      monthlyPayment: l.monthlyPayment,
     };
     this.editId.set(l.id);
     this.showAddForm.set(false);
@@ -372,6 +487,11 @@ export class BalanceSheetViewComponent {
       reminderEnabled: this.editF.reminderEnabled,
       reminderDay: this.editF.reminderEnabled ? this.editF.reminderDay : null,
       note: this.editF.note.trim(),
+      totalAmount: this.editF.totalAmount,
+      periods: this.editF.periods,
+      paidPeriods: this.editF.paidPeriods,
+      interestRate: this.editF.interestRate,
+      monthlyPayment: this.editF.monthlyPayment,
     });
     this.state.updateLiability(updated);
     this.editId.set(null);

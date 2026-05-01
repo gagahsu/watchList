@@ -153,6 +153,12 @@ DDL = [
     # migrate: replace reminder_date (TEXT) with reminder_day (INTEGER)
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS reminder_day INTEGER",
     "ALTER TABLE liabilities DROP COLUMN IF EXISTS reminder_date",
+    # migrate: add loan detail columns
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS total_amount DOUBLE PRECISION",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS periods INTEGER",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS paid_periods INTEGER",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS interest_rate DOUBLE PRECISION",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS monthly_payment DOUBLE PRECISION",
 ]
 
 

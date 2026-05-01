@@ -14,6 +14,11 @@ def _row_to_liability(r) -> dict:
         "reminderEnabled": r["reminder_enabled"],
         "reminderDay": r["reminder_day"],
         "note": r["note"],
+        "totalAmount": r["total_amount"],
+        "periods": r["periods"],
+        "paidPeriods": r["paid_periods"],
+        "interestRate": r["interest_rate"],
+        "monthlyPayment": r["monthly_payment"],
     }
 
 
@@ -28,14 +33,21 @@ def get_liabilities():
 def create_liability(body: LiabilityIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO liabilities(id, name, type, amount, reminder_enabled, reminder_day, note)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s)"
+            "INSERT INTO liabilities"
+            " (id, name, type, amount, reminder_enabled, reminder_day, note,"
+            "  total_amount, periods, paid_periods, interest_rate, monthly_payment)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT(id) DO UPDATE SET"
             "  name=EXCLUDED.name, type=EXCLUDED.type, amount=EXCLUDED.amount,"
             "  reminder_enabled=EXCLUDED.reminder_enabled, reminder_day=EXCLUDED.reminder_day,"
-            "  note=EXCLUDED.note",
+            "  note=EXCLUDED.note,"
+            "  total_amount=EXCLUDED.total_amount, periods=EXCLUDED.periods,"
+            "  paid_periods=EXCLUDED.paid_periods, interest_rate=EXCLUDED.interest_rate,"
+            "  monthly_payment=EXCLUDED.monthly_payment",
             (body.id, body.name, body.type, body.amount,
-             body.reminderEnabled, body.reminderDay, body.note),
+             body.reminderEnabled, body.reminderDay, body.note,
+             body.totalAmount, body.periods, body.paidPeriods,
+             body.interestRate, body.monthlyPayment),
         )
         row = conn.execute("SELECT * FROM liabilities WHERE id=%s", (body.id,)).fetchone()
     return _row_to_liability(row)
@@ -53,8 +65,12 @@ def patch_liability(liability_id: str, body: LiabilityPatch):
         if body.note is not None:            updates["note"]             = body.note
         if body.reminderEnabled is not None: updates["reminder_enabled"] = body.reminderEnabled
         if body.reminderDay is not None:     updates["reminder_day"]     = body.reminderDay
-        # allow clearing reminderDay to NULL explicitly
         if body.reminderEnabled is False:    updates["reminder_day"]     = None
+        if body.totalAmount is not None:     updates["total_amount"]     = body.totalAmount
+        if body.periods is not None:         updates["periods"]          = body.periods
+        if body.paidPeriods is not None:     updates["paid_periods"]     = body.paidPeriods
+        if body.interestRate is not None:    updates["interest_rate"]    = body.interestRate
+        if body.monthlyPayment is not None:  updates["monthly_payment"]  = body.monthlyPayment
         if updates:
             cols = ", ".join(f"{k}=%s" for k in updates)
             conn.execute(f"UPDATE liabilities SET {cols} WHERE id=%s",

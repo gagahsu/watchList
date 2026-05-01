@@ -215,6 +215,11 @@ class LiabilityIn(BaseModel):
     reminderEnabled: bool = False
     reminderDay: Optional[int] = None  # 1-31, None when reminder disabled
     note: str = ""
+    totalAmount: Optional[float] = None
+    periods: Optional[int] = None
+    paidPeriods: Optional[int] = None
+    interestRate: Optional[float] = None
+    monthlyPayment: Optional[float] = None
 
 
 class LiabilityPatch(BaseModel):
@@ -224,6 +229,11 @@ class LiabilityPatch(BaseModel):
     reminderEnabled: Optional[bool] = None
     reminderDay: Optional[int] = None
     note: Optional[str] = None
+    totalAmount: Optional[float] = None
+    periods: Optional[int] = None
+    paidPeriods: Optional[int] = None
+    interestRate: Optional[float] = None
+    monthlyPayment: Optional[float] = None
 
 
 class LiabilityOut(BaseModel):
@@ -234,3 +244,8 @@ class LiabilityOut(BaseModel):
     reminderEnabled: bool
     reminderDay: Optional[int]
     note: str
+    totalAmount: Optional[float]
+    periods: Optional[int]
+    paidPeriods: Optional[int]
+    interestRate: Optional[float]
+    monthlyPayment: Optional[float]

@@ -106,6 +106,11 @@ export interface Liability {
   reminderEnabled: boolean;
   reminderDay: number | null;  // 1-31; null when disabled
   note: string;
+  totalAmount: number | null;
+  periods: number | null;
+  paidPeriods: number | null;
+  interestRate: number | null;
+  monthlyPayment: number | null;
 }
 
 export interface FifoResult {
