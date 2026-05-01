@@ -76,13 +76,13 @@ export class App implements OnInit {
   pageTitle() {
     const titles: Record<string, string> = {
       'notes-list': '筆記列表',
-      'notes': 'WatchList',
+      'notes': '理債富',
       'index': '個股索引',
       'signals': '訊號總覽',
       'portfolio': '投資組合',
       'balance-sheet': '資產負債',
       'watch': '鎖定觀察',
     };
-    return titles[this.state.view()] ?? 'WatchList';
+    return titles[this.state.view()] ?? '理債富';
   }
 }

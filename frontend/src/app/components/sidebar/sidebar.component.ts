@@ -14,8 +14,8 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
     <div class="sidebar-brand">
       <div class="sidebar-brand-icon">📋</div>
       <div>
-        <div>WatchList</div>
-        <div class="sidebar-brand-sub">投資研究筆記</div>
+        <div>理債富</div>
+        <div class="sidebar-brand-sub">個人投資管理</div>
       </div>
     </div>
     <button class="sidebar-close-btn" (click)="state.sidebarOpen.set(false)" aria-label="關閉側邊欄">×</button>
