@@ -368,6 +368,8 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .trade-form-select { padding:7px 10px; border:1.5px solid var(--border); border-radius:7px; font-family:inherit; font-size:15px; background:white; color:var(--text); outline:none; cursor:pointer; transition:border-color 0.15s; width:100%; }
 .trade-form-select:focus { border-color:var(--gold); }
 .trade-tax-hint { font-size:13px; color:var(--text-muted); background:var(--tracking-bg); border:1px solid var(--gold-light); border-radius:6px; padding:6px 10px; margin-bottom:10px; }
+.trade-account-warning { font-size:13px; color:var(--red); background:rgba(192,57,43,.07); border:1px solid rgba(192,57,43,.3); border-radius:6px; padding:6px 10px; margin-bottom:10px; }
+.trade-account-tag { display:inline-block; font-size:11px; background:var(--tracking-bg); color:var(--gold); border:1px solid var(--gold-light); border-radius:4px; padding:1px 6px; margin-right:6px; font-family:'JetBrains Mono',monospace; }
 
 /* Import Modal */
 .import-drop { border:2px dashed var(--border); border-radius:10px; padding:28px 20px; text-align:center; cursor:pointer; transition:all 0.15s; background:var(--bg); margin-bottom:14px; }

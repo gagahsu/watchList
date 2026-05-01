@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import init_db
-from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers
+from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts
 
 app = FastAPI(title="WatchList API")
 
@@ -23,7 +23,8 @@ app.include_router(sources.router, prefix="/api")
 app.include_router(stocks.router,  prefix="/api")
 app.include_router(tracked.router, prefix="/api")
 app.include_router(quotes.router,   prefix="/api")
-app.include_router(brokers.router,  prefix="/api")
+app.include_router(brokers.router,   prefix="/api")
+app.include_router(accounts.router,  prefix="/api")
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "browser")
 INDEX_HTML  = os.path.join(STATIC_DIR, "index.html")

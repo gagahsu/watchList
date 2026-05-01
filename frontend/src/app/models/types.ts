@@ -48,6 +48,15 @@ export interface Trade {
   fee: number;
   sigRef: string;
   note: string;
+  accountId: string | null;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  balance: number;
+  interestRate: number;
+  note: string;
 }
 
 export interface StockInfo {

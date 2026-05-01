@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Broker, EditTarget, Entry, MainView, Market, Note,
+  Account, Broker, EditTarget, Entry, MainView, Market, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -15,6 +15,7 @@ export class AppStateService {
   sources      = signal<string[]>([]);
   tradeMarkets = signal<Record<string, Market>>({});
   tracked      = signal<TrackedStock[]>([]);
+  accounts     = signal<Account[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
@@ -33,6 +34,7 @@ export class AppStateService {
   portfolioLastUpdated    = signal<Date | null>(null);
   brokers                 = signal<Broker[]>([]);
   brokersOpen             = signal(false);
+  accountsOpen            = signal(false);
   feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
 
   setFeeDiscount(v: number) {
@@ -173,6 +175,19 @@ export class AppStateService {
   // ── Source mutations ──────────────────────────────────────────────────────
   addSource(name: string) {
     this.sources.update(ss => (ss.includes(name) ? ss : [...ss, name]));
+  }
+
+  // ── Account mutations ─────────────────────────────────────────────────────
+  addAccount(a: Account) {
+    this.accounts.update(as => [...as, a]);
+  }
+
+  updateAccount(updated: Account) {
+    this.accounts.update(as => as.map(a => a.id === updated.id ? updated : a));
+  }
+
+  removeAccount(id: string) {
+    this.accounts.update(as => as.filter(a => a.id !== id));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

@@ -1,9 +1,10 @@
-import { Component, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { uid } from '../../utils';
 import { Note } from '../../models/types';
+import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.component';
 
 @Component({
   selector: 'app-sidebar',
@@ -73,6 +74,14 @@ import { Note } from '../../models/types';
           <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" (click)="openAccounts()">
+        <span class="nav-icon">💰</span> 帳戶管理
+        @if (accountWarningCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
+        } @else if (state.accounts().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.accounts().length }}</span>
+        }
+      </button>
     </div>
   </div>
 
@@ -98,7 +107,16 @@ export class SidebarComponent {
     this.state.sidebarOpen.set(false);
   }
 
-  openBrokers() { this.state.brokersOpen.set(true); this.state.sidebarOpen.set(false); }
+  openBrokers()  { this.state.brokersOpen.set(true);  this.state.sidebarOpen.set(false); }
+  openAccounts() { this.state.accountsOpen.set(true); this.state.sidebarOpen.set(false); }
+
+  accountWarningCount = computed(() => {
+    const trades = this.state.trades();
+    return this.state.accounts().filter(a => {
+      const pending = pendingSettlements(a.id, trades);
+      return pending > 0 && (a.balance - pending) < 0;
+    }).length;
+  });
 
   openImport() {
     this.state.importing.set(true);

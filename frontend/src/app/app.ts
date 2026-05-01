@@ -13,6 +13,7 @@ import { AddCompanyModalComponent } from './components/modals/add-company-modal/
 import { StockDetailModalComponent } from './components/modals/stock-detail-modal/stock-detail-modal.component';
 import { ImportModalComponent } from './components/modals/import-modal/import-modal.component';
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
+import { AccountsModalComponent } from './components/modals/accounts-modal/accounts-modal.component';
 
 @Component({
   selector: 'app-root',
@@ -20,7 +21,7 @@ import { BrokerSettingsModalComponent } from './components/modals/broker-setting
     SidebarComponent, NotesViewComponent, NotesListViewComponent,
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
-    BrokerSettingsModalComponent,
+    BrokerSettingsModalComponent, AccountsModalComponent,
   ],
   templateUrl: './app.html',
 })
@@ -33,7 +34,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -42,6 +43,7 @@ export class App implements OnInit {
       this.stock.apply(stocks);
       this.state.tracked.set(trackedStocks);
       this.state.brokers.set(brokers);
+      this.state.accounts.set(accounts);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
