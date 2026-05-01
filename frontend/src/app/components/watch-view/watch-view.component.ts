@@ -34,10 +34,27 @@ interface ChartData {
   xLabels: { x: number; label: string }[];
 }
 
-export function buildChart(bars: OhlcBar[]): ChartData {
-  if (bars.length === 0) return { candlesticks: [], maLines: [], yLabels: [], xLabels: [] };
+const DISPLAY_BARS = 60; // number of candlesticks shown
 
-  const closes = bars.map(b => b.close);
+/**
+ * allBars: all fetched bars (≥120 to cover MA60 warmup).
+ * We compute MA on the full set, then render only the last DISPLAY_BARS bars.
+ */
+export function buildChart(allBars: OhlcBar[]): ChartData {
+  if (allBars.length === 0) return { candlesticks: [], maLines: [], yLabels: [], xLabels: [] };
+
+  // Compute MA on the full history
+  const allCloses = allBars.map(b => b.close);
+  const ma5all  = calcMA(allCloses, 5);
+  const ma10all = calcMA(allCloses, 10);
+  const ma20all = calcMA(allCloses, 20);
+  const ma60all = calcMA(allCloses, 60);
+
+  // Slice to the last DISPLAY_BARS for rendering
+  const offset = Math.max(0, allBars.length - DISPLAY_BARS);
+  const bars   = allBars.slice(offset);
+  const n      = bars.length;
+
   const allLow  = Math.min(...bars.map(b => b.low));
   const allHigh = Math.max(...bars.map(b => b.high));
   const pad = (allHigh - allLow) * 0.05 || 1;
@@ -45,8 +62,7 @@ export function buildChart(bars: OhlcBar[]): ChartData {
   const yMax = allHigh + pad;
 
   const scaleY = (v: number) => PAD_T + PLOT_H - ((v - yMin) / (yMax - yMin)) * PLOT_H;
-  const n = bars.length;
-  const barW = PLOT_W / n;
+  const barW   = PLOT_W / n;
   const scaleX = (i: number) => PAD_L + (i + 0.5) * barW;
 
   // Candlesticks
@@ -64,12 +80,13 @@ export function buildChart(bars: OhlcBar[]): ChartData {
     };
   });
 
-  // MA lines (5/10/20/60)
+  // MA lines — use pre-computed full arrays, slice to display window
+  const maArrays = [ma5all, ma10all, ma20all, ma60all];
   const maPeriods = [5, 10, 20, 60];
   const maLines = maPeriods.map((period, pi) => {
-    const mas = calcMA(closes, period);
+    const maSlice = maArrays[pi].slice(offset);
     const pts: string[] = [];
-    mas.forEach((v, i) => {
+    maSlice.forEach((v, i) => {
       if (v === null) return;
       pts.push(`${scaleX(i).toFixed(1)},${scaleY(v).toFixed(1)}`);
     });
@@ -82,12 +99,11 @@ export function buildChart(bars: OhlcBar[]): ChartData {
     return { y: scaleY(v), label: v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(2) };
   }).reverse();
 
-  // X-axis labels: show ~5 evenly spaced dates
+  // X-axis labels: ~5 evenly spaced dates
   const step = Math.max(1, Math.floor(n / 5));
   const xLabels: { x: number; label: string }[] = [];
   for (let i = 0; i < n; i += step) {
-    const d = bars[i].date.slice(5); // MM-DD
-    xLabels.push({ x: scaleX(i), label: d });
+    xLabels.push({ x: scaleX(i), label: bars[i].date.slice(5) });
   }
 
   return { candlesticks, maLines, yLabels, xLabels };

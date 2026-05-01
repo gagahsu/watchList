@@ -13,11 +13,12 @@ def _safe(v) -> float | None:
 
 
 @router.get("/ohlc/{code}")
-def get_ohlc(code: str, days: int = 60):
+def get_ohlc(code: str, days: int = 120):
+    """Return up to `days` OHLC bars (use 120 so front-end can compute MA60 across 60 display bars)."""
     import yfinance as yf
     for suffix in (".TW", ".TWO", ""):
         try:
-            hist = yf.Ticker(code + suffix).history(period="4mo")
+            hist = yf.Ticker(code + suffix).history(period="6mo")
             if len(hist) == 0:
                 continue
             tail = hist.tail(days)
