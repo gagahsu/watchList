@@ -146,10 +146,13 @@ DDL = [
         type             TEXT NOT NULL DEFAULT '其他',
         amount           DOUBLE PRECISION NOT NULL DEFAULT 0,
         reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-        reminder_date    TEXT,
+        reminder_day     INTEGER,
         note             TEXT NOT NULL DEFAULT ''
     )
     """,
+    # migrate: replace reminder_date (TEXT) with reminder_day (INTEGER)
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS reminder_day INTEGER",
+    "ALTER TABLE liabilities DROP COLUMN IF EXISTS reminder_date",
 ]
 
 

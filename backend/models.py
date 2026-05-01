@@ -213,7 +213,7 @@ class LiabilityIn(BaseModel):
     type: str = "其他"
     amount: float = 0
     reminderEnabled: bool = False
-    reminderDate: Optional[str] = None
+    reminderDay: Optional[int] = None  # 1-31, None when reminder disabled
     note: str = ""
 
 
@@ -222,7 +222,7 @@ class LiabilityPatch(BaseModel):
     type: Optional[str] = None
     amount: Optional[float] = None
     reminderEnabled: Optional[bool] = None
-    reminderDate: Optional[str] = None
+    reminderDay: Optional[int] = None
     note: Optional[str] = None
 
 
@@ -232,5 +232,5 @@ class LiabilityOut(BaseModel):
     type: str
     amount: float
     reminderEnabled: bool
-    reminderDate: Optional[str]
+    reminderDay: Optional[int]
     note: str

@@ -12,7 +12,7 @@ def _row_to_liability(r) -> dict:
         "type": r["type"],
         "amount": r["amount"],
         "reminderEnabled": r["reminder_enabled"],
-        "reminderDate": r["reminder_date"],
+        "reminderDay": r["reminder_day"],
         "note": r["note"],
     }
 
@@ -28,14 +28,14 @@ def get_liabilities():
 def create_liability(body: LiabilityIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO liabilities(id, name, type, amount, reminder_enabled, reminder_date, note)"
+            "INSERT INTO liabilities(id, name, type, amount, reminder_enabled, reminder_day, note)"
             " VALUES (%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT(id) DO UPDATE SET"
             "  name=EXCLUDED.name, type=EXCLUDED.type, amount=EXCLUDED.amount,"
-            "  reminder_enabled=EXCLUDED.reminder_enabled, reminder_date=EXCLUDED.reminder_date,"
+            "  reminder_enabled=EXCLUDED.reminder_enabled, reminder_day=EXCLUDED.reminder_day,"
             "  note=EXCLUDED.note",
             (body.id, body.name, body.type, body.amount,
-             body.reminderEnabled, body.reminderDate, body.note),
+             body.reminderEnabled, body.reminderDay, body.note),
         )
         row = conn.execute("SELECT * FROM liabilities WHERE id=%s", (body.id,)).fetchone()
     return _row_to_liability(row)
@@ -46,20 +46,15 @@ def patch_liability(liability_id: str, body: LiabilityPatch):
     with get_db() as conn:
         if not conn.execute("SELECT id FROM liabilities WHERE id=%s", (liability_id,)).fetchone():
             raise HTTPException(404, "Liability not found")
-        field_map = {
-            "name": body.name,
-            "type": body.type,
-            "amount": body.amount,
-            "reminder_enabled": body.reminderEnabled,
-            "reminder_date": body.reminderDate,
-            "note": body.note,
-        }
-        updates = {k: v for k, v in field_map.items() if v is not None}
-        # reminder_enabled can be False, so handle it specially
-        if body.reminderEnabled is not None:
-            updates["reminder_enabled"] = body.reminderEnabled
-        if body.reminderDate is not None:
-            updates["reminder_date"] = body.reminderDate
+        updates: dict = {}
+        if body.name is not None:            updates["name"]             = body.name
+        if body.type is not None:            updates["type"]             = body.type
+        if body.amount is not None:          updates["amount"]           = body.amount
+        if body.note is not None:            updates["note"]             = body.note
+        if body.reminderEnabled is not None: updates["reminder_enabled"] = body.reminderEnabled
+        if body.reminderDay is not None:     updates["reminder_day"]     = body.reminderDay
+        # allow clearing reminderDay to NULL explicitly
+        if body.reminderEnabled is False:    updates["reminder_day"]     = None
         if updates:
             cols = ", ".join(f"{k}=%s" for k in updates)
             conn.execute(f"UPDATE liabilities SET {cols} WHERE id=%s",

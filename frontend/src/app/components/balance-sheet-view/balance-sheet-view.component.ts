@@ -7,19 +7,18 @@ import { calcFIFO, uid } from '../../utils';
 
 const LIABILITY_TYPES = ['房貸', '車貸', '信用貸款', '信用卡', '學貸', '其他'];
 
-const TODAY = (() => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-})();
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
+/**
+ * Returns true when today is the liability's reminder day.
+ * If reminderDay exceeds the actual last day of the current month (e.g. 31 in Feb),
+ * the effective day is clamped to the last day, so the highlight fires early.
+ */
 function isReminderToday(l: Liability): boolean {
-  if (!l.reminderEnabled || !l.reminderDate) return false;
-  return l.reminderDate <= todayStr();
+  if (!l.reminderEnabled || !l.reminderDay) return false;
+  const now = new Date();
+  const todayDay = now.getDate();
+  const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const effectiveDay = Math.min(l.reminderDay, lastDay);
+  return todayDay === effectiveDay;
 }
 
 @Component({
@@ -143,9 +142,9 @@ function isReminderToday(l: Liability): boolean {
           </div>
           @if (editF.reminderEnabled) {
             <div class="broker-form-group" style="flex:1">
-              <div class="modal-label">提醒日</div>
-              <input class="modal-input" type="date" [value]="editF.reminderDate"
-                (input)="editF.reminderDate=asStr($event)" />
+              <div class="modal-label">每月幾號 (1–31)</div>
+              <input class="modal-input" type="number" min="1" max="31" step="1"
+                [value]="editF.reminderDay" (input)="editF.reminderDay=toInt($event)" />
             </div>
           }
         </div>
@@ -161,9 +160,9 @@ function isReminderToday(l: Liability): boolean {
             @if (isAlert) { <span class="bs-alert-badge">🔔 提醒日</span> }
             <span class="bs-row-name">{{ l.name }}</span>
             <span class="bs-row-tag">{{ l.type }}</span>
-            @if (l.reminderEnabled && l.reminderDate) {
+            @if (l.reminderEnabled && l.reminderDay) {
               <span class="bs-reminder-tag" [class.bs-reminder-tag-due]="isAlert">
-                {{ l.reminderDate }}
+                每月{{ l.reminderDay }}號
               </span>
             }
           </div>
@@ -221,9 +220,9 @@ function isReminderToday(l: Liability): boolean {
         </div>
         @if (newF.reminderEnabled) {
           <div class="broker-form-group" style="flex:1">
-            <div class="modal-label">提醒日</div>
-            <input class="modal-input" type="date" [value]="newF.reminderDate"
-              (input)="newF.reminderDate=asStr($event)" />
+            <div class="modal-label">每月幾號 (1–31)</div>
+            <input class="modal-input" type="number" min="1" max="31" step="1"
+              [value]="newF.reminderDay" (input)="newF.reminderDay=toInt($event)" />
           </div>
         }
       </div>
@@ -293,11 +292,12 @@ export class BalanceSheetViewComponent {
   ) {}
 
   blankForm() {
-    return { name: '', type: '其他', amount: 0, reminderEnabled: false, reminderDate: todayStr(), note: '' };
+    return { name: '', type: '其他', amount: 0, reminderEnabled: false, reminderDay: 1, note: '' };
   }
 
   asStr(e: Event)     { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
   toNum(e: Event)     { return parseFloat((e.target as HTMLInputElement).value) || 0; }
+  toInt(e: Event)     { return parseInt((e.target as HTMLInputElement).value, 10) || 1; }
   asChecked(e: Event) { return (e.target as HTMLInputElement).checked; }
 
   fmtNT(n: number) {
@@ -346,7 +346,7 @@ export class BalanceSheetViewComponent {
       id: uid(), name: this.newF.name.trim(), type: this.newF.type,
       amount: this.newF.amount,
       reminderEnabled: this.newF.reminderEnabled,
-      reminderDate: this.newF.reminderEnabled ? this.newF.reminderDate : null,
+      reminderDay: this.newF.reminderEnabled ? this.newF.reminderDay : null,
       note: this.newF.note.trim(),
     };
     const saved = await this.api.createLiability(l);
@@ -358,7 +358,7 @@ export class BalanceSheetViewComponent {
     this.editF = {
       name: l.name, type: l.type, amount: l.amount,
       reminderEnabled: l.reminderEnabled,
-      reminderDate: l.reminderDate ?? todayStr(),
+      reminderDay: l.reminderDay ?? 1,
       note: l.note,
     };
     this.editId.set(l.id);
@@ -370,7 +370,7 @@ export class BalanceSheetViewComponent {
       name: this.editF.name.trim(), type: this.editF.type,
       amount: this.editF.amount,
       reminderEnabled: this.editF.reminderEnabled,
-      reminderDate: this.editF.reminderEnabled ? this.editF.reminderDate : null,
+      reminderDay: this.editF.reminderEnabled ? this.editF.reminderDay : null,
       note: this.editF.note.trim(),
     });
     this.state.updateLiability(updated);

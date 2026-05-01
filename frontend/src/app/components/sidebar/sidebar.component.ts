@@ -135,10 +135,13 @@ export class SidebarComponent {
   );
 
   liabilityReminderCount = computed(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return this.state.liabilities().filter(
-      l => l.reminderEnabled && l.reminderDate && l.reminderDate <= today,
-    ).length;
+    const now = new Date();
+    const todayDay = now.getDate();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return this.state.liabilities().filter(l => {
+      if (!l.reminderEnabled || !l.reminderDay) return false;
+      return todayDay === Math.min(l.reminderDay, lastDay);
+    }).length;
   });
 
   openImport() {

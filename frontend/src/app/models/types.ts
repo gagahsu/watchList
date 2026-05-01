@@ -104,7 +104,7 @@ export interface Liability {
   type: string;
   amount: number;
   reminderEnabled: boolean;
-  reminderDate: string | null;
+  reminderDay: number | null;  // 1-31; null when disabled
   note: string;
 }
 
