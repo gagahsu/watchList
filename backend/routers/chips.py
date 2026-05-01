@@ -1,4 +1,3 @@
-import json
 import time
 from fastapi import APIRouter
 from datetime import date, timedelta
@@ -8,17 +7,24 @@ from database import get_db
 
 router = APIRouter()
 
-BIG_HOLDER_LEVELS = {"400,000以上", "400000以上"}
-RETAIL_LEVELS     = {"1-999", "1,000-5,000", "5,000-10,000"}
+
+# ── name mapping ──────────────────────────────────────────────────────────────
+
+_INST_MAP = {
+    "foreign_investor":    "foreign",
+    "foreign_dealer_self": "foreign",
+    "investment_trust":    "trust",
+    "dealer_self":         "dealer",
+    "dealer_hedging":      "dealerHedge",
+}
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# ── streak ────────────────────────────────────────────────────────────────────
 
-def _calc_streak(values: list[float]) -> tuple[int, str]:
+def _calc_streak(values: list[int]) -> tuple[int, str]:
     if not values:
         return 0, "none"
-    last = values[-1]
-    direction = "buy" if last > 0 else ("sell" if last < 0 else "none")
+    direction = "buy" if values[-1] > 0 else ("sell" if values[-1] < 0 else "none")
     if direction == "none":
         return 0, "none"
     count = 0
@@ -30,37 +36,120 @@ def _calc_streak(values: list[float]) -> tuple[int, str]:
     return count, direction
 
 
-def _process_institutional(rows: list[dict]) -> list[dict]:
+# ── fetch & upsert ────────────────────────────────────────────────────────────
+
+def _upsert_institutional(code: str, rows: list[dict]):
     by_date: dict[str, dict] = defaultdict(lambda: {
         "foreign": 0, "trust": 0, "dealer": 0, "dealerHedge": 0
     })
     for r in rows:
         d   = r.get("date", "")[:10]
-        nm  = r.get("name", "").lower()
-        net = r.get("buy", 0) - r.get("sell", 0)
-        if nm in ("foreign_investor", "foreign_dealer_self"):
-            by_date[d]["foreign"]     += net
-        elif nm == "investment_trust":
-            by_date[d]["trust"]       += net
-        elif nm == "dealer_hedging":
-            by_date[d]["dealerHedge"] += net
-        elif "dealer" in nm:
-            by_date[d]["dealer"]      += net
+        key = _INST_MAP.get(r.get("name", "").lower())
+        if key:
+            by_date[d][key] += r.get("buy", 0) - r.get("sell", 0)
 
-    result = []
-    for d in sorted(by_date):
-        v = by_date[d]
-        result.append({
-            "date":        d,
-            "foreign":     v["foreign"],
-            "trust":       v["trust"],
-            "dealer":      v["dealer"],
-            "dealerHedge": v["dealerHedge"],
-            "total":       v["foreign"] + v["trust"] + v["dealer"] + v["dealerHedge"],
-        })
+    if not by_date:
+        return
+
+    records = [
+        (
+            code, d,
+            v["foreign"], v["trust"], v["dealer"], v["dealerHedge"],
+            v["foreign"] + v["trust"] + v["dealer"] + v["dealerHedge"],
+        )
+        for d, v in by_date.items()
+    ]
+    with get_db() as conn:
+        conn.execute_values(
+            """
+            INSERT INTO institutional_daily
+              (code, date, foreign_net, trust_net, dealer_net, dealer_hedge_net, total_net)
+            VALUES %s
+            ON CONFLICT (code, date) DO UPDATE SET
+              foreign_net      = EXCLUDED.foreign_net,
+              trust_net        = EXCLUDED.trust_net,
+              dealer_net       = EXCLUDED.dealer_net,
+              dealer_hedge_net = EXCLUDED.dealer_hedge_net,
+              total_net        = EXCLUDED.total_net
+            """,
+            records,
+        )
+
+
+def _upsert_margin(code: str, rows: list[dict]):
+    records = []
+    for r in rows:
+        d             = r.get("date", "")[:10]
+        margin_today  = r.get("MarginPurchaseTodayBalance", 0) or 0
+        margin_limit  = r.get("MarginPurchaseLimit", 1) or 1
+        short_today   = r.get("ShortSaleTodayBalance", 0) or 0
+        records.append((
+            code, d,
+            margin_today,
+            round(margin_today / margin_limit * 100, 2) if margin_limit else 0,
+            short_today,
+            round(short_today / margin_today * 100, 2) if margin_today else 0,
+        ))
+    if not records:
+        return
+    with get_db() as conn:
+        conn.execute_values(
+            """
+            INSERT INTO margin_daily
+              (code, date, margin_balance, margin_usage, short_balance, short_ratio)
+            VALUES %s
+            ON CONFLICT (code, date) DO UPDATE SET
+              margin_balance = EXCLUDED.margin_balance,
+              margin_usage   = EXCLUDED.margin_usage,
+              short_balance  = EXCLUDED.short_balance,
+              short_ratio    = EXCLUDED.short_ratio
+            """,
+            records,
+        )
+
+
+# ── today check ───────────────────────────────────────────────────────────────
+
+def _has_today(table: str, code: str) -> bool:
+    today = date.today().isoformat()
+    with get_db() as conn:
+        row = conn.execute(
+            f"SELECT 1 FROM {table} WHERE code=%s AND date=%s", (code, today)
+        ).fetchone()
+    return row is not None
+
+
+# ── query & format ────────────────────────────────────────────────────────────
+
+def _query_institutional(code: str, limit: int = 60) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT date, foreign_net, trust_net, dealer_net, dealer_hedge_net, total_net
+            FROM institutional_daily
+            WHERE code=%s
+            ORDER BY date DESC
+            LIMIT %s
+            """,
+            (code, limit),
+        ).fetchall()
+
+    rows = list(reversed(rows))  # oldest → newest
+    result = [
+        {
+            "date":        r["date"],
+            "foreign":     r["foreign_net"],
+            "trust":       r["trust_net"],
+            "dealer":      r["dealer_net"],
+            "dealerHedge": r["dealer_hedge_net"],
+            "total":       r["total_net"],
+        }
+        for r in rows
+    ]
 
     if result:
-        for key in ("foreign", "trust", "dealer", "total"):
+        for key, col in [("foreign", "foreign"), ("trust", "trust"),
+                         ("dealer", "dealer"), ("total", "total")]:
             vals = [r[key] for r in result]
             cnt, direction = _calc_streak(vals)
             result[-1][f"{key}Streak"]    = cnt
@@ -69,144 +158,75 @@ def _process_institutional(rows: list[dict]) -> list[dict]:
     return result
 
 
-def _process_margin(rows: list[dict]) -> list[dict]:
-    result = []
-    for r in sorted(rows, key=lambda x: x.get("date", "")[:10]):
-        margin_today = r.get("MarginPurchaseTodayBalance", 0) or 0
-        margin_yest  = r.get("MarginPurchaseYesterdayBalance", 0) or 0
-        margin_limit = r.get("MarginPurchaseLimit", 1) or 1
-        short_today  = r.get("ShortSaleTodayBalance", 0) or 0
-        short_yest   = r.get("ShortSaleYesterdayBalance", 0) or 0
-        result.append({
-            "date":          r.get("date", "")[:10],
-            "marginBalance": margin_today,
-            "marginChange":  margin_today - margin_yest,
-            "marginUsage":   round(margin_today / margin_limit * 100, 2) if margin_limit else 0,
-            "shortBalance":  short_today,
-            "shortChange":   short_today - short_yest,
-            "shortRatio":    round(short_today / margin_today * 100, 2) if margin_today else 0,
-        })
-    return result
-
-
-def _process_lending(rows: list[dict]) -> list[dict]:
-    result = []
-    for r in sorted(rows, key=lambda x: x.get("date", "")[:10]):
-        result.append({
-            "date":    r.get("date", "")[:10],
-            "balance": r.get("lendingBalance", 0) or 0,
-            "change":  r.get("lendingBalanceChange", 0) or 0,
-        })
-    return result
-
-
-def _process_shareholding(rows: list[dict]) -> list[dict]:
-    by_date: dict[str, dict] = defaultdict(lambda: {
-        "bigHolder": 0.0, "retail": 0.0, "total": 0
-    })
-    for r in rows:
-        d     = r.get("date", "")[:10]
-        level = r.get("HoldingSharesLevel", "")
-        pct   = float(r.get("percent", 0) or 0)
-        cnt   = int(r.get("people", 0) or 0)
-        by_date[d]["total"] += cnt
-        if level in BIG_HOLDER_LEVELS:
-            by_date[d]["bigHolder"] += pct
-        elif level in RETAIL_LEVELS:
-            by_date[d]["retail"] += pct
-
-    result = []
-    for d in sorted(by_date):
-        v = by_date[d]
-        result.append({
-            "date":              d,
-            "bigHolder":         round(v["bigHolder"], 2),
-            "retail":            round(v["retail"], 2),
-            "totalShareholders": v["total"],
-        })
-    return result
-
-
-# ── cache helpers ─────────────────────────────────────────────────────────────
-
-def _load_cache(code: str) -> dict | None:
-    today = date.today().isoformat()
+def _query_margin(code: str, limit: int = 60) -> list[dict]:
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT data FROM chip_cache WHERE code=%s AND fetched_at=%s",
-            (code, today),
-        ).fetchone()
-    return json.loads(row["data"]) if row else None
+        rows = conn.execute(
+            """
+            SELECT date, margin_balance, margin_usage, short_balance, short_ratio,
+                   LAG(margin_balance) OVER (ORDER BY date) AS prev_margin,
+                   LAG(short_balance)  OVER (ORDER BY date) AS prev_short
+            FROM margin_daily
+            WHERE code=%s
+            ORDER BY date DESC
+            LIMIT %s
+            """,
+            (code, limit),
+        ).fetchall()
+
+    rows = list(reversed(rows))
+    return [
+        {
+            "date":          r["date"],
+            "marginBalance": r["margin_balance"],
+            "marginChange":  (r["margin_balance"] - r["prev_margin"]) if r["prev_margin"] is not None else 0,
+            "marginUsage":   r["margin_usage"],
+            "shortBalance":  r["short_balance"],
+            "shortChange":   (r["short_balance"] - r["prev_short"]) if r["prev_short"] is not None else 0,
+            "shortRatio":    r["short_ratio"],
+        }
+        for r in rows
+    ]
 
 
-def _save_cache(code: str, data: dict):
-    today = date.today().isoformat()
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO chip_cache(code, data, fetched_at) VALUES(%s,%s,%s)"
-            " ON CONFLICT(code) DO UPDATE SET data=EXCLUDED.data, fetched_at=EXCLUDED.fetched_at",
-            (code, json.dumps(data, ensure_ascii=False), today),
-        )
+# ── fetch from FinMind & store ────────────────────────────────────────────────
 
-
-# ── core fetch & process ──────────────────────────────────────────────────────
-
-def _fetch_chip_data(code: str) -> dict:
-    start_daily = (date.today() - timedelta(days=100)).isoformat()
-    errors: dict[str, str] = {}
-
+def _fetch_and_store(code: str):
+    start = (date.today() - timedelta(days=100)).isoformat()
     try:
-        inst_raw = fm.fetch_institutional(code, start_daily)
-    except Exception as e:
-        inst_raw = []; errors["institutional"] = str(e)
-
+        inst_raw = fm.fetch_institutional(code, start)
+        _upsert_institutional(code, inst_raw)
+    except Exception:
+        pass
     try:
-        margin_raw = fm.fetch_margin(code, start_daily)
-    except Exception as e:
-        margin_raw = []; errors["margin"] = str(e)
-
-    return {
-        "institutional": _process_institutional(inst_raw),
-        "margin":        _process_margin(margin_raw),
-        "errors":        errors,
-    }
+        margin_raw = fm.fetch_margin(code, start)
+        _upsert_margin(code, margin_raw)
+    except Exception:
+        pass
 
 
 # ── sync helper (called from stocks sync) ────────────────────────────────────
 
 def sync_chips_for_codes(codes: list[str], delay: float = 0.5) -> int:
-    """Fetch and cache chip data for given codes. Skips codes already cached today."""
-    today = date.today().isoformat()
     synced = 0
     for code in codes:
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT fetched_at FROM chip_cache WHERE code=%s", (code,)
-            ).fetchone()
-        if row and row["fetched_at"] == today:
+        if _has_today("institutional_daily", code) and _has_today("margin_daily", code):
             continue
-        try:
-            data = _fetch_chip_data(code)
-            _save_cache(code, data)
-            synced += 1
-        except Exception:
-            pass
+        _fetch_and_store(code)
+        synced += 1
         time.sleep(delay)
     return synced
 
 
-# ── endpoint ──────────────────────────────────────────────────────────────────
+# ── endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/chips/{code}/raw")
 def get_chips_raw(code: str):
-    """Debug: return first 3 rows of each raw FinMind dataset to inspect field names."""
+    """Debug: return first 3 rows of each raw FinMind dataset."""
     start = (date.today() - timedelta(days=10)).isoformat()
     out: dict = {}
     for name, fn, kwargs in [
-        ("institutional", fm.fetch_institutional,      {"code": code, "start_date": start}),
-        ("margin",        fm.fetch_margin,             {"code": code, "start_date": start}),
-        ("lending",       fm.fetch_securities_lending, {"code": code, "start_date": start}),
-        ("shareholding",  fm.fetch_shareholding,        {"code": code, "start_date": (date.today() - timedelta(days=60)).isoformat()}),
+        ("institutional", fm.fetch_institutional, {"code": code, "start_date": start}),
+        ("margin",        fm.fetch_margin,        {"code": code, "start_date": start}),
     ]:
         try:
             rows = fn(**kwargs)
@@ -218,9 +238,9 @@ def get_chips_raw(code: str):
 
 @router.get("/chips/{code}")
 def get_chips(code: str):
-    cached = _load_cache(code)
-    if cached:
-        return cached
-    data = _fetch_chip_data(code)
-    _save_cache(code, data)
-    return data
+    if not _has_today("institutional_daily", code) or not _has_today("margin_daily", code):
+        _fetch_and_store(code)
+    return {
+        "institutional": _query_institutional(code),
+        "margin":        _query_margin(code),
+    }

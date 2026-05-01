@@ -156,7 +156,6 @@ export interface ShareholdingWeek {
 export interface ChipData {
   institutional: InstitutionalDay[];
   margin: MarginDay[];
-  errors: Record<string, string>;
 }
 
 export interface FifoResult {

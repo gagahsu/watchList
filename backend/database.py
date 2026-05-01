@@ -153,11 +153,29 @@ DDL = [
     # migrate: replace reminder_date (TEXT) with reminder_day (INTEGER)
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS reminder_day INTEGER",
     "ALTER TABLE liabilities DROP COLUMN IF EXISTS reminder_date",
+    # replace chip_cache blob with structured tables
+    "DROP TABLE IF EXISTS chip_cache",
     """
-    CREATE TABLE IF NOT EXISTS chip_cache (
-        code       TEXT PRIMARY KEY,
-        data       TEXT NOT NULL,
-        fetched_at TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS institutional_daily (
+        code             TEXT    NOT NULL,
+        date             TEXT    NOT NULL,
+        foreign_net      INTEGER NOT NULL DEFAULT 0,
+        trust_net        INTEGER NOT NULL DEFAULT 0,
+        dealer_net       INTEGER NOT NULL DEFAULT 0,
+        dealer_hedge_net INTEGER NOT NULL DEFAULT 0,
+        total_net        INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (code, date)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS margin_daily (
+        code           TEXT             NOT NULL,
+        date           TEXT             NOT NULL,
+        margin_balance INTEGER          NOT NULL DEFAULT 0,
+        margin_usage   DOUBLE PRECISION NOT NULL DEFAULT 0,
+        short_balance  INTEGER          NOT NULL DEFAULT 0,
+        short_ratio    DOUBLE PRECISION NOT NULL DEFAULT 0,
+        PRIMARY KEY (code, date)
     )
     """,
     # migrate: add loan detail columns
