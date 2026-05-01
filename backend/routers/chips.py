@@ -36,17 +36,15 @@ def _process_institutional(rows: list[dict]) -> list[dict]:
     })
     for r in rows:
         d   = r.get("date", "")[:10]
-        nm  = r.get("name", "")
+        nm  = r.get("name", "").lower()
         net = r.get("buy", 0) - r.get("sell", 0)
-        if "外資自營商" in nm:
-            by_date[d]["foreign"] += net
-        elif "外資" in nm:
-            by_date[d]["foreign"] += net
-        elif "投信" in nm:
+        if nm in ("foreign_investor", "foreign_dealer_self"):
+            by_date[d]["foreign"]     += net
+        elif nm == "investment_trust":
             by_date[d]["trust"]       += net
-        elif "避險" in nm:
+        elif nm == "dealer_hedging":
             by_date[d]["dealerHedge"] += net
-        elif "自營" in nm:
+        elif "dealer" in nm:
             by_date[d]["dealer"]      += net
 
     result = []
@@ -74,20 +72,18 @@ def _process_institutional(rows: list[dict]) -> list[dict]:
 def _process_margin(rows: list[dict]) -> list[dict]:
     result = []
     for r in sorted(rows, key=lambda x: x.get("date", "")[:10]):
-        margin_today = r.get("MarginPurchaseToday", 0) or 0
+        margin_today = r.get("MarginPurchaseTodayBalance", 0) or 0
+        margin_yest  = r.get("MarginPurchaseYesterdayBalance", 0) or 0
         margin_limit = r.get("MarginPurchaseLimit", 1) or 1
-        short_today  = r.get("ShortSaleToday", 0) or 0
+        short_today  = r.get("ShortSaleTodayBalance", 0) or 0
+        short_yest   = r.get("ShortSaleYesterdayBalance", 0) or 0
         result.append({
             "date":          r.get("date", "")[:10],
             "marginBalance": margin_today,
-            "marginChange":  (r.get("MarginPurchaseBuy", 0) or 0)
-                             - (r.get("MarginPurchaseSell", 0) or 0)
-                             - (r.get("MarginPurchaseCashRepayment", 0) or 0),
+            "marginChange":  margin_today - margin_yest,
             "marginUsage":   round(margin_today / margin_limit * 100, 2) if margin_limit else 0,
             "shortBalance":  short_today,
-            "shortChange":   (r.get("ShortSaleBuy", 0) or 0)
-                             - (r.get("ShortSaleSell", 0) or 0)
-                             - (r.get("ShortSaleCashRepayment", 0) or 0),
+            "shortChange":   short_today - short_yest,
             "shortRatio":    round(short_today / margin_today * 100, 2) if margin_today else 0,
         })
     return result
@@ -156,8 +152,7 @@ def _save_cache(code: str, data: dict):
 # ── core fetch & process ──────────────────────────────────────────────────────
 
 def _fetch_chip_data(code: str) -> dict:
-    start_daily  = (date.today() - timedelta(days=100)).isoformat()
-    start_weekly = (date.today() - timedelta(days=210)).isoformat()
+    start_daily = (date.today() - timedelta(days=100)).isoformat()
     errors: dict[str, str] = {}
 
     try:
@@ -170,21 +165,9 @@ def _fetch_chip_data(code: str) -> dict:
     except Exception as e:
         margin_raw = []; errors["margin"] = str(e)
 
-    try:
-        lending_raw = fm.fetch_securities_lending(code, start_daily)
-    except Exception as e:
-        lending_raw = []; errors["lending"] = str(e)
-
-    try:
-        share_raw = fm.fetch_shareholding(code, start_weekly)
-    except Exception as e:
-        share_raw = []; errors["shareholding"] = str(e)
-
     return {
         "institutional": _process_institutional(inst_raw),
         "margin":        _process_margin(margin_raw),
-        "lending":       _process_lending(lending_raw),
-        "shareholding":  _process_shareholding(share_raw),
         "errors":        errors,
     }
 

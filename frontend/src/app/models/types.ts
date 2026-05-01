@@ -156,8 +156,6 @@ export interface ShareholdingWeek {
 export interface ChipData {
   institutional: InstitutionalDay[];
   margin: MarginDay[];
-  lending: LendingDay[];
-  shareholding: ShareholdingWeek[];
   errors: Record<string, string>;
 }
 
