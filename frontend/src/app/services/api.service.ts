@@ -107,7 +107,8 @@ export class ApiService {
   }
 
   // ── OHLC (60-day candlestick data via yfinance) ────────────────────────────
-  getOhlc(code: string, days = 60) {
+  // days=120: 60 display bars + 59 warmup to fully compute MA60
+  getOhlc(code: string, days = 120) {
     return this.get<OhlcBar[]>(`/ohlc/${code}?days=${days}`);
   }
 
