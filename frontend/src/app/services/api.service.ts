@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
-  TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar,
+  TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -110,6 +110,10 @@ export class ApiService {
   // days=120: 60 display bars + 59 warmup to fully compute MA60
   getOhlc(code: string, days = 120) {
     return this.get<OhlcBar[]>(`/ohlc/${code}?days=${days}`);
+  }
+
+  getChips(code: string) {
+    return this.get<ChipData>(`/chips/${code}`);
   }
 
   // ── Brokers ───────────────────────────────────────────────────────────────

@@ -117,6 +117,50 @@ def find_latest_prices_bulk() -> tuple[dict, str, str]:
     return {}, "", last_err
 
 
+def fetch_institutional(code: str, start_date: str) -> list[dict]:
+    data = _get({
+        "dataset":    "TaiwanStockInstitutionalInvestorsBuySell",
+        "data_id":    code,
+        "start_date": start_date,
+        "end_date":   date.today().isoformat(),
+        "token":      TOKEN,
+    })
+    return data.get("data", [])
+
+
+def fetch_margin(code: str, start_date: str) -> list[dict]:
+    data = _get({
+        "dataset":    "TaiwanStockMarginPurchaseShortSale",
+        "data_id":    code,
+        "start_date": start_date,
+        "end_date":   date.today().isoformat(),
+        "token":      TOKEN,
+    })
+    return data.get("data", [])
+
+
+def fetch_securities_lending(code: str, start_date: str) -> list[dict]:
+    data = _get({
+        "dataset":    "TaiwanStockSecuritiesLending",
+        "data_id":    code,
+        "start_date": start_date,
+        "end_date":   date.today().isoformat(),
+        "token":      TOKEN,
+    })
+    return data.get("data", [])
+
+
+def fetch_shareholding(code: str, start_date: str) -> list[dict]:
+    data = _get({
+        "dataset":    "TaiwanStockHoldingSharesPer",
+        "data_id":    code,
+        "start_date": start_date,
+        "end_date":   date.today().isoformat(),
+        "token":      TOKEN,
+    })
+    return data.get("data", [])
+
+
 def fetch_prices_for_codes(
     codes: list[str], delay: float = 0.3
 ) -> tuple[dict[str, float], dict[str, str], list[str]]:

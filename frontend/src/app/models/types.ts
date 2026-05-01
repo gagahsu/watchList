@@ -113,6 +113,54 @@ export interface Liability {
   monthlyPayment: number | null;
 }
 
+export interface InstitutionalDay {
+  date: string;
+  foreign: number;
+  trust: number;
+  dealer: number;
+  dealerHedge: number;
+  total: number;
+  totalStreak?: number;
+  totalDirection?: 'buy' | 'sell' | 'none';
+  foreignStreak?: number;
+  foreignDirection?: 'buy' | 'sell' | 'none';
+  trustStreak?: number;
+  trustDirection?: 'buy' | 'sell' | 'none';
+  dealerStreak?: number;
+  dealerDirection?: 'buy' | 'sell' | 'none';
+}
+
+export interface MarginDay {
+  date: string;
+  marginBalance: number;
+  marginChange: number;
+  marginUsage: number;
+  shortBalance: number;
+  shortChange: number;
+  shortRatio: number;
+}
+
+export interface LendingDay {
+  date: string;
+  balance: number;
+  change: number;
+}
+
+export interface ShareholdingWeek {
+  date: string;
+  bigHolder: number;
+  retail: number;
+  totalShareholders: number;
+}
+
+export interface ChipData {
+  institutional: InstitutionalDay[];
+  margin: MarginDay[];
+  lending: LendingDay[];
+  shareholding: ShareholdingWeek[];
+  errors: Record<string, string>;
+}
+
 export interface FifoResult {
   realizedPnL: number;
   holdingShares: number;
