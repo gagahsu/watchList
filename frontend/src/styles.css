@@ -136,6 +136,8 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .chip-holding  .chip-dot { background:var(--holding); }
 .chip-tracking { background:var(--tracking-bg); border-color:var(--gold-light); color:var(--tracking); }
 .chip-tracking .chip-dot { background:var(--tracking); }
+.chip-locked  { background:#EEF2FF; border-color:#C7D2FE; color:#4338CA; }
+.chip-locked  .chip-dot { background:#4338CA; }
 .chip-watching { background:var(--watching-bg); border-color:#C8D0D8; color:var(--watching); }
 .chip-watching .chip-dot { background:var(--watching); }
 .add-company-btn { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; border:1.5px dashed var(--border); background:none; color:var(--text-muted); font-size:14px; cursor:pointer; font-family:inherit; transition:all 0.15s; }

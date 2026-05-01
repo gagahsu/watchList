@@ -57,6 +57,12 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
       <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
         <span class="nav-icon">💼</span> 投資組合
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('watch')" (click)="navigate('watch')">
+        <span class="nav-icon">🔒</span> 鎖定觀察
+        @if (watchCount() > 0) {
+          <span class="sidebar-nav-badge">{{ watchCount() }}</span>
+        }
+      </button>
       <button class="sidebar-nav-item" [class.active]="isActive('balance-sheet')" (click)="navigate('balance-sheet')">
         <span class="nav-icon">⚖️</span> 資產負債
         @if (liabilityReminderCount() > 0) {
@@ -108,7 +114,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
@@ -123,6 +129,10 @@ export class SidebarComponent {
       return pending > 0 && (a.balance - pending) < 0;
     }).length;
   });
+
+  watchCount = computed(() =>
+    this.state.tracked().filter(t => t.status === 'locked' || t.status === 'holding').length,
+  );
 
   liabilityReminderCount = computed(() => {
     const today = new Date().toISOString().slice(0, 10);

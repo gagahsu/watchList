@@ -9,12 +9,12 @@ export const fmtDate = (d: number) =>
   new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
 
 export const STATUS_LABELS: Record<string, string> = {
-  holding: '已持有', tracking: '追蹤中',
+  holding: '已持有', tracking: '追蹤中', locked: '鎖定',
 };
 export const STATUS_CLASS: Record<string, string> = {
-  holding: 'chip-holding', tracking: 'chip-tracking',
+  holding: 'chip-holding', tracking: 'chip-tracking', locked: 'chip-locked',
 };
-export const STATUS_ORDER = ['tracking', 'holding'];
+export const STATUS_ORDER = ['tracking', 'locked', 'holding'];
 
 export const SIG_DIR_LABELS: Record<string, string> = {
   enter: '進場', exit: '出場', watch: '觀察',
