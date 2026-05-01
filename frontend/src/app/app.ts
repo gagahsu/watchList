@@ -14,6 +14,7 @@ import { StockDetailModalComponent } from './components/modals/stock-detail-moda
 import { ImportModalComponent } from './components/modals/import-modal/import-modal.component';
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
 import { AccountsModalComponent } from './components/modals/accounts-modal/accounts-modal.component';
+import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
 
 @Component({
   selector: 'app-root',
@@ -22,6 +23,7 @@ import { AccountsModalComponent } from './components/modals/accounts-modal/accou
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
     BrokerSettingsModalComponent, AccountsModalComponent,
+    BalanceSheetViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -34,7 +36,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -44,6 +46,7 @@ export class App implements OnInit {
       this.state.tracked.set(trackedStocks);
       this.state.brokers.set(brokers);
       this.state.accounts.set(accounts);
+      this.state.liabilities.set(liabilities);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -76,6 +79,7 @@ export class App implements OnInit {
       'index': '個股索引',
       'signals': '訊號總覽',
       'portfolio': '投資組合',
+      'balance-sheet': '資產負債',
     };
     return titles[this.state.view()] ?? 'WatchList';
   }

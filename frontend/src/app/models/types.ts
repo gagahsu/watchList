@@ -3,7 +3,7 @@ export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet';
 
 export interface Entry {
   id: string;
@@ -88,6 +88,16 @@ export interface Broker {
 export type EditTarget =
   | { kind: 'tracked'; code: string; tab?: 'info' | 'signals' | 'trades' }
   | { kind: 'entry';   rowId: string; entry: Entry };
+
+export interface Liability {
+  id: string;
+  name: string;
+  type: string;
+  amount: number;
+  reminderEnabled: boolean;
+  reminderDate: string | null;
+  note: string;
+}
 
 export interface FifoResult {
   realizedPnL: number;

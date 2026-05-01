@@ -204,3 +204,33 @@ class SourceIn(BaseModel):
 # ── Trade Markets ────────────────────────────────────
 class MarketIn(BaseModel):
     market: str
+
+
+# ── Liabilities ──────────────────────────────────────
+class LiabilityIn(BaseModel):
+    id: str
+    name: str
+    type: str = "其他"
+    amount: float = 0
+    reminderEnabled: bool = False
+    reminderDate: Optional[str] = None
+    note: str = ""
+
+
+class LiabilityPatch(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    amount: Optional[float] = None
+    reminderEnabled: Optional[bool] = None
+    reminderDate: Optional[str] = None
+    note: Optional[str] = None
+
+
+class LiabilityOut(BaseModel):
+    id: str
+    name: str
+    type: str
+    amount: float
+    reminderEnabled: bool
+    reminderDate: Optional[str]
+    note: str
