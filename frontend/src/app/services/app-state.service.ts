@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Account, Broker, EditTarget, Entry, MainView, Market, Note,
+  Account, Broker, EditTarget, Entry, Liability, MainView, Market, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -16,6 +16,7 @@ export class AppStateService {
   tradeMarkets = signal<Record<string, Market>>({});
   tracked      = signal<TrackedStock[]>([]);
   accounts     = signal<Account[]>([]);
+  liabilities  = signal<Liability[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
@@ -35,6 +36,7 @@ export class AppStateService {
   brokers                 = signal<Broker[]>([]);
   brokersOpen             = signal(false);
   accountsOpen            = signal(false);
+  balanceSheetOpen        = signal(false);
   feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
 
   setFeeDiscount(v: number) {
@@ -188,6 +190,19 @@ export class AppStateService {
 
   removeAccount(id: string) {
     this.accounts.update(as => as.filter(a => a.id !== id));
+  }
+
+  // ── Liability mutations ───────────────────────────────────────────────────
+  addLiability(l: Liability) {
+    this.liabilities.update(ls => [...ls, l]);
+  }
+
+  updateLiability(updated: Liability) {
+    this.liabilities.update(ls => ls.map(l => l.id === updated.id ? updated : l));
+  }
+
+  removeLiability(id: string) {
+    this.liabilities.update(ls => ls.filter(l => l.id !== id));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

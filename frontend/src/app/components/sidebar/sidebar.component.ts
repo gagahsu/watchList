@@ -57,6 +57,12 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
       <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
         <span class="nav-icon">💼</span> 投資組合
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('balance-sheet')" (click)="navigate('balance-sheet')">
+        <span class="nav-icon">⚖️</span> 資產負債
+        @if (liabilityReminderCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">🔔 {{ liabilityReminderCount() }}</span>
+        }
+      </button>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -102,7 +108,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
@@ -116,6 +122,13 @@ export class SidebarComponent {
       const pending = pendingSettlements(a.id, trades);
       return pending > 0 && (a.balance - pending) < 0;
     }).length;
+  });
+
+  liabilityReminderCount = computed(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return this.state.liabilities().filter(
+      l => l.reminderEnabled && l.reminderDate && l.reminderDate <= today,
+    ).length;
   });
 
   openImport() {

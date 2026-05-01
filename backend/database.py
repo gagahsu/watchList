@@ -123,6 +123,17 @@ DDL = [
         added_at    BIGINT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS liabilities (
+        id               TEXT PRIMARY KEY,
+        name             TEXT NOT NULL,
+        type             TEXT NOT NULL DEFAULT '其他',
+        amount           DOUBLE PRECISION NOT NULL DEFAULT 0,
+        reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        reminder_date    TEXT,
+        note             TEXT NOT NULL DEFAULT ''
+    )
+    """,
 ]
 
 

@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
-  TrackingStatus, SignalStatus, Market, Broker, Account,
+  TrackingStatus, SignalStatus, Market, Broker, Account, Liability,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -40,6 +40,7 @@ export class ApiService {
       this.get<TrackedStock[]>('/tracked'),
       this.get<Broker[]>('/brokers'),
       this.get<Account[]>('/accounts'),
+      this.get<Liability[]>('/liabilities'),
     ]);
   }
 
@@ -118,4 +119,11 @@ export class ApiService {
     return this.patch<Account>(`/accounts/${id}`, body);
   }
   deleteAccount(id: string) { return this.delete<{ok:boolean}>(`/accounts/${id}`); }
+
+  // ── Liabilities ───────────────────────────────────────────────────────────
+  createLiability(l: Liability) { return this.post<Liability>('/liabilities', l); }
+  patchLiability(id: string, body: Partial<Omit<Liability, 'id'>>) {
+    return this.patch<Liability>(`/liabilities/${id}`, body);
+  }
+  deleteLiability(id: string) { return this.delete<{ok:boolean}>(`/liabilities/${id}`); }
 }
