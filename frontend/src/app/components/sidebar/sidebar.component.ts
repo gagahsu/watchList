@@ -42,9 +42,9 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
 
     <div class="sidebar-divider"></div>
 
-    <!-- 個股 -->
+    <!-- 研究 -->
     <div class="sidebar-section">
-      <span class="sidebar-section-label">個股</span>
+      <span class="sidebar-section-label">研究</span>
       <button class="sidebar-nav-item" [class.active]="isActive('index')" (click)="navigate('index')">
         <span class="nav-icon">🔍</span> 個股索引
       </button>
@@ -54,6 +54,13 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
           <span class="sidebar-nav-badge">{{ state.activeSignalCount() }}</span>
         }
       </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 持倉 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">持倉</span>
       <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
         <span class="nav-icon">💼</span> 投資組合
       </button>
@@ -61,6 +68,21 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
         <span class="nav-icon">🔒</span> 鎖定觀察
         @if (watchCount() > 0) {
           <span class="sidebar-nav-badge">{{ watchCount() }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 財務 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">財務</span>
+      <button class="sidebar-nav-item" (click)="openAccounts()">
+        <span class="nav-icon">💰</span> 帳戶管理
+        @if (accountWarningCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
+        } @else if (state.accounts().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.accounts().length }}</span>
         }
       </button>
       <button class="sidebar-nav-item" [class.active]="isActive('balance-sheet')" (click)="navigate('balance-sheet')">
@@ -84,14 +106,6 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
         <span class="nav-icon">🏦</span> 管理券商
         @if (state.brokers().length > 0) {
           <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
-        }
-      </button>
-      <button class="sidebar-nav-item" (click)="openAccounts()">
-        <span class="nav-icon">💰</span> 帳戶管理
-        @if (accountWarningCount() > 0) {
-          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
-        } @else if (state.accounts().length > 0) {
-          <span class="sidebar-nav-badge">{{ state.accounts().length }}</span>
         }
       </button>
     </div>
