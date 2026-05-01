@@ -64,7 +64,7 @@ export function pendingSettlements(accountId: string, allTrades: Record<string, 
           </div>
           <div class="broker-form-row">
             <div class="broker-form-group" style="flex:1">
-              <div class="modal-label">帳戶餘額 (NT$)</div>
+              <div class="modal-label">帳戶餘額</div>
               <input class="modal-input" type="number" step="1"
                 [value]="editF.balance" (input)="editF.balance=toNum($event)" />
             </div>
@@ -128,7 +128,7 @@ export function pendingSettlements(accountId: string, allTrades: Record<string, 
         </div>
         <div class="broker-form-row">
           <div class="broker-form-group" style="flex:1">
-            <div class="modal-label">帳戶餘額 (NT$)</div>
+            <div class="modal-label">帳戶餘額</div>
             <input class="modal-input" type="number" step="1" placeholder="如：500000"
               [value]="newF.balance" (input)="newF.balance=toNum($event)" />
           </div>
