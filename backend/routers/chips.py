@@ -214,6 +214,25 @@ def sync_chips_for_codes(codes: list[str], delay: float = 0.5) -> int:
 
 # ── endpoint ──────────────────────────────────────────────────────────────────
 
+@router.get("/chips/{code}/raw")
+def get_chips_raw(code: str):
+    """Debug: return first 3 rows of each raw FinMind dataset to inspect field names."""
+    start = (date.today() - timedelta(days=10)).isoformat()
+    out: dict = {}
+    for name, fn, kwargs in [
+        ("institutional", fm.fetch_institutional,      {"code": code, "start_date": start}),
+        ("margin",        fm.fetch_margin,             {"code": code, "start_date": start}),
+        ("lending",       fm.fetch_securities_lending, {"code": code, "start_date": start}),
+        ("shareholding",  fm.fetch_shareholding,        {"code": code, "start_date": (date.today() - timedelta(days=60)).isoformat()}),
+    ]:
+        try:
+            rows = fn(**kwargs)
+            out[name] = {"count": len(rows), "sample": rows[:3]}
+        except Exception as e:
+            out[name] = {"error": str(e)}
+    return out
+
+
 @router.get("/chips/{code}")
 def get_chips(code: str):
     cached = _load_cache(code)
