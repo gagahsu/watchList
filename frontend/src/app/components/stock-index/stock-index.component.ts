@@ -131,7 +131,7 @@ interface IndexRow {
 })
 export class StockIndexComponent {
   search       = signal('');
-  filterStatus = signal<'all'|'tracking'|'holding'>('all');
+  filterStatus = signal<'all'|'tracking'|'locked'|'holding'>('all');
   filterSignal = signal(false);
   filterNote   = signal('');
   sortCol      = signal<'code'|'name'|'status'|'price'>('code');
@@ -141,16 +141,17 @@ export class StockIndexComponent {
     this.state.notes().map(n => ({ id: n.id, title: n.title }))
   );
 
-  statusFilters: { v: 'all'|'tracking'|'holding'; l: string }[] = [
+  statusFilters: { v: 'all'|'tracking'|'locked'|'holding'; l: string }[] = [
     { v: 'all',      l: '全部' },
     { v: 'tracking', l: '追蹤中' },
+    { v: 'locked',   l: '鎖定' },
     { v: 'holding',  l: '已持有' },
   ];
 
   constructor(public state: AppStateService, public stock: StockService, private api: ApiService) {}
 
   index = computed<IndexRow[]>(() => {
-    const rank: Record<string, number> = { holding: 1, tracking: 0 };
+    const rank: Record<string, number> = { holding: 2, locked: 1, tracking: 0 };
     const map: Record<string, IndexRow> = {};
 
     // Primary: tracked stocks
@@ -180,7 +181,7 @@ export class StockIndexComponent {
     const fSig = this.filterSignal();
     const col  = this.sortCol();
     const dir  = this.sortDir();
-    const statusRank: Record<string, number> = { holding: 1, tracking: 0 };
+    const statusRank: Record<string, number> = { holding: 2, locked: 1, tracking: 0 };
 
     const fNote = this.filterNote();
 

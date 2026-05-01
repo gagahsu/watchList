@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
-  TrackingStatus, SignalStatus, Market, Broker, Account, Liability,
+  TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -104,6 +104,11 @@ export class ApiService {
   // ── Live Quotes (yfinance, ~15min delay) ──────────────────────────────────
   getQuotes(items: {code: string; market: string}[]) {
     return this.post<Record<string, number | null>>('/quotes', { items });
+  }
+
+  // ── OHLC (60-day candlestick data via yfinance) ────────────────────────────
+  getOhlc(code: string, days = 60) {
+    return this.get<OhlcBar[]>(`/ohlc/${code}?days=${days}`);
   }
 
   // ── Brokers ───────────────────────────────────────────────────────────────

@@ -43,11 +43,19 @@ DDL = [
         code     TEXT NOT NULL,
         name     TEXT NOT NULL DEFAULT '',
         status   TEXT NOT NULL DEFAULT 'tracking'
-                 CHECK(status IN ('holding','tracking')),
+                 CHECK(status IN ('holding','tracking','locked')),
         thesis   TEXT NOT NULL DEFAULT '',
         memo     TEXT NOT NULL DEFAULT '',
         position INTEGER NOT NULL DEFAULT 0
     )
+    """,
+    # migration: widen entries status CHECK to include 'locked'
+    """
+    DO $$ BEGIN
+      ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_status_check;
+      ALTER TABLE entries ADD CONSTRAINT entries_status_check
+        CHECK(status IN ('holding','tracking','locked'));
+    EXCEPTION WHEN OTHERS THEN NULL; END $$
     """,
     """
     CREATE TABLE IF NOT EXISTS signals (
@@ -115,13 +123,21 @@ DDL = [
     CREATE TABLE IF NOT EXISTS tracked_stocks (
         code     TEXT PRIMARY KEY,
         status   TEXT NOT NULL DEFAULT 'tracking'
-                 CHECK(status IN ('holding','tracking')),
+                 CHECK(status IN ('holding','tracking','locked')),
         thesis      TEXT NOT NULL DEFAULT '',
         memo        TEXT NOT NULL DEFAULT '',
         stop_loss   TEXT NOT NULL DEFAULT '',
         take_profit TEXT NOT NULL DEFAULT '',
         added_at    BIGINT NOT NULL
     )
+    """,
+    # migration: widen the status CHECK to include 'locked'
+    """
+    DO $$ BEGIN
+      ALTER TABLE tracked_stocks DROP CONSTRAINT IF EXISTS tracked_stocks_status_check;
+      ALTER TABLE tracked_stocks ADD CONSTRAINT tracked_stocks_status_check
+        CHECK(status IN ('holding','tracking','locked'));
+    EXCEPTION WHEN OTHERS THEN NULL; END $$
     """,
     """
     CREATE TABLE IF NOT EXISTS liabilities (

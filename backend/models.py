@@ -162,7 +162,7 @@ class TrackedIn(BaseModel):
 
 
 class TrackedPatch(BaseModel):
-    status: Optional[str] = None
+    status: Optional[str] = None  # 'tracking' | 'locked' | 'holding'
     thesis: Optional[str] = None
     memo: Optional[str] = None
     stopLoss: Optional[str] = None

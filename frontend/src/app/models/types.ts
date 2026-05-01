@@ -1,9 +1,18 @@
-export type TrackingStatus = 'holding' | 'tracking';
+export type TrackingStatus = 'holding' | 'tracking' | 'locked';
 export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch';
+
+export interface OhlcBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 
 export interface Entry {
   id: string;

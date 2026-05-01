@@ -15,6 +15,7 @@ import { ImportModalComponent } from './components/modals/import-modal/import-mo
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
 import { AccountsModalComponent } from './components/modals/accounts-modal/accounts-modal.component';
 import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
+import { WatchViewComponent } from './components/watch-view/watch-view.component';
 
 @Component({
   selector: 'app-root',
@@ -23,7 +24,7 @@ import { BalanceSheetViewComponent } from './components/balance-sheet-view/balan
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
     BrokerSettingsModalComponent, AccountsModalComponent,
-    BalanceSheetViewComponent,
+    BalanceSheetViewComponent, WatchViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -80,6 +81,7 @@ export class App implements OnInit {
       'signals': '訊號總覽',
       'portfolio': '投資組合',
       'balance-sheet': '資產負債',
+      'watch': '鎖定觀察',
     };
     return titles[this.state.view()] ?? 'WatchList';
   }
