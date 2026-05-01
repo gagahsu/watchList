@@ -1,13 +1,18 @@
+import json
+import time
 from fastapi import APIRouter
 from datetime import date, timedelta
 from collections import defaultdict
 import finmind as fm
+from database import get_db
 
 router = APIRouter()
 
 BIG_HOLDER_LEVELS = {"400,000以上", "400000以上"}
 RETAIL_LEVELS     = {"1-999", "1,000-5,000", "5,000-10,000"}
 
+
+# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _calc_streak(values: list[float]) -> tuple[int, str]:
     if not values:
@@ -38,11 +43,11 @@ def _process_institutional(rows: list[dict]) -> list[dict]:
         elif "外資" in nm:
             by_date[d]["foreign"] += net
         elif "投信" in nm:
-            by_date[d]["trust"]   += net
+            by_date[d]["trust"]       += net
         elif "避險" in nm:
             by_date[d]["dealerHedge"] += net
         elif "自營" in nm:
-            by_date[d]["dealer"]  += net
+            by_date[d]["dealer"]      += net
 
     result = []
     for d in sorted(by_date):
@@ -56,7 +61,6 @@ def _process_institutional(rows: list[dict]) -> list[dict]:
             "total":       v["foreign"] + v["trust"] + v["dealer"] + v["dealerHedge"],
         })
 
-    # compute streaks
     if result:
         for key in ("foreign", "trust", "dealer", "total"):
             vals = [r[key] for r in result]
@@ -76,10 +80,14 @@ def _process_margin(rows: list[dict]) -> list[dict]:
         result.append({
             "date":          r.get("date", "")[:10],
             "marginBalance": margin_today,
-            "marginChange":  r.get("MarginPurchaseBuy", 0) - r.get("MarginPurchaseSell", 0) - r.get("MarginPurchaseCashRepayment", 0),
+            "marginChange":  (r.get("MarginPurchaseBuy", 0) or 0)
+                             - (r.get("MarginPurchaseSell", 0) or 0)
+                             - (r.get("MarginPurchaseCashRepayment", 0) or 0),
             "marginUsage":   round(margin_today / margin_limit * 100, 2) if margin_limit else 0,
             "shortBalance":  short_today,
-            "shortChange":   r.get("ShortSaleBuy", 0) - r.get("ShortSaleSell", 0) - r.get("ShortSaleCashRepayment", 0),
+            "shortChange":   (r.get("ShortSaleBuy", 0) or 0)
+                             - (r.get("ShortSaleSell", 0) or 0)
+                             - (r.get("ShortSaleCashRepayment", 0) or 0),
             "shortRatio":    round(short_today / margin_today * 100, 2) if margin_today else 0,
         })
     return result
@@ -123,41 +131,94 @@ def _process_shareholding(rows: list[dict]) -> list[dict]:
     return result
 
 
-@router.get("/chips/{code}")
-def get_chips(code: str):
+# ── cache helpers ─────────────────────────────────────────────────────────────
+
+def _load_cache(code: str) -> dict | None:
+    today = date.today().isoformat()
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT data FROM chip_cache WHERE code=%s AND fetched_at=%s",
+            (code, today),
+        ).fetchone()
+    return json.loads(row["data"]) if row else None
+
+
+def _save_cache(code: str, data: dict):
+    today = date.today().isoformat()
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO chip_cache(code, data, fetched_at) VALUES(%s,%s,%s)"
+            " ON CONFLICT(code) DO UPDATE SET data=EXCLUDED.data, fetched_at=EXCLUDED.fetched_at",
+            (code, json.dumps(data, ensure_ascii=False), today),
+        )
+
+
+# ── core fetch & process ──────────────────────────────────────────────────────
+
+def _fetch_chip_data(code: str) -> dict:
     start_daily  = (date.today() - timedelta(days=100)).isoformat()
     start_weekly = (date.today() - timedelta(days=210)).isoformat()
-
     errors: dict[str, str] = {}
 
     try:
         inst_raw = fm.fetch_institutional(code, start_daily)
     except Exception as e:
-        inst_raw = []
-        errors["institutional"] = str(e)
+        inst_raw = []; errors["institutional"] = str(e)
 
     try:
         margin_raw = fm.fetch_margin(code, start_daily)
     except Exception as e:
-        margin_raw = []
-        errors["margin"] = str(e)
+        margin_raw = []; errors["margin"] = str(e)
 
     try:
         lending_raw = fm.fetch_securities_lending(code, start_daily)
     except Exception as e:
-        lending_raw = []
-        errors["lending"] = str(e)
+        lending_raw = []; errors["lending"] = str(e)
 
     try:
         share_raw = fm.fetch_shareholding(code, start_weekly)
     except Exception as e:
-        share_raw = []
-        errors["shareholding"] = str(e)
+        share_raw = []; errors["shareholding"] = str(e)
 
     return {
-        "institutional":  _process_institutional(inst_raw),
-        "margin":         _process_margin(margin_raw),
-        "lending":        _process_lending(lending_raw),
-        "shareholding":   _process_shareholding(share_raw),
-        "errors":         errors,
+        "institutional": _process_institutional(inst_raw),
+        "margin":        _process_margin(margin_raw),
+        "lending":       _process_lending(lending_raw),
+        "shareholding":  _process_shareholding(share_raw),
+        "errors":        errors,
     }
+
+
+# ── sync helper (called from stocks sync) ────────────────────────────────────
+
+def sync_chips_for_codes(codes: list[str], delay: float = 0.5) -> int:
+    """Fetch and cache chip data for given codes. Skips codes already cached today."""
+    today = date.today().isoformat()
+    synced = 0
+    for code in codes:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT fetched_at FROM chip_cache WHERE code=%s", (code,)
+            ).fetchone()
+        if row and row["fetched_at"] == today:
+            continue
+        try:
+            data = _fetch_chip_data(code)
+            _save_cache(code, data)
+            synced += 1
+        except Exception:
+            pass
+        time.sleep(delay)
+    return synced
+
+
+# ── endpoint ──────────────────────────────────────────────────────────────────
+
+@router.get("/chips/{code}")
+def get_chips(code: str):
+    cached = _load_cache(code)
+    if cached:
+        return cached
+    data = _fetch_chip_data(code)
+    _save_cache(code, data)
+    return data

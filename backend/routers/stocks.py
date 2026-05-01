@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import get_db
 import finmind as fm
+from routers.chips import sync_chips_for_codes
 
 router = APIRouter()
 
@@ -146,9 +147,23 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
         log.append(f"資料庫保留既有收盤價共 {total_with_price} 筆")
         msg = f"同步完成：{len(stock_info)} 支股票，無新價格（保留舊資料 {total_with_price} 筆）"
 
+    # ── 5. Chip data sync for tracked stocks ─────────────────────────────────
+    with get_db() as conn:
+        tracked_codes = [
+            r["code"] for r in
+            conn.execute("SELECT code FROM tracked_stocks").fetchall()
+        ]
+    if tracked_codes:
+        log.append(f"籌碼資料：同步 {len(tracked_codes)} 支追蹤個股…")
+        chips_synced = sync_chips_for_codes(tracked_codes, delay=0.5)
+        log.append(f"籌碼資料：更新 {chips_synced} 支，其餘已是今日最新")
+    else:
+        chips_synced = 0
+
     return {
         "stocks_synced":    len(stock_info),
         "prices_synced":    prices_synced,
+        "chips_synced":     chips_synced,
         "skipped":          skipped_count,
         "total_with_price": total_with_price,
         "all_up_to_date":   skipped_count > 0 and prices_synced == 0,
