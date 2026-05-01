@@ -39,7 +39,14 @@ export function fmtMoney(n: number, market: string): string {
 }
 
 export function calcFIFO(trades: Trade[], market: string): FifoResult {
-  const sorted = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sorted = [...trades].sort((a, b) => {
+    const d = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (d !== 0) return d;
+    // same day: buy before sell so FIFO can match them correctly
+    if (a.type === 'buy' && b.type !== 'buy') return -1;
+    if (a.type !== 'buy' && b.type === 'buy') return 1;
+    return 0;
+  });
   const buyQueue: { shares: number; unitCost: number }[] = [];
   let realizedPnL = 0;
   const results: FifoResult['results'] = [];

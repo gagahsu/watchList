@@ -10,26 +10,48 @@ import { Note, Row } from '../../../models/types';
   template: `
 <div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeIfBg($event)">
   <div class="modal-box" style="width:480px;max-height:90vh;overflow-y:auto">
-    <div class="modal-title">📥 匯入 CSV 筆記</div>
-
-    <div class="import-format-hint">
-      支援格式：<code>產業別,公司名稱</code>，公司名稱請含代碼，如<br>
-      <code>ASIC 設計服務,"世芯-KY(3661)"</code><br>
-      同一產業多家公司可用頓號分隔：<code>"緯穎(6669)、廣達(2382)"</code>
-    </div>
+    <div class="modal-title">📥 匯入筆記</div>
 
     @if (!rows()) {
-      <div class="import-drop" [class.drag-over]="drag()"
-        (dragover)="onDragOver($event)" (dragleave)="drag.set(false)"
-        (drop)="onDrop($event)" (click)="fileInput.click()">
-        <div class="import-drop-icon">📂</div>
-        <div class="import-drop-text">
-          <strong>點擊選擇</strong>或拖曳 CSV 檔案到此處<br>
-          <span style="font-size:11px;opacity:0.7">支援 UTF-8 編碼</span>
-        </div>
-        <input #fileInput type="file" accept=".csv,text/csv" style="display:none"
-          (change)="onFileChange($event)" />
+      <!-- Mode tabs -->
+      <div style="display:flex;gap:2px;margin-bottom:14px;border-bottom:1px solid var(--border)">
+        <button class="note-tab" [class.active]="mode()==='file'" (click)="mode.set('file')">📂 上傳 CSV</button>
+        <button class="note-tab" [class.active]="mode()==='text'" (click)="mode.set('text')">📋 貼上文字</button>
       </div>
+
+      @if (mode() === 'file') {
+        <div class="import-format-hint">
+          支援格式：<code>產業別,公司名稱</code>，公司名稱請含代碼，如<br>
+          <code>ASIC 設計服務,"世芯-KY(3661)"</code><br>
+          同一產業多家公司可用頓號分隔：<code>"緯穎(6669)、廣達(2382)"</code>
+        </div>
+        <div class="import-drop" [class.drag-over]="drag()"
+          (dragover)="onDragOver($event)" (dragleave)="drag.set(false)"
+          (drop)="onDrop($event)" (click)="fileInput.click()">
+          <div class="import-drop-icon">📂</div>
+          <div class="import-drop-text">
+            <strong>點擊選擇</strong>或拖曳 CSV 檔案到此處<br>
+            <span style="font-size:11px;opacity:0.7">支援 UTF-8 編碼</span>
+          </div>
+          <input #fileInput type="file" accept=".csv,text/csv" style="display:none"
+            (change)="onFileChange($event)" />
+        </div>
+      }
+
+      @if (mode() === 'text') {
+        <div class="import-format-hint">
+          每行格式：<code>產業別,公司(代碼)、公司(代碼)</code><br>
+          第一行為標題列（可省略）。公司間以頓號、分號或逗號分隔。
+        </div>
+        <textarea class="import-textarea"
+          placeholder="產業別,公司名稱（股票代碼）&#10;記憶體晶片製造,南亞科(2408)、華邦電(2344)&#10;記憶體模組,威剛(3260)、創見(2451)"
+          [value]="rawText()"
+          (input)="rawText.set(asStr($event))"
+          rows="10"></textarea>
+        <button class="btn-primary" style="margin-top:8px"
+          [disabled]="!rawText().trim()"
+          (click)="parseRawText()">解析</button>
+      }
     }
 
     @if (error()) { <div class="import-error">{{ error() }}</div> }
@@ -59,7 +81,7 @@ import { Note, Row } from '../../../models/types';
       </div>
       <div style="margin-top:10px">
         <button style="font-size:12px;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px 0;font-family:inherit"
-          (click)="rows.set(null); error.set('')">← 重新選擇檔案</button>
+          (click)="reset()">← 重新輸入</button>
       </div>
     }
 
@@ -74,10 +96,12 @@ import { Note, Row } from '../../../models/types';
   `,
 })
 export class ImportModalComponent {
-  rows  = signal<Row[] | null>(null);
-  title = signal('');
-  error = signal('');
-  drag  = signal(false);
+  rows    = signal<Row[] | null>(null);
+  title   = signal('');
+  error   = signal('');
+  drag    = signal(false);
+  mode    = signal<'file' | 'text'>('file');
+  rawText = signal('');
 
   constructor(
     private state: AppStateService,
@@ -86,7 +110,7 @@ export class ImportModalComponent {
   ) {}
 
   get entryCount() { return () => (this.rows() ?? []).reduce((s, r) => s + r.entries.length, 0); }
-  asStr(e: Event) { return (e.target as HTMLInputElement).value; }
+  asStr(e: Event) { return (e.target as HTMLInputElement | HTMLTextAreaElement).value; }
 
   onDragOver(e: DragEvent) { e.preventDefault(); this.drag.set(true); }
 
@@ -108,17 +132,26 @@ export class ImportModalComponent {
     reader.readAsText(file, 'UTF-8');
   }
 
+  parseRawText() {
+    this.parseText(this.rawText());
+  }
+
   private parseText(text: string) {
     this.error.set('');
     const db = this.stock.codeToName();
     const list = this.stock.list();
     const result = parseCSV(text, db, list);
     if (!result || result.length === 0) {
-      this.error.set('無法解析 CSV，請確認格式（第一列為標題列：產業別,公司名稱）');
+      this.error.set('無法解析，請確認格式（每行：產業別,公司(代碼)、公司(代碼)…）');
       this.rows.set(null);
     } else {
       this.rows.set(result as Row[]);
     }
+  }
+
+  reset() {
+    this.rows.set(null);
+    this.error.set('');
   }
 
   async submit() {

@@ -12,6 +12,15 @@ DEFAULT_SOURCES = ["口袋證券", "股癌", "方格子", "XQ全球贏家", "理
 
 DDL = [
     """
+    CREATE TABLE IF NOT EXISTS accounts (
+        id            TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        balance       DOUBLE PRECISION NOT NULL DEFAULT 0,
+        interest_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+        note          TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS notes (
         id          TEXT PRIMARY KEY,
         title       TEXT NOT NULL DEFAULT '',
@@ -57,17 +66,19 @@ DDL = [
     "CREATE INDEX IF NOT EXISTS idx_signals_code ON signals(code)",
     """
     CREATE TABLE IF NOT EXISTS trades (
-        id      TEXT PRIMARY KEY,
-        code    TEXT NOT NULL,
-        date    TEXT NOT NULL,
-        type    TEXT NOT NULL CHECK(type IN ('buy','sell')),
-        shares  DOUBLE PRECISION NOT NULL,
-        price   DOUBLE PRECISION NOT NULL,
-        fee     DOUBLE PRECISION NOT NULL DEFAULT 0,
-        sig_ref TEXT NOT NULL DEFAULT '',
-        note    TEXT NOT NULL DEFAULT ''
+        id         TEXT PRIMARY KEY,
+        code       TEXT NOT NULL,
+        date       TEXT NOT NULL,
+        type       TEXT NOT NULL CHECK(type IN ('buy','sell')),
+        shares     DOUBLE PRECISION NOT NULL,
+        price      DOUBLE PRECISION NOT NULL,
+        fee        DOUBLE PRECISION NOT NULL DEFAULT 0,
+        sig_ref    TEXT NOT NULL DEFAULT '',
+        note       TEXT NOT NULL DEFAULT '',
+        account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL
     )
     """,
+    "ALTER TABLE trades ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
     "CREATE INDEX IF NOT EXISTS idx_trades_code ON trades(code)",
     """
     CREATE TABLE IF NOT EXISTS sources (

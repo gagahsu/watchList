@@ -111,6 +111,7 @@ class TradeIn(BaseModel):
     fee: float = 0
     sigRef: str = ""
     note: str = ""
+    accountId: Optional[str] = None
 
 
 class TradeOut(BaseModel):
@@ -121,6 +122,31 @@ class TradeOut(BaseModel):
     price: float
     fee: float
     sigRef: str
+    note: str
+    accountId: Optional[str]
+
+
+# ── Accounts ─────────────────────────────────────────
+class AccountIn(BaseModel):
+    id: str
+    name: str
+    balance: float = 0
+    interestRate: float = 0
+    note: str = ""
+
+
+class AccountPatch(BaseModel):
+    name: Optional[str] = None
+    balance: Optional[float] = None
+    interestRate: Optional[float] = None
+    note: Optional[str] = None
+
+
+class AccountOut(BaseModel):
+    id: str
+    name: str
+    balance: float
+    interestRate: float
     note: str
 
 

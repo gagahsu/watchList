@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
-  TrackingStatus, SignalStatus, Market, Broker,
+  TrackingStatus, SignalStatus, Market, Broker, Account,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -39,6 +39,7 @@ export class ApiService {
       this.get<StockInfo[]>('/stocks'),
       this.get<TrackedStock[]>('/tracked'),
       this.get<Broker[]>('/brokers'),
+      this.get<Account[]>('/accounts'),
     ]);
   }
 
@@ -109,4 +110,12 @@ export class ApiService {
   createBroker(b: Broker) { return this.post<Broker>('/brokers', b); }
   updateBroker(id: string, b: Broker) { return this.put<Broker>(`/brokers/${id}`, b); }
   deleteBroker(id: string) { return this.delete<{ok:boolean}>(`/brokers/${id}`); }
+
+  // ── Accounts ──────────────────────────────────────────────────────────────
+  getAccounts() { return this.get<Account[]>('/accounts'); }
+  createAccount(a: Account) { return this.post<Account>('/accounts', a); }
+  patchAccount(id: string, body: Partial<Pick<Account, 'name'|'balance'|'interestRate'|'note'>>) {
+    return this.patch<Account>(`/accounts/${id}`, body);
+  }
+  deleteAccount(id: string) { return this.delete<{ok:boolean}>(`/accounts/${id}`); }
 }

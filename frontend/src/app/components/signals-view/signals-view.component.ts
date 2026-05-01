@@ -35,6 +35,7 @@ interface SigRow {
     </label>
   </div>
 
+  <div class="table-scroll-wrap">
   <table class="supply-table sov-table">
     <thead>
       <tr>
@@ -92,6 +93,7 @@ interface SigRow {
       }
     </tbody>
   </table>
+  </div>
 }
   `,
 })

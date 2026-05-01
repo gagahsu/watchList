@@ -10,6 +10,7 @@ def _row_to_trade(r) -> dict:
         "id": r["id"], "date": r["date"], "type": r["type"],
         "shares": r["shares"], "price": r["price"],
         "fee": r["fee"], "sigRef": r["sig_ref"], "note": r["note"],
+        "accountId": r["account_id"],
     }
 
 
@@ -36,14 +37,14 @@ def get_trades(code: str):
 def create_trade(code: str, trade: TradeIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trades(id, code, date, type, shares, price, fee, sig_ref, note)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            "INSERT INTO trades(id, code, date, type, shares, price, fee, sig_ref, note, account_id)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT(id) DO UPDATE SET"
             "  code=EXCLUDED.code, date=EXCLUDED.date, type=EXCLUDED.type,"
             "  shares=EXCLUDED.shares, price=EXCLUDED.price, fee=EXCLUDED.fee,"
-            "  sig_ref=EXCLUDED.sig_ref, note=EXCLUDED.note",
+            "  sig_ref=EXCLUDED.sig_ref, note=EXCLUDED.note, account_id=EXCLUDED.account_id",
             (trade.id, code, trade.date, trade.type, trade.shares,
-             trade.price, trade.fee, trade.sigRef, trade.note),
+             trade.price, trade.fee, trade.sigRef, trade.note, trade.accountId),
         )
         row = conn.execute("SELECT * FROM trades WHERE id=%s", (trade.id,)).fetchone()
     return _row_to_trade(row)

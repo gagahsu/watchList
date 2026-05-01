@@ -108,8 +108,14 @@
         </span>
         <button class="trade-del-btn" (click)="deleteTrade(code, t.id)">✕</button>
       </div>
-      @if (t.note) {
-        <div class="trade-note">{{ t.note }}</div>
+      @if (t.note || t.accountId) {
+        <div class="trade-note">
+          @if (t.accountId) {
+            @let acct = state.accounts().find(a => a.id === t.accountId);
+            @if (acct) { <span class="trade-account-tag">{{ acct.name }}</span> }
+          }
+          @if (t.note) { {{ t.note }} }
+        </div>
       }
     }
   </div>
@@ -160,6 +166,25 @@
           </select>
         </div>
       </div>
+    }
+    @if (state.accounts().length > 0) {
+      <div class="trade-form-row">
+        <div class="trade-form-group" style="flex:1">
+          <div class="trade-form-label">帳戶 <span style="color:var(--text-muted);font-size:11px">（連結交割帳戶）</span></div>
+          <select class="trade-form-select" [value]="selectedAccount()" (change)="selectedAccount.set(asStr($event))">
+            <option value="">— 不連結 —</option>
+            @for (a of state.accounts(); track a.id) {
+              <option [value]="a.id">{{ a.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      @let warn = accountWarning();
+      @if (warn) {
+        <div class="trade-account-warning">
+          ⚠️ {{ warn }}
+        </div>
+      }
     }
     <div class="trade-form-row">
       <div class="trade-form-group" style="flex:1">

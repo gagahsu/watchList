@@ -13,10 +13,19 @@
 body { font-family:'Noto Serif TC',serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; }
 app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 
+/* iOS Safari: prefer dynamic viewport unit so the URL bar doesn't clip the layout */
+@supports (height:100dvh) {
+  body { height:100dvh; }
+  app-root { height:100dvh; }
+}
+
 /* Sidebar */
 #sidebar { width:260px; min-width:260px; background:var(--sidebar-bg); border-right:1px solid var(--border); display:flex; flex-direction:column; height:100vh; transition:transform 0.3s ease; z-index:100; }
-.sidebar-header { padding:22px 20px 16px; border-bottom:1px solid var(--border); }
-.sidebar-brand { font-size:19px; font-weight:700; color:var(--gold); letter-spacing:0.04em; display:flex; align-items:center; gap:10px; }
+@supports (height:100dvh) { #sidebar { height:100dvh; } }
+.sidebar-header { padding:22px 20px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.sidebar-close-btn { display:none; background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:26px; line-height:1; padding:2px 8px; border-radius:6px; flex-shrink:0; font-family:inherit; }
+.sidebar-close-btn:hover { background:rgba(184,137,42,0.12); color:var(--text); }
+.sidebar-brand { font-size:19px; font-weight:700; color:var(--gold); letter-spacing:0.04em; display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
 .sidebar-brand-icon { width:34px; height:34px; background:var(--gold); border-radius:8px; display:flex; align-items:center; justify-content:center; color:white; font-size:18px; flex-shrink:0; }
 .sidebar-brand-sub { font-size:13px; color:var(--text-muted); font-weight:400; margin-top:1px; }
 .sidebar-nav { flex:1; overflow-y:auto; padding:8px; }
@@ -76,8 +85,9 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 
 /* Main */
 #main { flex:1; display:flex; flex-direction:column; height:100vh; overflow:hidden; min-width:0; }
+@supports (height:100dvh) { #main { height:100dvh; } }
 .main-toolbar { padding:15px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; background:var(--panel-bg); min-height:64px; }
-.menu-btn { display:none; background:none; border:none; cursor:pointer; padding:4px; color:var(--text-muted); font-size:22px; }
+.menu-btn { display:none; background:none; border:none; cursor:pointer; padding:4px; color:var(--text-muted); font-size:22px; line-height:1; flex-shrink:0; }
 .portfolio-refresh-btn { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:20px; line-height:1; padding:2px 4px; border-radius:4px; display:inline-flex; align-items:center; transition:color 0.15s; }
 .portfolio-refresh-btn:hover:not(:disabled) { color:var(--gold); }
 .portfolio-refresh-btn:disabled { opacity:0.4; cursor:default; }
@@ -103,7 +113,7 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 /* Supply table */
 .supply-table { width:100%; border-collapse:collapse; border:1.5px solid var(--border); border-radius:12px; overflow:hidden; background:white; box-shadow:0 2px 12px rgba(42,31,14,0.06); }
 .supply-table thead tr { background:var(--gold); }
-.supply-table thead th { padding:13px 16px; text-align:left; font-size:15px; font-weight:700; color:white; letter-spacing:0.06em; }
+.supply-table thead th { padding:13px 16px; text-align:left; font-size:15px; font-weight:700; color:white; letter-spacing:0.06em; white-space:nowrap; }
 .supply-table tbody tr { border-bottom:1px solid var(--border); transition:background 0.1s; }
 .supply-table tbody tr:last-child { border-bottom:none; }
 .supply-table tbody tr:hover { background:var(--row-hover); }
@@ -289,6 +299,8 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .sov-filter-btn { padding:5px 12px; border-radius:16px; border:1.5px solid var(--border); background:none; font-family:inherit; font-size:14px; cursor:pointer; color:var(--text-muted); font-weight:600; transition:all 0.15s; }
 .sov-filter-btn:hover { border-color:var(--gold); color:var(--gold); }
 .sov-filter-btn.active { background:var(--gold); color:white; border-color:var(--gold); }
+.note-filter-select { padding:4px 10px; border-radius:16px; border:1.5px solid var(--border); background:var(--sidebar-bg); font-family:inherit; font-size:13px; cursor:pointer; color:var(--text-muted); font-weight:600; outline:none; }
+.note-filter-select:focus { border-color:var(--gold); }
 .sov-stock-group { margin-bottom:20px; }
 .sov-stock-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border); }
 .sov-add-btn { background:none; border:1.5px solid var(--border); border-radius:6px; cursor:pointer; color:var(--text-muted); font-size:15px; line-height:1; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; transition:all 0.15s; flex-shrink:0; }
@@ -314,7 +326,7 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .sl-tp-bar { background:var(--sidebar-bg); border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin-bottom:14px; }
 .sl-tp-label { font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:8px; }
 .sl-tp-fields { display:flex; gap:10px; align-items:stretch; }
-.sl-tp-group { display:flex; align-items:center; gap:6px; flex:1; }
+.sl-tp-group { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
 .sl-tp-tag { font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; white-space:nowrap; flex-shrink:0; }
 .sl-tag { background:#FCE8E8; color:#C0392B; }
 .tp-tag { background:#E8F5EE; color:var(--holding); }
@@ -356,6 +368,8 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .trade-form-select { padding:7px 10px; border:1.5px solid var(--border); border-radius:7px; font-family:inherit; font-size:15px; background:white; color:var(--text); outline:none; cursor:pointer; transition:border-color 0.15s; width:100%; }
 .trade-form-select:focus { border-color:var(--gold); }
 .trade-tax-hint { font-size:13px; color:var(--text-muted); background:var(--tracking-bg); border:1px solid var(--gold-light); border-radius:6px; padding:6px 10px; margin-bottom:10px; }
+.trade-account-warning { font-size:13px; color:var(--red); background:rgba(192,57,43,.07); border:1px solid rgba(192,57,43,.3); border-radius:6px; padding:6px 10px; margin-bottom:10px; }
+.trade-account-tag { display:inline-block; font-size:11px; background:var(--tracking-bg); color:var(--gold); border:1px solid var(--gold-light); border-radius:4px; padding:1px 6px; margin-right:6px; font-family:'JetBrains Mono',monospace; }
 
 /* Import Modal */
 .import-drop { border:2px dashed var(--border); border-radius:10px; padding:28px 20px; text-align:center; cursor:pointer; transition:all 0.15s; background:var(--bg); margin-bottom:14px; }
@@ -374,6 +388,8 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 .ipr-chip { padding:2px 8px; border-radius:12px; font-size:13px; background:var(--watching-bg); border:1px solid #C8D0D8; color:var(--watching); font-family:'JetBrains Mono',monospace; }
 .import-note-name { width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-family:'Noto Serif TC',serif; font-size:16px; outline:none; background:var(--bg); transition:border-color 0.15s; color:var(--text); margin-bottom:14px; }
 .import-note-name:focus { border-color:var(--gold); background:white; }
+.import-textarea { width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-family:'JetBrains Mono',monospace; font-size:13px; outline:none; background:var(--bg); transition:border-color 0.15s; color:var(--text); resize:vertical; line-height:1.7; }
+.import-textarea:focus { border-color:var(--gold); background:white; }
 .import-error { background:#FEF0F0; border:1px solid #F8BCBC; border-radius:8px; padding:10px 14px; font-size:14px; color:var(--red); margin-bottom:12px; }
 
 /* Stock Index */
@@ -407,13 +423,141 @@ app-root { display:flex; height:100vh; overflow:hidden; width:100%; }
 
 /* Mobile */
 .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:99; }
+.table-scroll-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
 @media (max-width:768px) {
-  #sidebar { position:fixed; transform:translateX(-100%); box-shadow:4px 0 20px rgba(0,0,0,0.12); }
+  /* Sidebar */
+  #sidebar { position:fixed; transform:translateX(-100%); box-shadow:4px 0 20px rgba(0,0,0,0.12); padding-top:env(safe-area-inset-top); }
   #sidebar.open { transform:translateX(0); }
   .sidebar-overlay.show { display:block; }
-  .menu-btn { display:block; }
-  .main-toolbar { padding:12px 16px; }
+  .sidebar-close-btn { display:inline-flex; align-items:center; justify-content:center; }
+  .menu-btn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; border-radius:8px; color:var(--text); font-size:24px; }
+  .menu-btn:active { background:rgba(184,137,42,0.15); }
+
+  /* Toolbar */
+  .main-toolbar { padding:12px 16px; gap:8px; padding-top:calc(12px + env(safe-area-inset-top)); }
+  .note-meta { display:none; }
+  .toolbar-back-btn { padding:5px 9px; font-size:12px; }
   .main-content { padding:16px; }
-  .note-title-input { font-size:19px; }
+  .note-title-input { font-size:18px; }
+
+  /* Top-level view tabs */
+  .view-tab { padding:8px 12px; font-size:14px; }
+  .view-tabs { padding:0 16px; }
+
+  /* Notes list: 2-column grid on tablet */
+  .notes-list-grid { grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); }
+  .note-card { padding:14px; min-height:100px; }
+
+  /* Note inner tabs */
+  .note-tab { padding:7px 10px; font-size:13px; }
+
+  /* Supply table (notes / portfolio): reduce padding */
+  .supply-table td, .supply-table thead th { padding:9px 10px; }
+  .supply-table thead th { font-size:14px; }
   .td-category { width:36%; }
+  .company-chip { font-size:13px; padding:3px 7px 3px 6px; }
+  .chip-name { font-size:13px; }
+  .add-company-btn { font-size:13px; padding:3px 8px; }
+
+  /* Toolbar: sticky to prevent mobile Safari scroll-away */
+  .main-toolbar { position:sticky; top:0; z-index:10; }
+
+  /* Tables inside scroll wrappers: override width:100% so the table can overflow */
+  .table-scroll-wrap { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .table-scroll-wrap > .supply-table { width:auto; min-width:660px; }
+
+  /* Signals table (sov-table): hide 最新訊號 (5th column), fit width */
+  .sov-table thead th:nth-child(5),
+  .sov-table tbody td:nth-child(5) { display:none; }
+  .table-scroll-wrap > .sov-table { min-width:0; width:100%; }
+
+  /* Portfolio table (持倉中): keep only 代碼/名稱/未實現損益 + expand arrow */
+  .portfolio-table thead th:nth-child(3),
+  .portfolio-table tbody td:nth-child(3),
+  .portfolio-table thead th:nth-child(4),
+  .portfolio-table tbody td:nth-child(4),
+  .portfolio-table thead th:nth-child(5),
+  .portfolio-table tbody td:nth-child(5) { display:none; }
+  .table-scroll-wrap > .portfolio-table { min-width:0; width:100%; }
+
+  /* Closed positions table: hide 持有期間(3) and 筆數(4), keep 實現損益(5) */
+  .closed-table thead th:nth-child(3),
+  .closed-table tbody td:nth-child(3),
+  .closed-table thead th:nth-child(4),
+  .closed-table tbody td:nth-child(4) { display:none; }
+  .table-scroll-wrap > .closed-table { min-width:0; width:100%; }
+
+  /* Index table: hide 產業別 (3rd) and 收盤價 (5th) */
+  .index-table thead th:nth-child(3),
+  .index-table tbody td:nth-child(3),
+  .index-table thead th:nth-child(5),
+  .index-table tbody td:nth-child(5) { display:none; }
+  .index-table td { padding:10px 10px; }
+  .index-table thead th { padding:10px 10px; font-size:13px; }
+  .idx-name { font-size:14px; }
+  .idx-code { font-size:13px; }
+  .idx-ref-tag { font-size:12px; padding:2px 7px; }
+
+  /* Trade items (detail modal): hide 股數 (3rd) and 總額 (5th), compact grid */
+  .trade-item > *:nth-child(3),
+  .trade-header-row > *:nth-child(3),
+  .trade-item > *:nth-child(5),
+  .trade-header-row > *:nth-child(5) { display:none; }
+  .trade-item, .trade-header-row { grid-template-columns:64px 44px 1fr 1fr 20px; }
+  .trade-item { padding:8px 10px; }
+
+  /* Trade summary: 2+1 layout, 3rd card full-width */
+  .trade-summary-3 { grid-template-columns:1fr 1fr; }
+  .trade-summary-3 > :nth-child(3) { grid-column:1 / -1; }
+  .tsc-value { font-size:17px; }
+
+  /* Exit plan bar: wrap on mobile */
+  .sl-tp-fields { flex-wrap:wrap; gap:8px; }
+  .sl-tp-group { min-width:140px; }
+
+  /* Detail modal: full-width bottom sheet */
+  .modal-overlay { align-items:flex-end; }
+  .detail-modal-box { width:100%; max-width:100%; border-radius:14px 14px 0 0; max-height:90vh; }
+  .detail-header { padding:14px 18px; }
+  .detail-header-code { font-size:20px; }
+  .detail-body { padding:14px 16px; }
+  .detail-footer { padding:10px 16px; }
+  .detail-tab { font-size:14px; padding:9px 6px; }
+
+  /* Regular modals: bottom sheet */
+  .modal-box { width:100%; max-width:100%; border-radius:14px 14px 0 0; padding:20px 16px; }
+  .modal-overlay { padding:0; }
+
+  /* Signal form */
+  .sig-form-row { gap:6px; }
+  .sig-form-select, .sig-form-input { font-size:14px; padding:6px 8px; }
+
+  /* Filter buttons */
+  .sov-filter-btn { font-size:13px; padding:4px 10px; }
+  .index-filter-bar { gap:6px; }
+
+  /* Legend */
+  .legend-hint { display:none; }
+  .legend { margin-bottom:12px; gap:10px; }
+
+  /* Empty state */
+  .empty-state { padding:48px 16px; }
+  .empty-title { font-size:18px; }
+
+  /* Index toolbar */
+  .index-toolbar { margin-bottom:8px; }
+  .idx-add-btn { padding:6px 12px; font-size:14px; }
+}
+
+@media (max-width:480px) {
+  /* Single-column note cards on small phones */
+  .notes-list-grid { grid-template-columns:1fr; }
+  /* Compact top tabs */
+  .view-tab { padding:7px 8px; font-size:13px; }
+  /* Toolbar tighter */
+  .main-toolbar { gap:6px; }
+  /* On very small screens also hide 出現在 (6th) from index table */
+  .index-table thead th:nth-child(6),
+  .index-table tbody td:nth-child(6) { display:none; }
 }

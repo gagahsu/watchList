@@ -59,5 +59,6 @@
   @if (state.addToRowId() || state.addingDirect()) { <app-add-company-modal /> }
   @if (state.editTarget())  { <app-stock-detail-modal /> }
   @if (state.importing())   { <app-import-modal /> }
-  @if (state.brokersOpen()) { <app-broker-settings-modal /> }
+  @if (state.brokersOpen())   { <app-broker-settings-modal /> }
+  @if (state.accountsOpen()) { <app-accounts-modal /> }
 }
