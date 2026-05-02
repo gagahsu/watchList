@@ -20,7 +20,7 @@ export class AppStateService {
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
-  view         = signal<MainView>('notes-list');
+  view         = signal<MainView>('balance-sheet');
   sidebarOpen  = signal(false);
   editTarget   = signal<EditTarget | null>(null);
   addToRowId   = signal<string | null>(null);

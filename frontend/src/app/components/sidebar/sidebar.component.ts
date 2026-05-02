@@ -22,36 +22,21 @@ import { pendingSettlements } from '../../utils';
   </div>
 
   <div class="sidebar-nav">
-    <!-- 筆記 -->
+    <!-- 財務 -->
     <div class="sidebar-section">
-      <span class="sidebar-section-label">筆記</span>
-      <button class="sidebar-nav-item" (click)="addNote()">
-        <span class="nav-icon">＋</span> 新增筆記
-      </button>
-      <button class="sidebar-nav-item" (click)="openImport()">
-        <span class="nav-icon">📥</span> 匯入 CSV
-      </button>
-      <button class="sidebar-nav-item" [class.active]="isActive('notes-list') || isActive('notes')"
-        (click)="navigate('notes-list')">
-        <span class="nav-icon">📚</span> 筆記列表
-        @if (state.notes().length > 0) {
-          <span class="sidebar-nav-badge">{{ state.notes().length }}</span>
+      <span class="sidebar-section-label">財務</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('balance-sheet')" (click)="navigate('balance-sheet')">
+        <span class="nav-icon">⚖️</span> 資產負債
+        @if (liabilityReminderCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">🔔 {{ liabilityReminderCount() }}</span>
         }
       </button>
-    </div>
-
-    <div class="sidebar-divider"></div>
-
-    <!-- 研究 -->
-    <div class="sidebar-section">
-      <span class="sidebar-section-label">研究</span>
-      <button class="sidebar-nav-item" [class.active]="isActive('index')" (click)="navigate('index')">
-        <span class="nav-icon">🔍</span> 個股索引
-      </button>
-      <button class="sidebar-nav-item" [class.active]="isActive('signals')" (click)="navigate('signals')">
-        <span class="nav-icon">📡</span> 訊號總覽
-        @if (state.activeSignalCount() > 0) {
-          <span class="sidebar-nav-badge">{{ state.activeSignalCount() }}</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('accounts')" (click)="navigate('accounts')">
+        <span class="nav-icon">💰</span> 帳戶管理
+        @if (accountWarningCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
+        } @else if (state.accounts().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.accounts().length }}</span>
         }
       </button>
     </div>
@@ -74,21 +59,36 @@ import { pendingSettlements } from '../../utils';
 
     <div class="sidebar-divider"></div>
 
-    <!-- 財務 -->
+    <!-- 研究 -->
     <div class="sidebar-section">
-      <span class="sidebar-section-label">財務</span>
-      <button class="sidebar-nav-item" [class.active]="isActive('accounts')" (click)="navigate('accounts')"  >
-        <span class="nav-icon">💰</span> 帳戶管理
-        @if (accountWarningCount() > 0) {
-          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
-        } @else if (state.accounts().length > 0) {
-          <span class="sidebar-nav-badge">{{ state.accounts().length }}</span>
+      <span class="sidebar-section-label">研究</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('index')" (click)="navigate('index')">
+        <span class="nav-icon">🔍</span> 個股索引
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('signals')" (click)="navigate('signals')">
+        <span class="nav-icon">📡</span> 訊號總覽
+        @if (state.activeSignalCount() > 0) {
+          <span class="sidebar-nav-badge">{{ state.activeSignalCount() }}</span>
         }
       </button>
-      <button class="sidebar-nav-item" [class.active]="isActive('balance-sheet')" (click)="navigate('balance-sheet')">
-        <span class="nav-icon">⚖️</span> 資產負債
-        @if (liabilityReminderCount() > 0) {
-          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">🔔 {{ liabilityReminderCount() }}</span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 筆記 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">筆記</span>
+      <button class="sidebar-nav-item" (click)="addNote()">
+        <span class="nav-icon">＋</span> 新增筆記
+      </button>
+      <button class="sidebar-nav-item" (click)="openImport()">
+        <span class="nav-icon">📥</span> 匯入 CSV
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('notes-list') || isActive('notes')"
+        (click)="navigate('notes-list')">
+        <span class="nav-icon">📚</span> 筆記列表
+        @if (state.notes().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.notes().length }}</span>
         }
       </button>
     </div>
