@@ -118,6 +118,8 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
   `,
 })
 export class SidebarComponent {
+  private _syncMsgTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     public state: AppStateService,
     private api: ApiService,
@@ -177,22 +179,23 @@ export class SidebarComponent {
   }
 
   async syncStocks() {
+    if (this._syncMsgTimer) clearTimeout(this._syncMsgTimer);
     this.state.syncing.set(true);
     this.state.syncMsg.set('');
     try {
-      const res = await this.api.syncStocks(false) as any;
+      const res = await this.api.syncStocks(false);
       const stocks = await this.api.getStocks();
       this.stock.apply(stocks);
-      let msg = res.message ?? '同步完成';
-      if ((res.prices_synced ?? 0) === 0 && !res.all_up_to_date && res.log?.length) {
-        msg += '\n' + (res.log as string[]).join('\n');
-      }
-      this.state.syncMsg.set(msg);
+
+      const lines: string[] = [res.message];
+      if (res.chips_synced > 0) lines.push(`籌碼資料更新 ${res.chips_synced} 支`);
+      if (res.log?.length) lines.push(...res.log);
+      this.state.syncMsg.set(lines.join('\n'));
     } catch (e: any) {
       this.state.syncMsg.set('同步失敗：' + (e.message ?? ''));
     } finally {
       this.state.syncing.set(false);
-      setTimeout(() => this.state.syncMsg.set(''), 30000);
+      this._syncMsgTimer = setTimeout(() => this.state.syncMsg.set(''), 30000);
     }
   }
 }

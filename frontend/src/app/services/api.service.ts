@@ -99,7 +99,16 @@ export class ApiService {
 
   // ── Stocks ────────────────────────────────────────────────────────────────
   getStocks() { return this.get<StockInfo[]>('/stocks'); }
-  syncStocks(force = false) { return this.post<{message: string; all_up_to_date?: boolean; skipped?: number}>('/stocks/sync', { force }); }
+  syncStocks(force = false) {
+    return this.post<{
+      message:        string;
+      prices_synced:  number;
+      chips_synced:   number;
+      skipped:        number;
+      all_up_to_date: boolean;
+      log:            string[];
+    }>('/stocks/sync', { force });
+  }
 
   // ── Live Quotes (yfinance, ~15min delay) ──────────────────────────────────
   getQuotes(items: {code: string; market: string}[]) {
