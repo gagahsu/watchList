@@ -107,19 +107,26 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
     date_map:  dict[str, str]   = {}
 
     if to_fetch:
-        bulk_map, bulk_date, bulk_err = fm.find_latest_prices_bulk()
-        if bulk_map:
-            # Filter bulk result to only tracked stocks
-            price_map = {c: bulk_map[c] for c in to_fetch if c in bulk_map}
-            date_map  = {c: bulk_date for c in price_map}
-            missing   = [c for c in to_fetch if c not in bulk_map]
-            log.append(f"批量價格: {len(price_map)} 筆 ({bulk_date})" +
-                       (f"，{len(missing)} 支無資料" if missing else ""))
-        else:
-            if bulk_err:
-                log.append("批量價格不支援（FinMind 免費帳號需逐檔查詢）")
+        bulk_unsupported = get_setting("bulk_price_unsupported") == "1"
+
+        if not bulk_unsupported:
+            bulk_map, bulk_date, bulk_err = fm.find_latest_prices_bulk()
+            if bulk_map:
+                price_map = {c: bulk_map[c] for c in to_fetch if c in bulk_map}
+                date_map  = {c: bulk_date for c in price_map}
+                missing   = [c for c in to_fetch if c not in bulk_map]
+                log.append(f"批量價格: {len(price_map)} 筆 ({bulk_date})" +
+                           (f"，{len(missing)} 支無資料" if missing else ""))
             else:
-                log.append("批量價格: 無資料（非交易日或資料尚未更新）")
+                if bulk_err and any(c in bulk_err for c in ("400", "401", "403")):
+                    set_setting("bulk_price_unsupported", "1")
+                    log.append("批量價格不支援（免費帳號限制，已記錄，往後自動跳過）")
+                else:
+                    log.append("批量價格: 無資料（非交易日或資料尚未更新）")
+        else:
+            log.append("批量價格: 跳過（免費帳號不支援）")
+
+        if not price_map:
             log.append(f"逐檔查詢 {len(to_fetch)} 支個股…")
             price_map, date_map, errors = fm.fetch_prices_for_codes(to_fetch)
             log.append(f"逐檔結果: {len(price_map)} 筆成功")
