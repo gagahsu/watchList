@@ -13,7 +13,7 @@ import { AddCompanyModalComponent } from './components/modals/add-company-modal/
 import { StockDetailModalComponent } from './components/modals/stock-detail-modal/stock-detail-modal.component';
 import { ImportModalComponent } from './components/modals/import-modal/import-modal.component';
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
-import { AccountsModalComponent } from './components/modals/accounts-modal/accounts-modal.component';
+import { AccountsViewComponent } from './components/accounts-view/accounts-view.component';
 import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
 import { WatchViewComponent } from './components/watch-view/watch-view.component';
 
@@ -23,7 +23,7 @@ import { WatchViewComponent } from './components/watch-view/watch-view.component
     SidebarComponent, NotesViewComponent, NotesListViewComponent,
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
-    BrokerSettingsModalComponent, AccountsModalComponent,
+    BrokerSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent,
   ],
   templateUrl: './app.html',
@@ -81,7 +81,8 @@ export class App implements OnInit {
       'signals': '訊號總覽',
       'portfolio': '投資組合',
       'balance-sheet': '資產負債',
-      'watch': '鎖定觀察',
+      'watch':    '鎖定觀察',
+      'accounts': '帳戶管理',
     };
     return titles[this.state.view()] ?? '理債富';
   }

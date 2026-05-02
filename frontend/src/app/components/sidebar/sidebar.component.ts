@@ -4,7 +4,7 @@ import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { uid } from '../../utils';
 import { Note } from '../../models/types';
-import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.component';
+import { pendingSettlements } from '../../utils';
 
 @Component({
   selector: 'app-sidebar',
@@ -77,7 +77,7 @@ import { pendingSettlements } from '../modals/accounts-modal/accounts-modal.comp
     <!-- 財務 -->
     <div class="sidebar-section">
       <span class="sidebar-section-label">財務</span>
-      <button class="sidebar-nav-item" (click)="openAccounts()">
+      <button class="sidebar-nav-item" [class.active]="isActive('accounts')" (click)="navigate('accounts')"  >
         <span class="nav-icon">💰</span> 帳戶管理
         @if (accountWarningCount() > 0) {
           <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
@@ -130,13 +130,12 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
 
-  openBrokers()  { this.state.brokersOpen.set(true);  this.state.sidebarOpen.set(false); }
-  openAccounts() { this.state.accountsOpen.set(true); this.state.sidebarOpen.set(false); }
+  openBrokers() { this.state.brokersOpen.set(true); this.state.sidebarOpen.set(false); }
 
   accountWarningCount = computed(() => {
     const trades = this.state.trades();

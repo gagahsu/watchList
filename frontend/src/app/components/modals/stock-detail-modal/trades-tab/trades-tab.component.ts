@@ -4,7 +4,7 @@ import { ApiService } from '../../../../services/api.service';
 import { StockService } from '../../../../services/stock.service';
 import { Trade, Market } from '../../../../models/types';
 import { calcFIFO, fmtMoney, uid } from '../../../../utils';
-import { pendingSettlements, settlementDate } from '../../accounts-modal/accounts-modal.component';
+import { pendingSettlements, settlementDate } from '../../../../utils';
 
 @Component({
   selector: 'app-trades-tab',

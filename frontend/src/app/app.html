@@ -53,6 +53,7 @@
         @case ('portfolio')      { <app-portfolio-view /> }
         @case ('balance-sheet') { <app-balance-sheet-view /> }
         @case ('watch')         { <app-watch-view /> }
+        @case ('accounts')      { <app-accounts-view /> }
       }
     </div>
   </div>
@@ -62,5 +63,4 @@
   @if (state.editTarget())  { <app-stock-detail-modal /> }
   @if (state.importing())   { <app-import-modal /> }
   @if (state.brokersOpen())   { <app-broker-settings-modal /> }
-  @if (state.accountsOpen()) { <app-accounts-modal /> }
 }
