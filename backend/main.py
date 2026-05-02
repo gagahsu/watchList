@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import init_db
-from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts, liabilities, ohlc, chips
+from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts, liabilities, ohlc, chips, linebot
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,15 @@ def _scheduled_stock_list_sync():
         logger.error("排程：股票清單更新失敗: %s", e)
 
 
+def _scheduled_line_alerts():
+    """Daily job: push account/liability alerts to LINE subscribers."""
+    try:
+        from routers.linebot import check_and_push_alerts
+        check_and_push_alerts()
+    except Exception as e:
+        logger.error("排程：LINE 提醒推播失敗: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -36,8 +45,14 @@ async def lifespan(app: FastAPI):
         id="stock_list_daily",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _scheduled_line_alerts,
+        CronTrigger(hour=8, minute=0, timezone="Asia/Taipei"),
+        id="line_alerts_daily",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單每日 18:30 自動更新）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00）")
     yield
     scheduler.shutdown(wait=False)
 
@@ -63,6 +78,7 @@ app.include_router(accounts.router,    prefix="/api")
 app.include_router(liabilities.router, prefix="/api")
 app.include_router(ohlc.router,        prefix="/api")
 app.include_router(chips.router,       prefix="/api")
+app.include_router(linebot.router,     prefix="/api")
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "browser")
 INDEX_HTML  = os.path.join(STATIC_DIR, "index.html")
