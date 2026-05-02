@@ -184,6 +184,12 @@ DDL = [
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS paid_periods INTEGER",
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS interest_rate DOUBLE PRECISION",
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS monthly_payment DOUBLE PRECISION",
+    """
+    CREATE TABLE IF NOT EXISTS settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )
+    """,
 ]
 
 
@@ -224,6 +230,20 @@ def get_db():
         raise
     finally:
         conn.close()
+
+
+def get_setting(key: str) -> str | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key=%s", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str):
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
+            (key, value),
+        )
 
 
 def init_db():

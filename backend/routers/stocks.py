@@ -1,7 +1,7 @@
 from datetime import date
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from database import get_db
+from database import get_db, get_setting, set_setting
 import finmind as fm
 from routers.chips import sync_chips_for_codes
 
@@ -11,6 +11,49 @@ router = APIRouter()
 class SyncRequest(BaseModel):
     force: bool = False
 
+
+# ── stock list (names + industries) ──────────────────────────────────────────
+
+def _sync_stock_list() -> list[dict]:
+    """Fetch full stock list from FinMind and upsert names/industries into DB.
+
+    Returns list of dicts with keys stock_id, stock_name, industry_category.
+    Records today's date in settings so subsequent calls can skip the fetch.
+    """
+    stock_info = fm.fetch_stock_info()
+    if not stock_info:
+        raise fm.FinMindError("FinMind 回傳空白股票清單")
+
+    seen: dict[str, dict] = {}
+    for s in stock_info:
+        seen.setdefault(s["stock_id"], s)
+
+    with get_db() as conn:
+        conn.execute_values(
+            """
+            INSERT INTO stocks(code, name, industry)
+            VALUES %s
+            ON CONFLICT(code) DO UPDATE SET
+                name     = EXCLUDED.name,
+                industry = EXCLUDED.industry
+            """,
+            [(s["stock_id"], s["stock_name"], s.get("industry_category", ""))
+             for s in seen.values()],
+        )
+
+    set_setting("stock_list_synced_at", date.today().isoformat())
+    return list(seen.values())
+
+
+def _load_stock_list_from_db() -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT code AS stock_id, name AS stock_name, industry AS industry_category FROM stocks"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/stocks")
 def get_stocks():
@@ -30,19 +73,26 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
     force = body.force
     log: list[str] = []
 
-    # ── 1. Stock list (code + name) ───────────────────────────────────────────
-    try:
-        stock_info = fm.fetch_stock_info()
-        log.append(f"股票清單: {len(stock_info)} 支")
-    except fm.FinMindError as e:
-        raise HTTPException(502, f"FinMind 無法取得股票清單: {e}")
+    # ── 1. Stock list (code + name + industry) ────────────────────────────────
+    today = date.today().isoformat()
+    last_sync = get_setting("stock_list_synced_at")
+
+    if not force and last_sync == today:
+        stock_info = _load_stock_list_from_db()
+        log.append(f"股票清單: 使用今日快取（{len(stock_info)} 支，排程已更新）")
+    else:
+        try:
+            stock_info = _sync_stock_list()
+            log.append(f"股票清單: 從 FinMind 更新 {len(stock_info)} 支")
+        except fm.FinMindError as e:
+            raise HTTPException(502, f"FinMind 無法取得股票清單: {e}")
 
     if not stock_info:
-        raise HTTPException(502, "FinMind 回傳空白股票清單")
+        raise HTTPException(502, "股票清單為空")
 
     # ── 2. Bulk price fetch ───────────────────────────────────────────────────
     price_map: dict[str, float] = {}
-    date_map:  dict[str, str]   = {}   # code -> actual trading date from API
+    date_map:  dict[str, str]   = {}
 
     bulk_map, bulk_date, bulk_err = fm.find_latest_prices_bulk()
 
@@ -56,27 +106,19 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
         else:
             log.append("批量價格: 無資料（非交易日或資料尚未更新）")
 
-        # ── 3. Per-stock fallback: watchlist entries + previously-tracked stocks ─
+        # ── 3. Per-stock fallback ─────────────────────────────────────────────
         with get_db() as conn:
-            entry_codes = {r["code"] for r in
-                           conn.execute("SELECT DISTINCT code FROM entries").fetchall()
-                           if r["code"]}
-            direct_tracked = {r["code"] for r in
-                              conn.execute("SELECT code FROM tracked_stocks").fetchall()}
-            prev_prices = {r["code"] for r in
-                           conn.execute("SELECT code FROM stocks WHERE close IS NOT NULL").fetchall()}
+            entry_codes    = {r["code"] for r in conn.execute("SELECT DISTINCT code FROM entries").fetchall() if r["code"]}
+            direct_tracked = {r["code"] for r in conn.execute("SELECT code FROM tracked_stocks").fetchall()}
+            prev_prices    = {r["code"] for r in conn.execute("SELECT code FROM stocks WHERE close IS NOT NULL").fetchall()}
 
         all_codes = entry_codes | direct_tracked | prev_prices
 
-        # Skip codes already updated today unless force=True
-        today   = date.today().isoformat()
         skipped: set[str] = set()
         if not force:
             with get_db() as conn:
                 up_to_date = {r["code"] for r in
-                              conn.execute(
-                                  "SELECT code FROM stocks WHERE updated_at=%s", (today,)
-                              ).fetchall()}
+                              conn.execute("SELECT code FROM stocks WHERE updated_at=%s", (today,)).fetchall()}
             skipped = all_codes & up_to_date
             codes   = list(all_codes - up_to_date)
             if skipped:
@@ -97,23 +139,9 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
         else:
             log.append("所有個股均已是今日最新，無需更新")
 
-    # ── 4. Upsert: preserve existing price when no new data ───────────────────
-    # Deduplicate by stock_id — FinMind occasionally returns duplicate rows
-    seen: dict[str, dict] = {}
-    for s in stock_info:
-        seen.setdefault(s["stock_id"], s)
-
+    # ── 4. Upsert prices ──────────────────────────────────────────────────────
+    seen: dict[str, dict] = {s["stock_id"]: s for s in stock_info}
     with get_db() as conn:
-        rows = [
-            (
-                s["stock_id"],
-                s["stock_name"],
-                s.get("industry_category", ""),
-                price_map.get(s["stock_id"]),
-                date_map.get(s["stock_id"]),
-            )
-            for s in seen.values()
-        ]
         conn.execute_values(
             """
             INSERT INTO stocks(code, name, industry, close, updated_at)
@@ -124,7 +152,11 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
                 close      = COALESCE(EXCLUDED.close,      stocks.close),
                 updated_at = COALESCE(EXCLUDED.updated_at, stocks.updated_at)
             """,
-            rows,
+            [
+                (s["stock_id"], s["stock_name"], s.get("industry_category", ""),
+                 price_map.get(s["stock_id"]), date_map.get(s["stock_id"]))
+                for s in seen.values()
+            ],
         )
 
     prices_synced = len(price_map)
@@ -147,12 +179,9 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
         log.append(f"資料庫保留既有收盤價共 {total_with_price} 筆")
         msg = f"同步完成：{len(stock_info)} 支股票，無新價格（保留舊資料 {total_with_price} 筆）"
 
-    # ── 5. Chip data sync for tracked stocks ─────────────────────────────────
+    # ── 5. Chip data sync ─────────────────────────────────────────────────────
     with get_db() as conn:
-        tracked_codes = [
-            r["code"] for r in
-            conn.execute("SELECT code FROM tracked_stocks").fetchall()
-        ]
+        tracked_codes = [r["code"] for r in conn.execute("SELECT code FROM tracked_stocks").fetchall()]
     if tracked_codes:
         log.append(f"籌碼資料：同步 {len(tracked_codes)} 支追蹤個股…")
         chips_synced = sync_chips_for_codes(tracked_codes, delay=0.5)
