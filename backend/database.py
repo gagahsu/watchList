@@ -190,6 +190,18 @@ DDL = [
         value TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS account_transactions (
+        id            TEXT PRIMARY KEY,
+        date          TEXT NOT NULL,
+        type          TEXT NOT NULL CHECK(type IN ('deposit','withdrawal','transfer')),
+        amount        DOUBLE PRECISION NOT NULL,
+        account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        to_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+        note          TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_acctxn_account ON account_transactions(account_id)",
 ]
 
 

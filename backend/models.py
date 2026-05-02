@@ -249,3 +249,24 @@ class LiabilityOut(BaseModel):
     paidPeriods: Optional[int]
     interestRate: Optional[float]
     monthlyPayment: Optional[float]
+
+
+# ── Account Transactions ──────────────────────────────
+class AccountTransactionIn(BaseModel):
+    id: str
+    date: str
+    type: str
+    amount: float
+    accountId: str
+    toAccountId: Optional[str] = None
+    note: str = ""
+
+
+class AccountTransactionOut(BaseModel):
+    id: str
+    date: str
+    type: str
+    amount: float
+    accountId: str
+    toAccountId: Optional[str]
+    note: str

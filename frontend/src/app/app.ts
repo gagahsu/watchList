@@ -16,6 +16,7 @@ import { BrokerSettingsModalComponent } from './components/modals/broker-setting
 import { AccountsViewComponent } from './components/accounts-view/accounts-view.component';
 import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
 import { WatchViewComponent } from './components/watch-view/watch-view.component';
+import { AccountTransactionsViewComponent } from './components/account-transactions-view/account-transactions-view.component';
 
 @Component({
   selector: 'app-root',
@@ -24,7 +25,7 @@ import { WatchViewComponent } from './components/watch-view/watch-view.component
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
     BrokerSettingsModalComponent, AccountsViewComponent,
-    BalanceSheetViewComponent, WatchViewComponent,
+    BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -37,7 +38,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -48,6 +49,7 @@ export class App implements OnInit {
       this.state.brokers.set(brokers);
       this.state.accounts.set(accounts);
       this.state.liabilities.set(liabilities);
+      this.state.transactions.set(transactions);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -83,6 +85,7 @@ export class App implements OnInit {
       'balance-sheet': '資產負債',
       'watch':    '鎖定觀察',
       'accounts': '帳戶管理',
+      'transactions': '資金流水帳',
     };
     return titles[this.state.view()] ?? '理債富';
   }

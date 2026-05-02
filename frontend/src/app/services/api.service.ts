@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
+  AccountTransaction,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -41,6 +42,7 @@ export class ApiService {
       this.get<Broker[]>('/brokers'),
       this.get<Account[]>('/accounts'),
       this.get<Liability[]>('/liabilities'),
+      this.get<AccountTransaction[]>('/account-transactions'),
     ]);
   }
 
@@ -145,4 +147,12 @@ export class ApiService {
     return this.patch<Liability>(`/liabilities/${id}`, body);
   }
   deleteLiability(id: string) { return this.delete<{ok:boolean}>(`/liabilities/${id}`); }
+
+  // ── Account Transactions ──────────────────────────────────────────────────
+  createTransaction(t: AccountTransaction) {
+    return this.post<AccountTransaction>('/account-transactions', t);
+  }
+  deleteTransaction(id: string) {
+    return this.delete<{ok:boolean}>(`/account-transactions/${id}`);
+  }
 }
