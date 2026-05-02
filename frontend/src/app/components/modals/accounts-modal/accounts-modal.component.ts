@@ -36,8 +36,10 @@ export function pendingSettlements(accountId: string, allTrades: Record<string, 
   selector: 'app-accounts-modal',
   template: `
 <div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeIfBg($event)">
-  <div class="modal-box" style="max-width:560px;width:92vw">
+  <div class="modal-box" style="max-width:560px;width:92vw;max-height:85vh;display:flex;flex-direction:column">
     <div class="modal-title">帳戶管理</div>
+
+    <div style="overflow-y:auto;flex:1;min-height:0">
 
     @if (state.accounts().length === 0 && !showForm()) {
       <div style="text-align:center;padding:20px 0;color:var(--text-muted);font-size:14px">
@@ -146,6 +148,8 @@ export function pendingSettlements(accountId: string, allTrades: Record<string, 
     } @else {
       <button class="sig-open-add" style="margin-top:12px" (click)="startNew()">＋ 新增帳戶</button>
     }
+
+    </div><!-- end scrollable -->
 
     <div style="font-size:12px;color:var(--text-muted);margin-top:12px;padding:0 2px">
       待交割：買入股票在台股 T+2 交割日前尚未扣款的金額。可用餘額 = 帳戶餘額 − 待交割。
