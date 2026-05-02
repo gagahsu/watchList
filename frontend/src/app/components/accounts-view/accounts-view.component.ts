@@ -23,7 +23,7 @@ import { uid, pendingSettlements } from '../../utils';
 } @else {
   <div class="index-toolbar">
     <span style="font-size:12px;color:var(--text-muted)">
-      {{ state.accounts().length }} 個帳戶
+      {{ state.accounts().length }} 個帳戶 · 點擊列編輯
       @if (totalPending() > 0) {
         &nbsp;·&nbsp;待交割
         <span style="color:var(--red,#c0392b);font-weight:600">{{ fmtNT(totalPending()) }}</span>
@@ -42,14 +42,13 @@ import { uid, pendingSettlements } from '../../utils';
       <th style="text-align:right">可用</th>
       <th style="text-align:right">年利率</th>
       <th>備註</th>
-      <th style="width:110px"></th>
     </tr></thead>
     <tbody>
       @for (a of filtered(); track a.id) {
         @let pending = getPending(a.id);
         @let available = a.balance - pending;
         @let hasWarning = pending > 0 && available < 0;
-        <tr style="cursor:default" [class.acv-warn-row]="hasWarning">
+        <tr (click)="openEdit(a)" [class.acv-warn-row]="hasWarning">
           <td>
             <div style="display:flex;align-items:center;gap:6px">
               @if (hasWarning) { <span title="可用餘額不足以支付待交割款項">⚠️</span> }
@@ -69,47 +68,7 @@ import { uid, pendingSettlements } from '../../utils';
             {{ a.interestRate > 0 ? a.interestRate + '%' : '—' }}
           </td>
           <td style="font-size:13px;color:var(--text-muted)">{{ a.note || '—' }}</td>
-          <td>
-            <div style="display:flex;gap:6px">
-              <button class="sig-action-btn acv-icon-btn" title="編輯" (click)="startEdit(a)">✏️</button>
-              <button class="sig-action-btn danger acv-icon-btn" title="刪除" (click)="deleteAccount(a.id)">🗑️</button>
-            </div>
-          </td>
         </tr>
-        @if (editId() === a.id) {
-          <tr class="acv-edit-tr">
-            <td colspan="7" style="padding:0">
-              <div class="acv-edit-panel">
-                <div class="broker-form-row">
-                  <div class="broker-form-group" style="flex:2">
-                    <div class="modal-label">帳戶名稱</div>
-                    <input class="modal-input" [value]="editF.name" (input)="editF.name=asStr($event)" />
-                  </div>
-                  <div class="broker-form-group" style="flex:1">
-                    <div class="modal-label">年利率 (%)</div>
-                    <input class="modal-input" type="number" min="0" step="0.01"
-                      [value]="editF.interestRate" (input)="editF.interestRate=toNum($event)" />
-                  </div>
-                </div>
-                <div class="broker-form-row">
-                  <div class="broker-form-group" style="flex:1">
-                    <div class="modal-label">帳戶餘額</div>
-                    <input class="modal-input" type="number" step="1"
-                      [value]="editF.balance" (input)="editF.balance=toNum($event)" />
-                  </div>
-                  <div class="broker-form-group" style="flex:2">
-                    <div class="modal-label">備註</div>
-                    <input class="modal-input" [value]="editF.note" (input)="editF.note=asStr($event)" />
-                  </div>
-                </div>
-                <div style="display:flex;gap:8px;margin-top:10px">
-                  <button class="btn-primary" (click)="saveEdit(a.id)">儲存</button>
-                  <button class="btn-cancel" (click)="editId.set(null)">取消</button>
-                </div>
-              </div>
-            </td>
-          </tr>
-        }
       }
     </tbody>
   </table>
@@ -155,31 +114,68 @@ import { uid, pendingSettlements } from '../../utils';
 <div class="acv-hint">
   待交割：買入股票在台股 T+2 交割日前尚未扣款的金額。可用餘額 = 帳戶餘額 − 待交割。
 </div>
+
+<!-- Edit modal -->
+@if (editTarget()) {
+  <div class="modal-overlay" (click)="closeEdit()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div style="font-size:17px;font-weight:700">編輯帳戶</div>
+        <button class="sidebar-close-btn" (click)="closeEdit()">×</button>
+      </div>
+      <div class="broker-form-row">
+        <div class="broker-form-group" style="flex:2">
+          <div class="modal-label">帳戶名稱</div>
+          <input class="modal-input" [value]="editF.name" (input)="editF.name=asStr($event)" />
+        </div>
+        <div class="broker-form-group" style="flex:1">
+          <div class="modal-label">年利率 (%)</div>
+          <input class="modal-input" type="number" min="0" step="0.01"
+            [value]="editF.interestRate" (input)="editF.interestRate=toNum($event)" />
+        </div>
+      </div>
+      <div class="broker-form-row">
+        <div class="broker-form-group" style="flex:1">
+          <div class="modal-label">帳戶餘額</div>
+          <input class="modal-input" type="number" step="1"
+            [value]="editF.balance" (input)="editF.balance=toNum($event)" />
+        </div>
+        <div class="broker-form-group" style="flex:2">
+          <div class="modal-label">備註</div>
+          <input class="modal-input" [value]="editF.note" (input)="editF.note=asStr($event)" />
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button class="btn-primary" style="flex:1" (click)="saveEdit()">儲存</button>
+        <button class="btn-cancel" (click)="closeEdit()">取消</button>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="sig-action-btn danger" style="width:100%" (click)="deleteAccount()">
+          刪除此帳戶
+        </button>
+      </div>
+    </div>
+  </div>
+}
   `,
   styles: [`
-    .acv-num  { text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:nowrap; }
-    .acv-red  { color:var(--red,#c0392b) !important; font-weight:600; }
+    .acv-num   { text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:nowrap; }
+    .acv-red   { color:var(--red,#c0392b) !important; font-weight:600; }
     .acv-green { color:var(--green,#27ae60) !important; font-weight:600; }
     .acv-warn-row td:first-child { border-left:3px solid var(--red,#c0392b); }
-    .acv-edit-tr td { padding:0 !important; }
-    .acv-edit-panel {
-      background:var(--sidebar-bg); border-top:1px solid var(--border);
-      border-bottom:2px solid var(--gold); padding:14px 16px;
-    }
     .acv-form-card {
       background:var(--sidebar-bg); border:1px solid var(--border);
       border-radius:8px; padding:14px 16px; margin-top:12px;
     }
     .acv-total-row { font-size:13px; color:var(--text-muted); margin-top:12px; text-align:right; }
     .acv-total-row strong { color:var(--text); font-size:15px; margin-left:6px; }
-    .acv-icon-btn { padding:3px 7px; font-size:15px; line-height:1; }
     .acv-hint { font-size:12px; color:var(--text-muted); margin-top:20px; line-height:1.6; }
   `],
 })
 export class AccountsViewComponent {
-  search   = signal('');
-  showForm = signal(false);
-  editId   = signal<string | null>(null);
+  search     = signal('');
+  showForm   = signal(false);
+  editTarget = signal<Account | null>(null);
   newF  = this.blank();
   editF = this.blank();
 
@@ -211,7 +207,32 @@ export class AccountsViewComponent {
     );
   });
 
-  startNew() { this.newF = this.blank(); this.showForm.set(true); this.editId.set(null); }
+  openEdit(a: Account) {
+    this.editF = { name: a.name, balance: a.balance, interestRate: a.interestRate, note: a.note };
+    this.editTarget.set(a);
+    this.showForm.set(false);
+  }
+
+  closeEdit() { this.editTarget.set(null); }
+
+  async saveEdit() {
+    const id = this.editTarget()!.id;
+    const saved = await this.api.patchAccount(id, {
+      name: this.editF.name.trim(), balance: this.editF.balance,
+      interestRate: this.editF.interestRate, note: this.editF.note.trim(),
+    });
+    this.state.updateAccount(saved);
+    this.closeEdit();
+  }
+
+  async deleteAccount() {
+    const id = this.editTarget()!.id;
+    await this.api.deleteAccount(id);
+    this.state.removeAccount(id);
+    this.closeEdit();
+  }
+
+  startNew() { this.newF = this.blank(); this.showForm.set(true); this.closeEdit(); }
 
   async saveNew() {
     if (!this.newF.name.trim()) return;
@@ -223,25 +244,5 @@ export class AccountsViewComponent {
     const saved = await this.api.createAccount(a);
     this.state.addAccount(saved);
     this.showForm.set(false);
-  }
-
-  startEdit(a: Account) {
-    this.editF = { name: a.name, balance: a.balance, interestRate: a.interestRate, note: a.note };
-    this.editId.set(a.id);
-    this.showForm.set(false);
-  }
-
-  async saveEdit(id: string) {
-    const saved = await this.api.patchAccount(id, {
-      name: this.editF.name.trim(), balance: this.editF.balance,
-      interestRate: this.editF.interestRate, note: this.editF.note.trim(),
-    });
-    this.state.updateAccount(saved);
-    this.editId.set(null);
-  }
-
-  async deleteAccount(id: string) {
-    await this.api.deleteAccount(id);
-    this.state.removeAccount(id);
   }
 }
