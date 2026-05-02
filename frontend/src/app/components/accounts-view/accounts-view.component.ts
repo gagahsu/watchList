@@ -7,15 +7,10 @@ import { uid, pendingSettlements } from '../../utils';
 @Component({
   selector: 'app-accounts-view',
   template: `
-<div class="acv-toolbar">
-  <span class="acv-total">
-    總餘額 <strong>{{ fmtNT(totalBalance()) }}</strong>
-    @if (totalPending() > 0) {
-      <span class="acv-total-pending">待交割 {{ fmtNT(totalPending()) }}</span>
-      <span class="acv-total-avail">可用 {{ fmtNT(totalBalance() - totalPending()) }}</span>
-    }
-  </span>
-  <button class="idx-add-btn" (click)="startNew()">＋ 新增帳戶</button>
+<div class="index-search-wrap">
+  <span class="index-search-icon">🔍</span>
+  <input class="index-search" placeholder="搜尋帳戶名稱、備註…"
+    [value]="search()" (input)="search.set(asStr($event))" />
 </div>
 
 @if (state.accounts().length === 0 && !showForm()) {
@@ -23,79 +18,109 @@ import { uid, pendingSettlements } from '../../utils';
     <div class="empty-icon" style="font-size:36px;opacity:0.4">💰</div>
     <div class="empty-title">尚無帳戶</div>
     <div class="empty-sub">點右上角「新增帳戶」開始管理資金</div>
+    <button class="empty-btn" (click)="startNew()">＋ 新增帳戶</button>
+  </div>
+} @else {
+  <div class="index-toolbar">
+    <span style="font-size:12px;color:var(--text-muted)">
+      {{ state.accounts().length }} 個帳戶
+      @if (totalPending() > 0) {
+        &nbsp;·&nbsp;待交割
+        <span style="color:var(--red,#c0392b);font-weight:600">{{ fmtNT(totalPending()) }}</span>
+        &nbsp;·&nbsp;可用
+        <span style="color:var(--green,#27ae60);font-weight:600">{{ fmtNT(totalBalance() - totalPending()) }}</span>
+      }
+    </span>
+    <button class="idx-add-btn" (click)="startNew()">＋ 新增帳戶</button>
+  </div>
+
+  <table class="index-table">
+    <thead><tr>
+      <th>帳戶名稱</th>
+      <th style="text-align:right">餘額</th>
+      <th style="text-align:right">待交割</th>
+      <th style="text-align:right">可用</th>
+      <th style="text-align:right">年利率</th>
+      <th>備註</th>
+      <th style="width:110px"></th>
+    </tr></thead>
+    <tbody>
+      @for (a of filtered(); track a.id) {
+        @let pending = getPending(a.id);
+        @let available = a.balance - pending;
+        @let hasWarning = pending > 0 && available < 0;
+        <tr style="cursor:default" [class.acv-warn-row]="hasWarning">
+          <td>
+            <div style="display:flex;align-items:center;gap:6px">
+              @if (hasWarning) { <span title="可用餘額不足以支付待交割款項">⚠️</span> }
+              <span class="idx-name">{{ a.name }}</span>
+            </div>
+          </td>
+          <td class="acv-num">{{ fmtNT(a.balance) }}</td>
+          <td class="acv-num" [class.acv-red]="pending > 0">
+            {{ pending > 0 ? fmtNT(pending) : '—' }}
+          </td>
+          <td class="acv-num"
+            [class.acv-green]="pending > 0 && !hasWarning"
+            [class.acv-red]="hasWarning">
+            {{ pending > 0 ? fmtNT(available) : '—' }}
+          </td>
+          <td class="acv-num" style="color:var(--text-muted)">
+            {{ a.interestRate > 0 ? a.interestRate + '%' : '—' }}
+          </td>
+          <td style="font-size:13px;color:var(--text-muted)">{{ a.note || '—' }}</td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="sig-action-btn" (click)="startEdit(a)">編輯</button>
+              <button class="sig-action-btn danger" (click)="deleteAccount(a.id)">刪除</button>
+            </div>
+          </td>
+        </tr>
+        @if (editId() === a.id) {
+          <tr class="acv-edit-tr">
+            <td colspan="7" style="padding:0">
+              <div class="acv-edit-panel">
+                <div class="broker-form-row">
+                  <div class="broker-form-group" style="flex:2">
+                    <div class="modal-label">帳戶名稱</div>
+                    <input class="modal-input" [value]="editF.name" (input)="editF.name=asStr($event)" />
+                  </div>
+                  <div class="broker-form-group" style="flex:1">
+                    <div class="modal-label">年利率 (%)</div>
+                    <input class="modal-input" type="number" min="0" step="0.01"
+                      [value]="editF.interestRate" (input)="editF.interestRate=toNum($event)" />
+                  </div>
+                </div>
+                <div class="broker-form-row">
+                  <div class="broker-form-group" style="flex:1">
+                    <div class="modal-label">帳戶餘額</div>
+                    <input class="modal-input" type="number" step="1"
+                      [value]="editF.balance" (input)="editF.balance=toNum($event)" />
+                  </div>
+                  <div class="broker-form-group" style="flex:2">
+                    <div class="modal-label">備註</div>
+                    <input class="modal-input" [value]="editF.note" (input)="editF.note=asStr($event)" />
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:10px">
+                  <button class="btn-primary" (click)="saveEdit(a.id)">儲存</button>
+                  <button class="btn-cancel" (click)="editId.set(null)">取消</button>
+                </div>
+              </div>
+            </td>
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+
+  <div class="acv-total-row">
+    總餘額 <strong>{{ fmtNT(totalBalance()) }}</strong>
   </div>
 }
 
-@for (a of state.accounts(); track a.id) {
-  @let pending = getPending(a.id);
-  @let available = a.balance - pending;
-  @let hasWarning = pending > 0 && available < 0;
-
-  @if (editId() === a.id) {
-    <div class="acv-form-card">
-      <div class="broker-form-row">
-        <div class="broker-form-group" style="flex:2">
-          <div class="modal-label">帳戶名稱</div>
-          <input class="modal-input" [value]="editF.name" (input)="editF.name=asStr($event)" />
-        </div>
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">年利率 (%)</div>
-          <input class="modal-input" type="number" min="0" step="0.01"
-            [value]="editF.interestRate" (input)="editF.interestRate=toNum($event)" />
-        </div>
-      </div>
-      <div class="broker-form-row">
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">帳戶餘額</div>
-          <input class="modal-input" type="number" step="1"
-            [value]="editF.balance" (input)="editF.balance=toNum($event)" />
-        </div>
-        <div class="broker-form-group" style="flex:2">
-          <div class="modal-label">備註</div>
-          <input class="modal-input" placeholder="如：玉山永豐銀行"
-            [value]="editF.note" (input)="editF.note=asStr($event)" />
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn-primary" style="flex:1" (click)="saveEdit(a.id)">儲存</button>
-        <button class="btn-cancel" (click)="editId.set(null)">取消</button>
-      </div>
-    </div>
-  } @else {
-    <div class="acv-row" [class.acv-row-warning]="hasWarning">
-      <div class="acv-row-left">
-        @if (hasWarning) {
-          <span class="acv-warning-badge" title="可用餘額不足以支付待交割款項">⚠️</span>
-        }
-        <div>
-          <div class="acv-name">{{ a.name }}</div>
-          <div class="acv-meta">
-            <span>餘額 {{ fmtNT(a.balance) }}</span>
-            @if (pending > 0) {
-              <span [class.acv-danger]="hasWarning">待交割 {{ fmtNT(pending) }}</span>
-              <span [class.acv-danger]="hasWarning" [class.acv-ok]="!hasWarning">
-                可用 {{ fmtNT(available) }}
-              </span>
-            }
-            @if (a.interestRate > 0) {
-              <span>年利率 {{ a.interestRate }}%</span>
-            }
-            @if (a.note) {
-              <span class="acv-note">{{ a.note }}</span>
-            }
-          </div>
-        </div>
-      </div>
-      <div class="acv-actions">
-        <button class="sig-action-btn" (click)="startEdit(a)">編輯</button>
-        <button class="sig-action-btn danger" (click)="deleteAccount(a.id)">刪除</button>
-      </div>
-    </div>
-  }
-}
-
 @if (showForm()) {
-  <div class="acv-form-card" style="margin-top:12px">
+  <div class="acv-form-card">
     <div class="broker-form-row">
       <div class="broker-form-group" style="flex:2">
         <div class="modal-label">帳戶名稱</div>
@@ -132,35 +157,26 @@ import { uid, pendingSettlements } from '../../utils';
 </div>
   `,
   styles: [`
-    .acv-toolbar {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+    .acv-num  { text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:nowrap; }
+    .acv-red  { color:var(--red,#c0392b) !important; font-weight:600; }
+    .acv-green { color:var(--green,#27ae60) !important; font-weight:600; }
+    .acv-warn-row td:first-child { border-left:3px solid var(--red,#c0392b); }
+    .acv-edit-tr td { padding:0 !important; }
+    .acv-edit-panel {
+      background:var(--sidebar-bg); border-top:1px solid var(--border);
+      border-bottom:2px solid var(--gold); padding:14px 16px;
     }
-    .acv-total { font-size: 14px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .acv-total strong { color: var(--text); font-size: 16px; }
-    .acv-total-pending { color: var(--text-muted); }
-    .acv-total-avail { color: var(--green, #27ae60); font-weight: 600; }
-    .acv-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 0; border-bottom: 1px solid var(--border); gap: 12px;
-    }
-    .acv-row-warning { padding-left: 10px; border-left: 3px solid var(--red, #e55); }
-    .acv-row-left { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; }
-    .acv-warning-badge { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-    .acv-name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-    .acv-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--text-muted); }
-    .acv-note { color: var(--text-muted); font-style: italic; }
-    .acv-danger { color: var(--red, #e55) !important; font-weight: 600; }
-    .acv-ok { color: var(--green, #27ae60); font-weight: 600; }
-    .acv-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .acv-form-card {
-      background: var(--sidebar-bg); border: 1px solid var(--border);
-      border-radius: 8px; padding: 14px 16px; margin-bottom: 2px;
+      background:var(--sidebar-bg); border:1px solid var(--border);
+      border-radius:8px; padding:14px 16px; margin-top:12px;
     }
-    .acv-hint { font-size: 12px; color: var(--text-muted); margin-top: 20px; line-height: 1.6; }
+    .acv-total-row { font-size:13px; color:var(--text-muted); margin-top:12px; text-align:right; }
+    .acv-total-row strong { color:var(--text); font-size:15px; margin-left:6px; }
+    .acv-hint { font-size:12px; color:var(--text-muted); margin-top:20px; line-height:1.6; }
   `],
 })
 export class AccountsViewComponent {
+  search   = signal('');
   showForm = signal(false);
   editId   = signal<string | null>(null);
   newF  = this.blank();
@@ -185,6 +201,14 @@ export class AccountsViewComponent {
   totalPending = computed(() =>
     this.state.accounts().reduce((s, a) => s + pendingSettlements(a.id, this.state.trades()), 0)
   );
+
+  filtered = computed(() => {
+    const q = this.search().trim().toLowerCase();
+    if (!q) return this.state.accounts();
+    return this.state.accounts().filter(a =>
+      a.name.toLowerCase().includes(q) || a.note.toLowerCase().includes(q)
+    );
+  });
 
   startNew() { this.newF = this.blank(); this.showForm.set(true); this.editId.set(null); }
 
