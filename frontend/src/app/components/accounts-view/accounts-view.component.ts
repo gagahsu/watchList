@@ -71,8 +71,8 @@ import { uid, pendingSettlements } from '../../utils';
           <td style="font-size:13px;color:var(--text-muted)">{{ a.note || '—' }}</td>
           <td>
             <div style="display:flex;gap:6px">
-              <button class="sig-action-btn" (click)="startEdit(a)">編輯</button>
-              <button class="sig-action-btn danger" (click)="deleteAccount(a.id)">刪除</button>
+              <button class="sig-action-btn acv-icon-btn" title="編輯" (click)="startEdit(a)">✏️</button>
+              <button class="sig-action-btn danger acv-icon-btn" title="刪除" (click)="deleteAccount(a.id)">🗑️</button>
             </div>
           </td>
         </tr>
@@ -172,6 +172,7 @@ import { uid, pendingSettlements } from '../../utils';
     }
     .acv-total-row { font-size:13px; color:var(--text-muted); margin-top:12px; text-align:right; }
     .acv-total-row strong { color:var(--text); font-size:15px; margin-left:6px; }
+    .acv-icon-btn { padding:3px 7px; font-size:15px; line-height:1; }
     .acv-hint { font-size:12px; color:var(--text-muted); margin-top:20px; line-height:1.6; }
   `],
 })
