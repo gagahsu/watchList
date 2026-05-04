@@ -18,6 +18,10 @@ interface Holding {
   stopLoss: string;
   takeProfit: string;
   stopLossHit: boolean;
+  // NTD-converted values for summary (same as original for TW stocks)
+  costNTD: number;
+  mvNTD: number | null;
+  netUnrealizedNTD: number | null;
 }
 
 interface ClosedPosition {
@@ -39,15 +43,19 @@ interface ClosedPosition {
 @if (tab() === 'holding') {
   <div class="trade-summary trade-summary-3" style="margin-bottom:16px">
     <div class="trade-summary-card">
-      <div class="tsc-label">持倉成本</div>
+      <div class="tsc-label">持倉成本（NTD）
+        @if (hasUsHoldings()) {
+          <span class="fx-badge">USD/TWD {{ state.usdTwdRate().toFixed(2) }}</span>
+        }
+      </div>
       <div class="tsc-value" style="font-size:18px">
-        {{ s.totalCost > 0 ? s.totalCost.toLocaleString() : '—' }}
+        {{ s.totalCost > 0 ? Math.round(s.totalCost).toLocaleString() : '—' }}
       </div>
     </div>
     <div class="trade-summary-card">
-      <div class="tsc-label">持倉市值</div>
+      <div class="tsc-label">持倉市值（NTD）</div>
       <div class="tsc-value" style="font-size:18px">
-        {{ s.totalMV > 0 ? s.totalMV.toLocaleString() : '—' }}
+        {{ s.totalMV > 0 ? Math.round(s.totalMV).toLocaleString() : '—' }}
       </div>
     </div>
     <div class="trade-summary-card" [class.pnl-pos]="s.totalPnL > 0" [class.pnl-neg]="s.totalPnL < 0">
@@ -145,19 +153,22 @@ interface ClosedPosition {
             </td>
             <td style="text-align:right;font-family:'JetBrains Mono',monospace">
               {{ fmtPrice(h.avgCost, h.market) }}
+              @if (h.market === 'us') { <span class="mkt-usd">USD</span> }
             </td>
             <td style="text-align:right;font-family:'JetBrains Mono',monospace">
               {{ h.currentPrice != null ? fmtPrice(h.currentPrice, h.market) : '—' }}
+              @if (h.market === 'us' && h.currentPrice != null) { <span class="mkt-usd">USD</span> }
             </td>
             <td style="text-align:right">
-              @if (h.netUnrealized != null) {
-                <div class="trade-pnl" [class.pos]="h.netUnrealized >= 0" [class.neg]="h.netUnrealized < 0"
-                  [title]="'稅前: ' + fmtMoney(h.unrealized!, h.market) + '  預估出場費: -' + Math.round(h.sellCost!).toLocaleString()">
-                  {{ fmtMoney(h.netUnrealized, h.market) }}
+              @if (h.netUnrealizedNTD != null) {
+                <div class="trade-pnl" [class.pos]="h.netUnrealizedNTD >= 0" [class.neg]="h.netUnrealizedNTD < 0">
+                  {{ fmtPnL(h.netUnrealizedNTD) }}
                 </div>
-                <div style="font-size:12px;margin-top:2px;color:var(--text-muted)">
-                  出場費 −{{ Math.round(h.sellCost!).toLocaleString() }}
-                </div>
+                @if (h.unrealizedPct != null) {
+                  <div style="font-size:12px;margin-top:2px;color:var(--text-muted)">
+                    {{ h.unrealizedPct >= 0 ? '+' : '' }}{{ h.unrealizedPct.toFixed(2) }}%
+                  </div>
+                }
               } @else {
                 <span style="color:var(--border)">—</span>
               }
@@ -356,6 +367,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
       ...this.state.tracked().filter(t => t.status === 'holding').map(t => t.code),
     ]);
 
+    const fx = this.state.usdTwdRate();
     const result: Holding[] = [];
     for (const code of codes) {
       const trades = this.state.trades()[code] ?? [];
@@ -374,14 +386,20 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
       const unrealized = currentPrice != null ? (currentPrice - fifo.avgCost) * fifo.holdingShares : null;
       const unrealizedPct = unrealized != null && cost > 0 ? (unrealized / cost) * 100 : null;
 
+      const isUs = market === 'us';
       const taxRate = code.startsWith('00') ? 0.001 : 0.003;
       const feeRate = 0.001425 * this.state.feeDiscount();
-      const sellCost = currentPrice != null ? currentPrice * fifo.holdingShares * (feeRate + taxRate) : null;
+      const sellCost = currentPrice != null ? currentPrice * fifo.holdingShares * (feeRate + (isUs ? 0 : taxRate)) : null;
       const netUnrealized = unrealized != null && sellCost != null ? unrealized - sellCost : null;
+
+      const toNTD = isUs ? fx : 1;
+      const costNTD = cost * toNTD;
+      const mvNTD   = currentPrice != null ? currentPrice * fifo.holdingShares * toNTD : null;
+      const netUnrealizedNTD = netUnrealized != null ? netUnrealized * toNTD : null;
 
       const slNum = parseFloat(stopLoss);
       const stopLossHit = !isNaN(slNum) && slNum > 0 && currentPrice !== null && currentPrice < slNum;
-      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit, stopLossHit });
+      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit, stopLossHit, costNTD, mvNTD, netUnrealizedNTD });
     }
 
     return result.sort((a, b) => a.code.localeCompare(b.code));
@@ -411,15 +429,17 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
   summary = computed(() => {
     let totalCost = 0, totalMV = 0, totalPnL = 0, hasPnL = false;
     for (const h of this.holdings()) {
-      totalCost += h.avgCost * h.holdingShares;
-      if (h.currentPrice != null) {
-        totalMV += h.currentPrice * h.holdingShares;
-        totalPnL += h.netUnrealized ?? 0;
+      totalCost += h.costNTD;
+      if (h.mvNTD != null) {
+        totalMV += h.mvNTD;
+        totalPnL += h.netUnrealizedNTD ?? 0;
         hasPnL = true;
       }
     }
     return { totalCost, totalMV, totalPnL, hasPnL };
   });
+
+  hasUsHoldings = computed(() => this.holdings().some(h => h.market === 'us'));
 
   closedSummary = computed(() =>
     this.closedPositions().reduce((s, p) => s + p.realizedPnL, 0)

@@ -40,6 +40,7 @@ export class AppStateService {
   accountsOpen            = signal(false);
   balanceSheetOpen        = signal(false);
   feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
+  usdTwdRate   = signal<number>(31.5);
 
   setFeeDiscount(v: number) {
     const clamped = Math.max(0.1, Math.min(1, v));

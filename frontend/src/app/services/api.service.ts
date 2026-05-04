@@ -44,8 +44,11 @@ export class ApiService {
       this.get<Liability[]>('/liabilities'),
       this.get<AccountTransaction[]>('/account-transactions'),
       this.get<DividendRecord[]>('/dividends'),
+      this.get<{rate: number}>('/fx-rate'),
     ]);
   }
+
+  getFxRate() { return this.get<{rate: number}>('/fx-rate'); }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   createNote(note: Partial<Note>) { return this.post<Note>('/notes', note); }
