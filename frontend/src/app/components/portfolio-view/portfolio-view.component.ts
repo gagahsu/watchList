@@ -344,6 +344,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
     try {
       const data = await this.api.getQuotes(items);
       this.livePrice.set(data);
+      this.stock.applyPrices(data);
       this.state.portfolioLastUpdated.set(new Date());
     } catch { /* fall back to FinMind close price */ } finally {
       this.state.portfolioRefreshing.set(false);
