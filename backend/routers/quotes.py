@@ -94,14 +94,16 @@ def get_quotes(body: QuoteRequest):
             except Exception:
                 result[item.code] = None
 
-    # Persist fetched prices so the next page load doesn't need a full re-fetch
-    updates = [(price, code) for code, price in result.items() if price is not None]
+    # Persist fetched prices — use UPSERT so US stocks (not in FinMind sync) are also saved
+    updates = [(code, price) for code, price in result.items() if price is not None]
     if updates:
         with get_db() as conn:
-            for price, code in updates:
+            for code, price in updates:
                 conn.execute(
-                    "UPDATE stocks SET close=%s WHERE code=%s",
-                    (price, code),
+                    "INSERT INTO stocks(code, name, industry, close)"
+                    " VALUES (%s, %s, '', %s)"
+                    " ON CONFLICT(code) DO UPDATE SET close=EXCLUDED.close",
+                    (code, code, price),
                 )
 
     return result
