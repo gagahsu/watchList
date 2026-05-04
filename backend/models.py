@@ -295,3 +295,27 @@ class DividendRecordOut(BaseModel):
     stockDiv: float
     payDate: Optional[str]
     note: str
+
+
+# ── Funds ─────────────────────────────────────────────
+class FundIn(BaseModel):
+    id: str
+    name: str
+    cost: float = 0
+    marketValue: float = 0
+    note: str = ""
+
+
+class FundPatch(BaseModel):
+    name: Optional[str] = None
+    cost: Optional[float] = None
+    marketValue: Optional[float] = None
+    note: Optional[str] = None
+
+
+class FundOut(BaseModel):
+    id: str
+    name: str
+    cost: float
+    marketValue: float
+    note: str

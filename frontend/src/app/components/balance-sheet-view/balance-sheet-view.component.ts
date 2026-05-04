@@ -62,6 +62,15 @@ function isReminderToday(l: Liability): boolean {
       <div class="bs-card-warn">部分持股市價未知</div>
     }
   </div>
+  @if (state.funds().length > 0) {
+    <div class="bs-card" style="cursor:pointer" (click)="goFunds()">
+      <div class="bs-card-icon">🏦</div>
+      <div class="bs-card-name">基金市值</div>
+      <div class="bs-card-amount">{{ fmtNT(fundTotal()) }}</div>
+      <div class="bs-card-sub">{{ state.funds().length }} 筆基金</div>
+      <button class="bs-card-btn" (click)="goFunds()">管理基金 →</button>
+    </div>
+  }
 </div>
 
 <!-- ── Liability cards ─────────────────────────────── -->
@@ -408,7 +417,8 @@ export class BalanceSheetViewComponent {
 
   cashTotal  = computed(() => this.state.accounts().reduce((s, a) => s + a.balance, 0));
   stockTotal = computed(() => this.holdingRows().reduce((s, h) => s + (h.mv ?? 0), 0));
-  assetTotal = computed(() => this.cashTotal() + this.stockTotal());
+  fundTotal  = computed(() => this.state.funds().reduce((s, f) => s + f.marketValue, 0));
+  assetTotal = computed(() => this.cashTotal() + this.stockTotal() + this.fundTotal());
   liabilityTotal = computed(() => this.state.liabilities().reduce((s, l) => s + l.amount, 0));
 
   liabilityGroups = computed(() => {
@@ -433,6 +443,7 @@ export class BalanceSheetViewComponent {
   }
 
   goAccounts() { this.state.view.set('accounts'); }
+  goFunds()    { this.state.view.set('funds'); }
 
   startNew() { this.newF = this.blankForm(); this.showAddForm.set(true); this.editId.set(null); }
 

@@ -55,6 +55,12 @@ import { pendingSettlements } from '../../utils';
       <button class="sidebar-nav-item" [class.active]="isActive('dividends')" (click)="navigate('dividends')">
         <span class="nav-icon">💵</span> 股息追蹤
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('funds')" (click)="navigate('funds')">
+        <span class="nav-icon">🏦</span> 基金持倉
+        @if (state.funds().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.funds().length }}</span>
+        }
+      </button>
       <button class="sidebar-nav-item" [class.active]="isActive('watch')" (click)="navigate('watch')">
         <span class="nav-icon">🔒</span> 鎖定觀察
         @if (watchCount() > 0) {
@@ -136,7 +142,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }

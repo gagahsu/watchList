@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
-  AccountTransaction, DividendRecord,
+  AccountTransaction, DividendRecord, FundHolding,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -45,6 +45,7 @@ export class ApiService {
       this.get<AccountTransaction[]>('/account-transactions'),
       this.get<DividendRecord[]>('/dividends'),
       this.get<{rate: number}>('/fx-rate'),
+      this.get<FundHolding[]>('/funds'),
     ]);
   }
 
@@ -164,4 +165,10 @@ export class ApiService {
   // ── Dividends ─────────────────────────────────────────────────────────────
   createDividend(d: DividendRecord) { return this.post<DividendRecord>('/dividends', d); }
   deleteDividend(id: string) { return this.delete<{ok:boolean}>(`/dividends/${id}`); }
+
+  // ── Funds ─────────────────────────────────────────────────────────────────
+  getFunds() { return this.get<FundHolding[]>('/funds'); }
+  createFund(f: FundHolding) { return this.post<FundHolding>('/funds', f); }
+  patchFund(id: string, body: Partial<Omit<FundHolding, 'id'>>) { return this.patch<FundHolding>(`/funds/${id}`, body); }
+  deleteFund(id: string) { return this.delete<{ok:boolean}>(`/funds/${id}`); }
 }

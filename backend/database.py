@@ -216,6 +216,16 @@ DDL = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_div_code ON dividend_records(code)",
+    """
+    CREATE TABLE IF NOT EXISTS funds (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        cost         DOUBLE PRECISION NOT NULL DEFAULT 0,
+        market_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+        note         TEXT NOT NULL DEFAULT '',
+        sort_order   INTEGER NOT NULL DEFAULT 0
+    )
+    """,
 ]
 
 

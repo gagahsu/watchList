@@ -18,6 +18,7 @@ import { BalanceSheetViewComponent } from './components/balance-sheet-view/balan
 import { WatchViewComponent } from './components/watch-view/watch-view.component';
 import { AccountTransactionsViewComponent } from './components/account-transactions-view/account-transactions-view.component';
 import { DividendViewComponent } from './components/dividend-view/dividend-view.component';
+import { FundHoldingsViewComponent } from './components/fund-holdings-view/fund-holdings-view.component';
 
 @Component({
   selector: 'app-root',
@@ -27,7 +28,7 @@ import { DividendViewComponent } from './components/dividend-view/dividend-view.
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
     BrokerSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
-    DividendViewComponent,
+    DividendViewComponent, FundHoldingsViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -40,7 +41,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -54,6 +55,7 @@ export class App implements OnInit {
       this.state.transactions.set(transactions);
       this.state.dividends.set(dividends);
       this.state.usdTwdRate.set(fxRate.rate);
+      this.state.funds.set(funds);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -91,6 +93,7 @@ export class App implements OnInit {
       'accounts': '帳戶管理',
       'transactions': '資金流水帳',
       'dividends': '股息追蹤',
+      'funds': '基金持倉',
     };
     return titles[this.state.view()] ?? '理債富';
   }

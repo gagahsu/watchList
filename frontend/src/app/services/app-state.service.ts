@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Account, AccountTransaction, Broker, DividendRecord, EditTarget, Entry, Liability, MainView, Market, Note,
+  Account, AccountTransaction, Broker, DividendRecord, EditTarget, Entry, FundHolding, Liability, MainView, Market, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -217,6 +217,12 @@ export class AppStateService {
 
   addDividend(d: DividendRecord) { this.dividends.update(ds => [d, ...ds]); }
   removeDividend(id: string) { this.dividends.update(ds => ds.filter(d => d.id !== id)); }
+
+  // ── Fund mutations ────────────────────────────────────────────────────────
+  funds = signal<FundHolding[]>([]);
+  addFund(f: FundHolding) { this.funds.update(fs => [...fs, f]); }
+  updateFund(updated: FundHolding) { this.funds.update(fs => fs.map(f => f.id === updated.id ? updated : f)); }
+  removeFund(id: string) { this.funds.update(fs => fs.filter(f => f.id !== id)); }
 
   // ── Private helpers ───────────────────────────────────────────────────────
   private _mutNote(id: string, fn: (n: Note) => Note) {
