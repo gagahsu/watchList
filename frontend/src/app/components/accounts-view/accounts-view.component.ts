@@ -1,4 +1,5 @@
 import { Component, computed, signal } from '@angular/core';
+import { CdkDragDrop, moveItemInArray, DragDropModule } from '@angular/cdk/drag-drop';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { Account } from '../../models/types';
@@ -6,6 +7,7 @@ import { uid, pendingSettlements } from '../../utils';
 
 @Component({
   selector: 'app-accounts-view',
+  imports: [DragDropModule],
   template: `
 <div class="index-search-wrap">
   <span class="index-search-icon">🔍</span>
@@ -24,6 +26,9 @@ import { uid, pendingSettlements } from '../../utils';
   <div class="index-toolbar">
     <span style="font-size:12px;color:var(--text-muted)">
       {{ state.accounts().length }} 個帳戶 · 點擊列編輯
+      @if (!search().trim()) {
+        &nbsp;·&nbsp;<span style="opacity:.5">可拖曳排序</span>
+      }
       @if (totalPending() > 0) {
         &nbsp;·&nbsp;待交割
         <span style="color:var(--red,#c0392b);font-weight:600">{{ fmtNT(totalPending()) }}</span>
@@ -36,6 +41,7 @@ import { uid, pendingSettlements } from '../../utils';
 
   <table class="index-table">
     <thead><tr>
+      <th style="width:28px"></th>
       <th>帳戶名稱</th>
       <th style="text-align:right">餘額</th>
       <th style="text-align:right">待交割</th>
@@ -43,12 +49,16 @@ import { uid, pendingSettlements } from '../../utils';
       <th style="text-align:right">年利率</th>
       <th>備註</th>
     </tr></thead>
-    <tbody>
+    <tbody cdkDropList (cdkDropListDropped)="drop($event)"
+      [cdkDropListDisabled]="!!search().trim()">
       @for (a of filtered(); track a.id) {
         @let pending = getPending(a.id);
         @let available = a.balance - pending;
         @let hasWarning = pending > 0 && available < 0;
-        <tr (click)="open(a)" [class.acv-warn-row]="hasWarning">
+        <tr cdkDrag (click)="open(a)" [class.acv-warn-row]="hasWarning">
+          <td class="acv-drag-handle" cdkDragHandle (click)="$event.stopPropagation()">
+            <span class="acv-drag-icon">⠿</span>
+          </td>
           <td>
             <div style="display:flex;align-items:center;gap:6px">
               @if (hasWarning) { <span title="可用餘額不足以支付待交割款項">⚠️</span> }
@@ -137,10 +147,17 @@ import { uid, pendingSettlements } from '../../utils';
     .acv-num   { text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:nowrap; }
     .acv-red   { color:var(--red,#c0392b) !important; font-weight:600; }
     .acv-green { color:var(--green,#27ae60) !important; font-weight:600; }
-    .acv-warn-row td:first-child { border-left:3px solid var(--red,#c0392b); }
+    .acv-warn-row td:nth-child(2) { border-left:3px solid var(--red,#c0392b); }
     .acv-total-row { font-size:13px; color:var(--text-muted); margin-top:12px; text-align:right; }
     .acv-total-row strong { color:var(--text); font-size:15px; margin-left:6px; }
     .acv-hint { font-size:12px; color:var(--text-muted); margin-top:20px; line-height:1.6; }
+    .acv-drag-handle { cursor:grab; color:var(--text-muted); text-align:center; padding:0 4px; }
+    .acv-drag-handle:active { cursor:grabbing; }
+    .acv-drag-icon { font-size:16px; opacity:.4; user-select:none; }
+    .cdk-drag-placeholder { opacity:.3; background:var(--panel-bg); }
+    .cdk-drag-preview { background:var(--panel-bg); box-shadow:0 4px 16px rgba(0,0,0,.3); border-radius:6px; opacity:.95; }
+    .cdk-drag-animating { transition: transform 250ms cubic-bezier(0,0,.2,1); }
+    .cdk-drop-list-dragging tr:not(.cdk-drag-placeholder) { transition: transform 250ms cubic-bezier(0,0,.2,1); }
   `],
 })
 export class AccountsViewComponent {
@@ -176,6 +193,14 @@ export class AccountsViewComponent {
       a.name.toLowerCase().includes(q) || a.note.toLowerCase().includes(q)
     );
   });
+
+  drop(event: CdkDragDrop<Account[]>) {
+    if (event.previousIndex === event.currentIndex) return;
+    const accounts = [...this.state.accounts()];
+    moveItemInArray(accounts, event.previousIndex, event.currentIndex);
+    this.state.accounts.set(accounts);
+    this.api.reorderAccounts(accounts.map(a => a.id));
+  }
 
   open(target: 'new' | Account) {
     this.f = target === 'new'

@@ -141,6 +141,7 @@ export class ApiService {
     return this.patch<Account>(`/accounts/${id}`, body);
   }
   deleteAccount(id: string) { return this.delete<{ok:boolean}>(`/accounts/${id}`); }
+  reorderAccounts(ids: string[]) { return this.put<{ok:boolean}>('/accounts/reorder', { ids }); }
 
   // ── Liabilities ───────────────────────────────────────────────────────────
   createLiability(l: Liability) { return this.post<Liability>('/liabilities', l); }
