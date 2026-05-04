@@ -150,6 +150,10 @@ class AccountOut(BaseModel):
     note: str
 
 
+class ReorderIn(BaseModel):
+    ids: list[str]
+
+
 # ── Tracked Stocks ───────────────────────────────────
 class TrackedIn(BaseModel):
     code: str

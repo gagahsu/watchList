@@ -17,7 +17,8 @@ DDL = [
         name          TEXT NOT NULL,
         balance       DOUBLE PRECISION NOT NULL DEFAULT 0,
         interest_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
-        note          TEXT NOT NULL DEFAULT ''
+        note          TEXT NOT NULL DEFAULT '',
+        sort_order    INTEGER NOT NULL DEFAULT 0
     )
     """,
     """
@@ -87,6 +88,7 @@ DDL = [
     )
     """,
     "ALTER TABLE trades ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_trades_code ON trades(code)",
     """
     CREATE TABLE IF NOT EXISTS sources (
