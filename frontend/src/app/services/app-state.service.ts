@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Account, AccountTransaction, Broker, EditTarget, Entry, Liability, MainView, Market, Note,
+  Account, AccountTransaction, Broker, DividendRecord, EditTarget, Entry, Liability, MainView, Market, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -18,6 +18,7 @@ export class AppStateService {
   accounts     = signal<Account[]>([]);
   liabilities  = signal<Liability[]>([]);
   transactions = signal<AccountTransaction[]>([]);
+  dividends    = signal<DividendRecord[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
@@ -212,6 +213,9 @@ export class AppStateService {
   removeTransaction(id: string) {
     this.transactions.update(ts => ts.filter(t => t.id !== id));
   }
+
+  addDividend(d: DividendRecord) { this.dividends.update(ds => [d, ...ds]); }
+  removeDividend(id: string) { this.dividends.update(ds => ds.filter(d => d.id !== id)); }
 
   // ── Private helpers ───────────────────────────────────────────────────────
   private _mutNote(id: string, fn: (n: Note) => Note) {

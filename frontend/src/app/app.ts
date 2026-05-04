@@ -17,6 +17,7 @@ import { AccountsViewComponent } from './components/accounts-view/accounts-view.
 import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
 import { WatchViewComponent } from './components/watch-view/watch-view.component';
 import { AccountTransactionsViewComponent } from './components/account-transactions-view/account-transactions-view.component';
+import { DividendViewComponent } from './components/dividend-view/dividend-view.component';
 
 @Component({
   selector: 'app-root',
@@ -26,6 +27,7 @@ import { AccountTransactionsViewComponent } from './components/account-transacti
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
     BrokerSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
+    DividendViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -38,7 +40,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -50,6 +52,7 @@ export class App implements OnInit {
       this.state.accounts.set(accounts);
       this.state.liabilities.set(liabilities);
       this.state.transactions.set(transactions);
+      this.state.dividends.set(dividends);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -86,6 +89,7 @@ export class App implements OnInit {
       'watch':    '鎖定觀察',
       'accounts': '帳戶管理',
       'transactions': '資金流水帳',
+      'dividends': '股息追蹤',
     };
     return titles[this.state.view()] ?? '理債富';
   }

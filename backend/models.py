@@ -270,3 +270,24 @@ class AccountTransactionOut(BaseModel):
     accountId: str
     toAccountId: Optional[str]
     note: str
+
+
+# ── Dividend Records ──────────────────────────────────
+class DividendRecordIn(BaseModel):
+    id: str
+    code: str
+    exDate: str
+    cashDiv: float = 0
+    stockDiv: float = 0
+    payDate: Optional[str] = None
+    note: str = ""
+
+
+class DividendRecordOut(BaseModel):
+    id: str
+    code: str
+    exDate: str
+    cashDiv: float
+    stockDiv: float
+    payDate: Optional[str]
+    note: str

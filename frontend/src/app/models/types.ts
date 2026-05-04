@@ -3,7 +3,7 @@ export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends';
 
 export interface OhlcBar {
   date: string;
@@ -154,6 +154,16 @@ export interface ShareholdingWeek {
 }
 
 export type TxnType = 'deposit' | 'withdrawal' | 'transfer';
+
+export interface DividendRecord {
+  id: string;
+  code: string;
+  exDate: string;
+  cashDiv: number;
+  stockDiv: number;
+  payDate: string | null;
+  note: string;
+}
 
 export interface AccountTransaction {
   id: string;
