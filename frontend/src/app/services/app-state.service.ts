@@ -39,13 +39,19 @@ export class AppStateService {
   brokersOpen             = signal(false);
   accountsOpen            = signal(false);
   balanceSheetOpen        = signal(false);
-  feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
-  usdTwdRate   = signal<number>(31.5);
+  feeDiscount    = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
+  usdTwdRate     = signal<number>(31.5);
+  monthlySalary  = signal<number>(parseFloat(localStorage.getItem('monthly_salary') ?? '0'));
 
   setFeeDiscount(v: number) {
     const clamped = Math.max(0.1, Math.min(1, v));
     this.feeDiscount.set(clamped);
     localStorage.setItem('fee_discount', String(clamped));
+  }
+
+  setMonthlySalary(v: number) {
+    this.monthlySalary.set(v);
+    localStorage.setItem('monthly_salary', String(v));
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────

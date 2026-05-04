@@ -19,6 +19,7 @@ import { WatchViewComponent } from './components/watch-view/watch-view.component
 import { AccountTransactionsViewComponent } from './components/account-transactions-view/account-transactions-view.component';
 import { DividendViewComponent } from './components/dividend-view/dividend-view.component';
 import { FundHoldingsViewComponent } from './components/fund-holdings-view/fund-holdings-view.component';
+import { CashFlowViewComponent } from './components/cash-flow-view/cash-flow-view.component';
 
 @Component({
   selector: 'app-root',
@@ -28,7 +29,7 @@ import { FundHoldingsViewComponent } from './components/fund-holdings-view/fund-
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
     BrokerSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
-    DividendViewComponent, FundHoldingsViewComponent,
+    DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -94,6 +95,7 @@ export class App implements OnInit {
       'transactions': '資金流水帳',
       'dividends': '股息追蹤',
       'funds': '基金持倉',
+      'cash-flow': '每月現金流',
     };
     return titles[this.state.view()] ?? '理債富';
   }

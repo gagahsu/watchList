@@ -31,6 +31,9 @@ import { pendingSettlements } from '../../utils';
           <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">🔔 {{ liabilityReminderCount() }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('cash-flow')" (click)="navigate('cash-flow')">
+        <span class="nav-icon">📊</span> 每月現金流
+      </button>
       <button class="sidebar-nav-item" [class.active]="isActive('transactions')" (click)="navigate('transactions')">
         <span class="nav-icon">📒</span> 資金流水帳
       </button>
@@ -142,7 +145,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
