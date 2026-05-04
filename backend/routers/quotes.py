@@ -1,6 +1,7 @@
 import math
 import concurrent.futures
 from fastapi import APIRouter
+from database import get_db
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -63,4 +64,15 @@ def get_quotes(body: QuoteRequest):
                 result[code] = price
             except Exception:
                 result[item.code] = None
+
+    # Persist fetched prices so the next page load doesn't need a full re-fetch
+    updates = [(price, code) for code, price in result.items() if price is not None]
+    if updates:
+        with get_db() as conn:
+            for price, code in updates:
+                conn.execute(
+                    "UPDATE stocks SET close=%s WHERE code=%s",
+                    (price, code),
+                )
+
     return result
