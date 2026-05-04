@@ -226,6 +226,15 @@ DDL = [
         sort_order   INTEGER NOT NULL DEFAULT 0
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS fund_schedules (
+        id           TEXT PRIMARY KEY,
+        fund_id      TEXT NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        day_of_month INTEGER NOT NULL,
+        amount       DOUBLE PRECISION NOT NULL,
+        note         TEXT NOT NULL DEFAULT ''
+    )
+    """,
 ]
 
 

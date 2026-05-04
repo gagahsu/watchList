@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Account, AccountTransaction, Broker, DividendRecord, EditTarget, Entry, FundHolding, Liability, MainView, Market, Note,
+  Account, AccountTransaction, Broker, DividendRecord, EditTarget, Entry, FundHolding, FundSchedule, Liability, MainView, Market, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -223,6 +223,17 @@ export class AppStateService {
   addFund(f: FundHolding) { this.funds.update(fs => [...fs, f]); }
   updateFund(updated: FundHolding) { this.funds.update(fs => fs.map(f => f.id === updated.id ? updated : f)); }
   removeFund(id: string) { this.funds.update(fs => fs.filter(f => f.id !== id)); }
+
+  addFundSchedule(fundId: string, s: FundSchedule) {
+    this.funds.update(fs => fs.map(f =>
+      f.id === fundId ? { ...f, schedules: [...f.schedules, s].sort((a, b) => a.dayOfMonth - b.dayOfMonth) } : f
+    ));
+  }
+  removeFundSchedule(fundId: string, scheduleId: string) {
+    this.funds.update(fs => fs.map(f =>
+      f.id === fundId ? { ...f, schedules: f.schedules.filter(s => s.id !== scheduleId) } : f
+    ));
+  }
 
   // ── Private helpers ───────────────────────────────────────────────────────
   private _mutNote(id: string, fn: (n: Note) => Note) {

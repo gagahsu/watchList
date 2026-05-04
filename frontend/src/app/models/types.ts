@@ -180,12 +180,20 @@ export interface ChipData {
   margin: MarginDay[];
 }
 
+export interface FundSchedule {
+  id: string;
+  dayOfMonth: number;
+  amount: number;
+  note: string;
+}
+
 export interface FundHolding {
   id: string;
   name: string;
   cost: number;
   marketValue: number;
   note: string;
+  schedules: FundSchedule[];
 }
 
 export interface FifoResult {

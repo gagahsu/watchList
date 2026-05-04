@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
-  AccountTransaction, DividendRecord, FundHolding,
+  AccountTransaction, DividendRecord, FundHolding, FundSchedule,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -169,6 +169,8 @@ export class ApiService {
   // ── Funds ─────────────────────────────────────────────────────────────────
   getFunds() { return this.get<FundHolding[]>('/funds'); }
   createFund(f: FundHolding) { return this.post<FundHolding>('/funds', f); }
-  patchFund(id: string, body: Partial<Omit<FundHolding, 'id'>>) { return this.patch<FundHolding>(`/funds/${id}`, body); }
+  patchFund(id: string, body: Partial<Omit<FundHolding, 'id' | 'schedules'>>) { return this.patch<FundHolding>(`/funds/${id}`, body); }
   deleteFund(id: string) { return this.delete<{ok:boolean}>(`/funds/${id}`); }
+  createFundSchedule(fundId: string, s: FundSchedule) { return this.post<FundSchedule>(`/funds/${fundId}/schedules`, s); }
+  deleteFundSchedule(fundId: string, scheduleId: string) { return this.delete<{ok:boolean}>(`/funds/${fundId}/schedules/${scheduleId}`); }
 }

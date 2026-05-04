@@ -298,6 +298,13 @@ class DividendRecordOut(BaseModel):
 
 
 # ── Funds ─────────────────────────────────────────────
+class FundScheduleIn(BaseModel):
+    id: str
+    dayOfMonth: int
+    amount: float
+    note: str = ""
+
+
 class FundIn(BaseModel):
     id: str
     name: str
