@@ -37,6 +37,12 @@ import { pendingSettlements } from '../../utils';
           <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">💳 {{ creditCardReminderCount() }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('calendar')" (click)="navigate('calendar')">
+        <span class="nav-icon">📅</span> 財務行事曆
+        @if (calendarEventCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(212,160,23,.8)">{{ calendarEventCount() }}</span>
+        }
+      </button>
       <button class="sidebar-nav-item" [class.active]="isActive('transactions')" (click)="navigate('transactions')">
         <span class="nav-icon">📒</span> 資金流水帳
       </button>
@@ -154,7 +160,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
@@ -177,6 +183,19 @@ export class SidebarComponent {
   creditCardReminderCount = computed(() => {
     const todayDay = new Date().getDate();
     return this.state.creditCards().filter(c => c.paymentDay === todayDay).length;
+  });
+
+  calendarEventCount = computed(() => {
+    const n = new Date();
+    const d = n.getDate(), m = n.getMonth(), y = n.getFullYear();
+    let count = this.state.creditCards().filter(c => c.paymentDay === d).length;
+    count += this.state.liabilities().filter(l => l.reminderEnabled && l.reminderDay === d).length;
+    count += this.state.funds().flatMap(f => f.schedules).filter(s => s.dayOfMonth === d).length;
+    count += this.state.dividends().filter(dv => {
+      const dt = new Date(dv.exDate + 'T00:00:00');
+      return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
+    }).length;
+    return count;
   });
 
   liabilityReminderCount = computed(() => {
