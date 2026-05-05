@@ -13,6 +13,7 @@ import { AddCompanyModalComponent } from './components/modals/add-company-modal/
 import { StockDetailModalComponent } from './components/modals/stock-detail-modal/stock-detail-modal.component';
 import { ImportModalComponent } from './components/modals/import-modal/import-modal.component';
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
+import { CreditCardSettingsModalComponent } from './components/modals/credit-card-settings-modal/credit-card-settings-modal.component';
 import { AccountsViewComponent } from './components/accounts-view/accounts-view.component';
 import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
 import { WatchViewComponent } from './components/watch-view/watch-view.component';
@@ -27,7 +28,7 @@ import { CashFlowViewComponent } from './components/cash-flow-view/cash-flow-vie
     SidebarComponent, NotesViewComponent, NotesListViewComponent,
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
-    BrokerSettingsModalComponent, AccountsViewComponent,
+    BrokerSettingsModalComponent, CreditCardSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
     DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent,
   ],

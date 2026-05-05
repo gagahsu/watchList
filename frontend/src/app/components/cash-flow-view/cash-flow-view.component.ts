@@ -1,14 +1,10 @@
 import { Component, computed, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { AppStateService } from '../../services/app-state.service';
-import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
-import { calcFIFO, uid } from '../../utils';
-import { CreditCard } from '../../models/types';
+import { calcFIFO } from '../../utils';
 
 @Component({
   selector: 'app-cash-flow-view',
-  imports: [FormsModule],
   template: `
 <!-- Summary cards -->
 <div class="trade-summary trade-summary-3" style="margin-bottom:24px">
@@ -149,46 +145,6 @@ import { CreditCard } from '../../models/types';
   </div>
 
 </div>
-
-<!-- ── 信用卡扣款日 ─────────────────────────── -->
-<div class="cf-section cf-card-section">
-  <div class="cf-section-header">
-    <div>
-      <span class="cf-section-title">💳 信用卡扣款日</span>
-      <span class="cf-section-hint">設定各銀行扣款日，新增信用卡負債時可自動帶入</span>
-    </div>
-    <button class="cf-add-btn" (click)="showAddCard.set(!showAddCard())">
-      {{ showAddCard() ? '取消' : '＋ 新增銀行' }}
-    </button>
-  </div>
-
-  @if (showAddCard()) {
-    <div class="cf-add-form">
-      <input class="cf-input" placeholder="銀行名稱*（如：台新銀行）" [(ngModel)]="newCardName" />
-      <input class="cf-input cf-input-sm" type="number" min="1" max="31" placeholder="扣款日*" [(ngModel)]="newCardDay" />
-      <input class="cf-input" placeholder="備註（選填）" [(ngModel)]="newCardNote" />
-      <button class="cf-save-btn" (click)="saveCard()" [disabled]="!newCardName || !newCardDay">儲存</button>
-    </div>
-  }
-
-  @if (state.creditCards().length === 0 && !showAddCard()) {
-    <div class="cf-empty-hint">尚未設定任何銀行扣款日</div>
-  }
-
-  @for (card of state.creditCards(); track card.id) {
-    <div class="cf-card-row" [class.cf-today]="isToday(card.paymentDay)">
-      <div class="cf-card-info">
-        <span class="cf-card-name">{{ card.name }}</span>
-        @if (card.note) { <span class="cf-card-note">{{ card.note }}</span> }
-      </div>
-      <div class="cf-card-day" [class.cf-day-today]="isToday(card.paymentDay)">
-        每月 {{ card.paymentDay }} 日
-        @if (isToday(card.paymentDay)) { <span class="cf-today-badge">今日扣款</span> }
-      </div>
-      <button class="cf-del-btn" (click)="deleteCard(card.id)">×</button>
-    </div>
-  }
-</div>
   `,
   styles: [`
     .cf-grid {
@@ -209,22 +165,9 @@ import { CreditCard } from '../../models/types';
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
       padding: 14px 18px;
       border-bottom: 1px solid var(--border);
       background: rgba(255,255,255,.03);
-    }
-    .cf-section-hint {
-      display: block;
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-      font-weight: 400;
-    }
-    .cf-empty-hint {
-      padding: 14px 18px;
-      font-size: 13px;
-      color: var(--text-muted);
     }
     .cf-section-title {
       font-size: 14px;
@@ -302,131 +245,12 @@ import { CreditCard } from '../../models/types';
     }
     .pos { color: var(--green, #27ae60); }
     .neg { color: var(--red, #e74c3c); }
-    .cf-card-section {
-      margin-top: 20px;
-    }
-    .cf-add-btn {
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-muted);
-      font-size: 12px;
-      padding: 3px 10px;
-      cursor: pointer;
-      transition: border-color .15s, color .15s;
-    }
-    .cf-add-btn:hover { border-color: var(--gold); color: var(--gold); }
-    .cf-add-form {
-      display: flex;
-      gap: 8px;
-      padding: 12px 18px;
-      border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .cf-input {
-      background: var(--input-bg, rgba(255,255,255,.08));
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 13px;
-      padding: 5px 10px;
-      flex: 1;
-      min-width: 120px;
-    }
-    .cf-input-sm { flex: 0 0 80px; min-width: 80px; }
-    .cf-save-btn {
-      background: var(--gold, #d4a017);
-      border: none;
-      border-radius: 6px;
-      color: #000;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 5px 14px;
-      cursor: pointer;
-    }
-    .cf-save-btn:disabled { opacity: .4; cursor: not-allowed; }
-    .cf-card-row {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      align-items: center;
-      gap: 12px;
-      padding: 11px 18px;
-      border-bottom: 1px solid rgba(255,255,255,.04);
-      font-size: 13px;
-    }
-    .cf-card-row:last-child { border-bottom: none; }
-    .cf-today { background: rgba(212,160,23,.06); }
-    .cf-card-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-    .cf-card-name {
-      font-weight: 600;
-      color: var(--text);
-      white-space: nowrap;
-    }
-    .cf-card-bank {
-      font-size: 11px;
-      color: var(--text-muted);
-      background: rgba(255,255,255,.07);
-      border-radius: 4px;
-      padding: 1px 6px;
-      white-space: nowrap;
-    }
-    .cf-card-note {
-      font-size: 11px;
-      color: var(--text-muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .cf-card-day {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-muted);
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .cf-day-today { color: var(--gold, #d4a017); }
-    .cf-today-badge {
-      background: var(--gold, #d4a017);
-      color: #000;
-      font-size: 10px;
-      font-weight: 700;
-      border-radius: 4px;
-      padding: 1px 5px;
-    }
-    .cf-del-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 16px;
-      cursor: pointer;
-      padding: 0 4px;
-      line-height: 1;
-      transition: color .15s;
-    }
-    .cf-del-btn:hover { color: var(--red, #e74c3c); }
   `],
 })
 export class CashFlowViewComponent {
   editingSalary = signal(false);
-  showAddCard   = signal(false);
-  newCardName   = '';
-  newCardDay: number | null = null;
-  newCardNote   = '';
 
-  constructor(
-    public state: AppStateService,
-    private stock: StockService,
-    private api: ApiService,
-  ) {}
+  constructor(public state: AppStateService, private stock: StockService) {}
 
   fmtNT(n: number) { return `NT$${Math.round(Math.abs(n)).toLocaleString()}`; }
 
@@ -483,32 +307,5 @@ export class CashFlowViewComponent {
     const v = parseFloat((e.target as HTMLInputElement).value);
     if (!isNaN(v) && v >= 0) this.state.setMonthlySalary(v);
     this.editingSalary.set(false);
-  }
-
-  isToday(day: number) {
-    return new Date().getDate() === day;
-  }
-
-  async saveCard() {
-    if (!this.newCardName || !this.newCardDay) return;
-    const name = this.newCardName.trim();
-    const card: CreditCard = {
-      id: uid(),
-      name,
-      bank: name,
-      paymentDay: +this.newCardDay,
-      note: this.newCardNote.trim(),
-    };
-    const saved = await this.api.createCreditCard(card);
-    this.state.addCreditCard(saved);
-    this.newCardName = '';
-    this.newCardDay = null;
-    this.newCardNote = '';
-    this.showAddCard.set(false);
-  }
-
-  async deleteCard(id: string) {
-    await this.api.deleteCreditCard(id);
-    this.state.removeCreditCard(id);
   }
 }

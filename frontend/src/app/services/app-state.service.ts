@@ -37,6 +37,7 @@ export class AppStateService {
   portfolioLastUpdated    = signal<Date | null>(null);
   brokers                 = signal<Broker[]>([]);
   brokersOpen             = signal(false);
+  creditCardsOpen         = signal(false);
   accountsOpen            = signal(false);
   balanceSheetOpen        = signal(false);
   feeDiscount    = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));

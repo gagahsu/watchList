@@ -126,6 +126,12 @@ import { pendingSettlements } from '../../utils';
           <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" (click)="openCreditCards()">
+        <span class="nav-icon">💳</span> 信用卡扣款日
+        @if (state.creditCards().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.creditCards().length }}</span>
+        }
+      </button>
     </div>
   </div>
 
@@ -153,7 +159,8 @@ export class SidebarComponent {
     this.state.sidebarOpen.set(false);
   }
 
-  openBrokers() { this.state.brokersOpen.set(true); this.state.sidebarOpen.set(false); }
+  openBrokers()      { this.state.brokersOpen.set(true);      this.state.sidebarOpen.set(false); }
+  openCreditCards()  { this.state.creditCardsOpen.set(true);  this.state.sidebarOpen.set(false); }
 
   accountWarningCount = computed(() => {
     const trades = this.state.trades();
