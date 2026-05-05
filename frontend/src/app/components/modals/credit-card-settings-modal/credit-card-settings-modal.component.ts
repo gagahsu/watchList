@@ -30,7 +30,7 @@ import { uid } from '../../../utils';
           每月 {{ c.paymentDay }} 日
           @if (isToday(c.paymentDay)) { <span class="cc-today-badge">今日</span> }
         </div>
-        <button class="broker-del-btn" (click)="deleteCard(c.id)">刪除</button>
+        <button class="sig-action-btn danger" (click)="deleteCard(c.id)">刪除</button>
       </div>
     }
 
@@ -60,7 +60,7 @@ import { uid } from '../../../utils';
       </div>
     } @else {
       <div style="margin-top:12px">
-        <button class="broker-add-btn" (click)="showForm.set(true)">＋ 新增銀行</button>
+        <button class="sig-open-add" (click)="showForm.set(true)">＋ 新增銀行</button>
       </div>
     }
 
