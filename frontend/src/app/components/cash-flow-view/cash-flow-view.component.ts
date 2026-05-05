@@ -153,38 +153,37 @@ import { CreditCard } from '../../models/types';
 <!-- ── 信用卡扣款日 ─────────────────────────── -->
 <div class="cf-section cf-card-section">
   <div class="cf-section-header">
-    <span class="cf-section-title">💳 信用卡扣款日</span>
+    <div>
+      <span class="cf-section-title">💳 信用卡扣款日</span>
+      <span class="cf-section-hint">設定各銀行扣款日，新增信用卡負債時可自動帶入</span>
+    </div>
     <button class="cf-add-btn" (click)="showAddCard.set(!showAddCard())">
-      {{ showAddCard() ? '取消' : '＋ 新增' }}
+      {{ showAddCard() ? '取消' : '＋ 新增銀行' }}
     </button>
   </div>
 
   @if (showAddCard()) {
     <div class="cf-add-form">
-      <input class="cf-input" placeholder="卡片名稱*" [(ngModel)]="newCardName" />
-      <input class="cf-input" placeholder="銀行" [(ngModel)]="newCardBank" />
+      <input class="cf-input" placeholder="銀行名稱*（如：台新銀行）" [(ngModel)]="newCardName" />
       <input class="cf-input cf-input-sm" type="number" min="1" max="31" placeholder="扣款日*" [(ngModel)]="newCardDay" />
-      <input class="cf-input" placeholder="備註" [(ngModel)]="newCardNote" />
+      <input class="cf-input" placeholder="備註（選填）" [(ngModel)]="newCardNote" />
       <button class="cf-save-btn" (click)="saveCard()" [disabled]="!newCardName || !newCardDay">儲存</button>
     </div>
   }
 
   @if (state.creditCards().length === 0 && !showAddCard()) {
-    <div class="cf-row">
-      <span style="color:var(--text-muted);font-size:13px;padding:12px 18px">尚無信用卡扣款日設定</span>
-    </div>
+    <div class="cf-empty-hint">尚未設定任何銀行扣款日</div>
   }
 
   @for (card of state.creditCards(); track card.id) {
     <div class="cf-card-row" [class.cf-today]="isToday(card.paymentDay)">
       <div class="cf-card-info">
         <span class="cf-card-name">{{ card.name }}</span>
-        @if (card.bank) { <span class="cf-card-bank">{{ card.bank }}</span> }
         @if (card.note) { <span class="cf-card-note">{{ card.note }}</span> }
       </div>
       <div class="cf-card-day" [class.cf-day-today]="isToday(card.paymentDay)">
         每月 {{ card.paymentDay }} 日
-        @if (isToday(card.paymentDay)) { <span class="cf-today-badge">今日</span> }
+        @if (isToday(card.paymentDay)) { <span class="cf-today-badge">今日扣款</span> }
       </div>
       <button class="cf-del-btn" (click)="deleteCard(card.id)">×</button>
     </div>
@@ -210,9 +209,22 @@ import { CreditCard } from '../../models/types';
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
       padding: 14px 18px;
       border-bottom: 1px solid var(--border);
       background: rgba(255,255,255,.03);
+    }
+    .cf-section-hint {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-weight: 400;
+    }
+    .cf-empty-hint {
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--text-muted);
     }
     .cf-section-title {
       font-size: 14px;
@@ -407,7 +419,6 @@ export class CashFlowViewComponent {
   editingSalary = signal(false);
   showAddCard   = signal(false);
   newCardName   = '';
-  newCardBank   = '';
   newCardDay: number | null = null;
   newCardNote   = '';
 
@@ -480,17 +491,17 @@ export class CashFlowViewComponent {
 
   async saveCard() {
     if (!this.newCardName || !this.newCardDay) return;
+    const name = this.newCardName.trim();
     const card: CreditCard = {
       id: uid(),
-      name: this.newCardName.trim(),
-      bank: this.newCardBank.trim(),
+      name,
+      bank: name,
       paymentDay: +this.newCardDay,
       note: this.newCardNote.trim(),
     };
     const saved = await this.api.createCreditCard(card);
     this.state.addCreditCard(saved);
     this.newCardName = '';
-    this.newCardBank = '';
     this.newCardDay = null;
     this.newCardNote = '';
     this.showAddCard.set(false);
