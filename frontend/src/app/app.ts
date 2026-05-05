@@ -42,7 +42,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -57,6 +57,7 @@ export class App implements OnInit {
       this.state.dividends.set(dividends);
       this.state.usdTwdRate.set(fxRate.rate);
       this.state.funds.set(funds);
+      this.state.creditCards.set(creditCards);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {

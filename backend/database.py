@@ -235,6 +235,15 @@ DDL = [
         note         TEXT NOT NULL DEFAULT ''
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS credit_cards (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        bank        TEXT NOT NULL DEFAULT '',
+        payment_day INTEGER NOT NULL,
+        note        TEXT NOT NULL DEFAULT ''
+    )
+    """,
 ]
 
 

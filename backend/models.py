@@ -326,3 +326,27 @@ class FundOut(BaseModel):
     cost: float
     marketValue: float
     note: str
+
+
+# ── Credit Cards ──────────────────────────────────────
+class CreditCardIn(BaseModel):
+    id: str
+    name: str
+    bank: str = ""
+    paymentDay: int
+    note: str = ""
+
+
+class CreditCardPatch(BaseModel):
+    name: Optional[str] = None
+    bank: Optional[str] = None
+    paymentDay: Optional[int] = None
+    note: Optional[str] = None
+
+
+class CreditCardOut(BaseModel):
+    id: str
+    name: str
+    bank: str
+    paymentDay: int
+    note: str

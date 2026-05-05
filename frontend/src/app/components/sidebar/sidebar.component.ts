@@ -33,6 +33,9 @@ import { pendingSettlements } from '../../utils';
       </button>
       <button class="sidebar-nav-item" [class.active]="isActive('cash-flow')" (click)="navigate('cash-flow')">
         <span class="nav-icon">📊</span> 每月現金流
+        @if (creditCardReminderCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">💳 {{ creditCardReminderCount() }}</span>
+        }
       </button>
       <button class="sidebar-nav-item" [class.active]="isActive('transactions')" (click)="navigate('transactions')">
         <span class="nav-icon">📒</span> 資金流水帳
@@ -163,6 +166,11 @@ export class SidebarComponent {
   watchCount = computed(() =>
     this.state.tracked().filter(t => t.status === 'locked' || t.status === 'holding').length,
   );
+
+  creditCardReminderCount = computed(() => {
+    const todayDay = new Date().getDate();
+    return this.state.creditCards().filter(c => c.paymentDay === todayDay).length;
+  });
 
   liabilityReminderCount = computed(() => {
     const now = new Date();

@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
-  AccountTransaction, DividendRecord, FundHolding, FundSchedule,
+  AccountTransaction, CreditCard, DividendRecord, FundHolding, FundSchedule,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -46,6 +46,7 @@ export class ApiService {
       this.get<DividendRecord[]>('/dividends'),
       this.get<{rate: number}>('/fx-rate'),
       this.get<FundHolding[]>('/funds'),
+      this.get<CreditCard[]>('/credit-cards'),
     ]);
   }
 
@@ -177,4 +178,10 @@ export class ApiService {
   deleteFund(id: string) { return this.delete<{ok:boolean}>(`/funds/${id}`); }
   createFundSchedule(fundId: string, s: FundSchedule) { return this.post<FundSchedule>(`/funds/${fundId}/schedules`, s); }
   deleteFundSchedule(fundId: string, scheduleId: string) { return this.delete<{ok:boolean}>(`/funds/${fundId}/schedules/${scheduleId}`); }
+
+  // ── Credit Cards ──────────────────────────────────────────────────────────
+  getCreditCards() { return this.get<CreditCard[]>('/credit-cards'); }
+  createCreditCard(c: CreditCard) { return this.post<CreditCard>('/credit-cards', c); }
+  patchCreditCard(id: string, body: Partial<Omit<CreditCard, 'id'>>) { return this.patch<CreditCard>(`/credit-cards/${id}`, body); }
+  deleteCreditCard(id: string) { return this.delete<{ok:boolean}>(`/credit-cards/${id}`); }
 }

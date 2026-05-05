@@ -196,6 +196,14 @@ export interface FundHolding {
   schedules: FundSchedule[];
 }
 
+export interface CreditCard {
+  id: string;
+  name: string;
+  bank: string;
+  paymentDay: number;
+  note: string;
+}
+
 export interface FifoResult {
   realizedPnL: number;
   holdingShares: number;
