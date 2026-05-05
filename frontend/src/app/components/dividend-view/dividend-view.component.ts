@@ -22,6 +22,7 @@ import { calcFIFO, uid } from '../../utils';
       <th>名稱</th>
       <th style="text-align:right">持股數</th>
       <th style="text-align:right">年股利/股</th>
+      <th style="text-align:right">殖利率</th>
       <th style="text-align:right">估計年收息</th>
       <th>最近除息日</th>
     </tr></thead>
@@ -33,6 +34,9 @@ import { calcFIFO, uid } from '../../utils';
           <td class="dv-num">{{ h.shares.toLocaleString() }}</td>
           <td class="dv-num" style="color:var(--green,#27ae60)">
             {{ h.annualDiv > 0 ? '$' + h.annualDiv.toFixed(2) : '—' }}
+          </td>
+          <td class="dv-num" style="color:var(--gold,#b5851b);font-weight:700">
+            {{ h.yieldRate != null ? h.yieldRate.toFixed(2) + '%' : '—' }}
           </td>
           <td class="dv-num" style="color:var(--green,#27ae60);font-weight:700">
             {{ h.annualIncome > 0 ? fmtNT(h.annualIncome) : '—' }}
@@ -57,12 +61,22 @@ import { calcFIFO, uid } from '../../utils';
   <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">{{ filtered().length }} 筆</span>
   <button class="idx-add-btn" style="margin-left:8px;background:rgba(39,174,96,.15);border-color:rgba(39,174,96,.4);color:var(--green,#27ae60)"
     [disabled]="syncing()" (click)="syncHoldings()">
-    {{ syncing() ? '同步中…' : '⟳ 同步股息' }}
+    {{ syncing() ? syncMsg() : '⟳ 同步股息' }}
   </button>
 </div>
-@if (syncMsg()) {
-  <div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:var(--panel-bg);border:1px solid var(--border);white-space:pre-line;color:var(--text-muted)">
-    {{ syncMsg() }}
+
+@if (syncDone()) {
+  <div class="dv-sync-result">
+    <div class="dv-sync-summary">
+      ✓ 同步完成：成功 {{ syncSuccessCount() }} 支，失敗 {{ syncFailCount() }} 支
+      <button class="dv-sync-toggle" (click)="showSyncDetail.update(v => !v)">
+        {{ showSyncDetail() ? '收合' : '查看詳情' }}
+      </button>
+      <button class="dv-sync-close" (click)="syncDone.set(false)">×</button>
+    </div>
+    @if (showSyncDetail()) {
+      <div class="dv-sync-detail">{{ syncLines().join('\n') }}</div>
+    }
   </div>
 }
 
@@ -88,7 +102,7 @@ import { calcFIFO, uid } from '../../utils';
       <th>備註</th>
     </tr></thead>
     <tbody>
-      @for (d of filtered(); track d.id) {
+      @for (d of pagedRecords(); track d.id) {
         <tr (click)="openView(d)">
           <td style="font-family:'JetBrains Mono',monospace;font-size:13px">{{ d.exDate }}</td>
           <td><span class="idx-code">{{ d.code }}</span></td>
@@ -104,6 +118,12 @@ import { calcFIFO, uid } from '../../utils';
       }
     </tbody>
   </table>
+  @if (filtered().length > pageSize) {
+    <div style="text-align:center;padding:12px 0;font-size:13px;color:var(--text-muted)">
+      顯示最近 {{ pagedRecords().length }} / {{ filtered().length }} 筆
+      <button class="dv-load-more" (click)="pageSize = filtered().length">顯示全部</button>
+    </div>
+  }
 }
 
 <!-- ── Modal ─────────────────────────────────────── -->
@@ -212,14 +232,48 @@ import { calcFIFO, uid } from '../../utils';
     .dv-num { text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:nowrap; }
     .txn-detail-grid { display:grid; grid-template-columns:max-content 1fr; gap:10px 16px; align-items:center; }
     .txn-detail-label { font-size:12px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+    .dv-sync-result {
+      margin-bottom:12px; border-radius:8px; overflow:hidden;
+      border:1px solid var(--border); background:var(--panel-bg); font-size:12px;
+    }
+    .dv-sync-summary {
+      display:flex; align-items:center; gap:8px; padding:8px 14px;
+      color:var(--text-muted);
+    }
+    .dv-sync-toggle {
+      background:none; border:1px solid var(--border); border-radius:4px;
+      color:var(--text-muted); font-size:11px; padding:2px 8px; cursor:pointer;
+    }
+    .dv-sync-close {
+      margin-left:auto; background:none; border:none; color:var(--text-muted);
+      font-size:16px; cursor:pointer; line-height:1; padding:0 2px;
+    }
+    .dv-sync-detail {
+      padding:8px 14px 12px; border-top:1px solid var(--border);
+      white-space:pre-line; color:var(--text-muted); line-height:1.7;
+      max-height:200px; overflow-y:auto;
+    }
+    .dv-load-more {
+      margin-left:10px; background:none; border:1px solid var(--border);
+      border-radius:5px; color:var(--text-muted); font-size:12px;
+      padding:3px 10px; cursor:pointer;
+    }
+    .dv-load-more:hover { border-color:var(--gold); color:var(--gold); }
   `],
 })
 export class DividendViewComponent {
-  search    = signal('');
-  openModal = signal<'new' | DividendRecord | null>(null);
-  syncing   = signal(false);
-  syncMsg   = signal('');
+  search         = signal('');
+  openModal      = signal<'new' | DividendRecord | null>(null);
+  syncing        = signal(false);
+  syncMsg        = signal('');
+  syncDone       = signal(false);
+  syncLines      = signal<string[]>([]);
+  showSyncDetail = signal(false);
+  pageSize       = 100;
   f = this.blankForm();
+
+  syncSuccessCount = computed(() => this.syncLines().filter(l => l.startsWith('✓')).length);
+  syncFailCount    = computed(() => this.syncLines().filter(l => l.startsWith('✗')).length);
 
   constructor(
     public state: AppStateService,
@@ -248,6 +302,8 @@ export class DividendViewComponent {
     return this.state.dividends().filter(d => d.code.toLowerCase().includes(q) || this.stockName(d.code).toLowerCase().includes(q));
   });
 
+  pagedRecords = computed(() => this.filtered().slice(0, this.pageSize));
+
   sharesOnDate(code: string): number {
     const trades = this.state.trades()[code] ?? [];
     const mkt    = this.state.tradeMarkets()[code] ?? 'tw';
@@ -257,26 +313,26 @@ export class DividendViewComponent {
   holdingSummary = computed(() => {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    const cutoff = oneYearAgo.toISOString().slice(0, 10);
-
+    const cutoff  = oneYearAgo.toISOString().slice(0, 10);
     const trades  = this.state.trades();
     const markets = this.state.tradeMarkets();
     const divs    = this.state.dividends();
     const nameMap = this.stock.codeToName();
+    const closeMap = this.stock.closeMap();
 
     return Object.entries(trades)
       .map(([code, ts]) => {
         const mkt    = markets[code] ?? 'tw';
         const shares = calcFIFO(ts, mkt).holdingShares;
         if (shares <= 0) return null;
-
-        const recent = divs.filter(d => d.code === code && d.exDate >= cutoff);
-        const annualDiv = recent.reduce((s, d) => s + d.cashDiv, 0);
+        const recent     = divs.filter(d => d.code === code && d.exDate >= cutoff);
+        const annualDiv  = recent.reduce((s, d) => s + d.cashDiv, 0);
         const lastExDate = recent[0]?.exDate ?? null;
-
+        const price      = closeMap[code]?.close ?? null;
+        const yieldRate  = price && price > 0 && annualDiv > 0 ? (annualDiv / price) * 100 : null;
         return {
           code, name: nameMap[code] ?? '',
-          shares, annualDiv, annualIncome: annualDiv * shares, lastExDate,
+          shares, annualDiv, annualIncome: annualDiv * shares, lastExDate, yieldRate,
         };
       })
       .filter((h): h is NonNullable<typeof h> => h !== null && h.annualDiv > 0)
@@ -296,17 +352,18 @@ export class DividendViewComponent {
     if (!codes.length) { this.syncMsg.set('沒有持倉股票'); return; }
 
     this.syncing.set(true);
-    this.syncMsg.set(`同步中 (0/${codes.length})…`);
+    this.syncDone.set(false);
+    this.showSyncDetail.set(false);
     const lines: string[] = [];
     for (let i = 0; i < codes.length; i++) {
       const code = codes[i];
-      this.syncMsg.set(`同步中 (${i + 1}/${codes.length})：${code}…`);
+      this.syncMsg.set(`${i + 1}/${codes.length} ${code}…`);
       try {
         const r = await this.api.syncDividends(code);
         if (r.source) {
           lines.push(`✓ ${code}：從 ${r.source} 取得 ${r.fetched} 筆，新增 ${r.saved} 筆`);
         } else {
-          lines.push(`✗ ${code}：無資料 (${r.errors.slice(0, 2).join('; ')})`);
+          lines.push(`✗ ${code}：無資料`);
         }
       } catch (e: any) {
         lines.push(`✗ ${code}：${e.message}`);
@@ -317,7 +374,8 @@ export class DividendViewComponent {
       this.state.dividends.set(divs);
     } catch {}
     this.syncing.set(false);
-    this.syncMsg.set(lines.join('\n'));
+    this.syncLines.set(lines);
+    this.syncDone.set(true);
   }
 
   async saveNew() {
