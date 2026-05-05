@@ -55,7 +55,16 @@ import { calcFIFO, uid } from '../../utils';
       [value]="search()" (input)="search.set(asStr($event))" />
   </div>
   <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">{{ filtered().length }} 筆</span>
+  <button class="idx-add-btn" style="margin-left:8px;background:rgba(39,174,96,.15);border-color:rgba(39,174,96,.4);color:var(--green,#27ae60)"
+    [disabled]="syncing()" (click)="syncHoldings()">
+    {{ syncing() ? '同步中…' : '⟳ 同步股息' }}
+  </button>
 </div>
+@if (syncMsg()) {
+  <div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:var(--panel-bg);border:1px solid var(--border);white-space:pre-line;color:var(--text-muted)">
+    {{ syncMsg() }}
+  </div>
+}
 
 @if (state.dividends().length === 0) {
   <div class="empty-state">
@@ -208,6 +217,8 @@ import { calcFIFO, uid } from '../../utils';
 export class DividendViewComponent {
   search    = signal('');
   openModal = signal<'new' | DividendRecord | null>(null);
+  syncing   = signal(false);
+  syncMsg   = signal('');
   f = this.blankForm();
 
   constructor(
@@ -273,6 +284,41 @@ export class DividendViewComponent {
   });
 
   totalAnnual = computed(() => this.holdingSummary().reduce((s, h) => s + h.annualIncome, 0));
+
+  async syncHoldings() {
+    const markets = this.state.tradeMarkets();
+    const codes = Object.entries(this.state.trades())
+      .filter(([code, ts]) => calcFIFO(ts, markets[code] ?? 'tw').holdingShares > 0)
+      .map(([code]) => code);
+    this.state.tracked().filter(t => t.status === 'holding').forEach(t => {
+      if (!codes.includes(t.code)) codes.push(t.code);
+    });
+    if (!codes.length) { this.syncMsg.set('沒有持倉股票'); return; }
+
+    this.syncing.set(true);
+    this.syncMsg.set(`同步中 (0/${codes.length})…`);
+    const lines: string[] = [];
+    for (let i = 0; i < codes.length; i++) {
+      const code = codes[i];
+      this.syncMsg.set(`同步中 (${i + 1}/${codes.length})：${code}…`);
+      try {
+        const r = await this.api.syncDividends(code);
+        if (r.source) {
+          lines.push(`✓ ${code}：從 ${r.source} 取得 ${r.fetched} 筆，新增 ${r.saved} 筆`);
+        } else {
+          lines.push(`✗ ${code}：無資料 (${r.errors.slice(0, 2).join('; ')})`);
+        }
+      } catch (e: any) {
+        lines.push(`✗ ${code}：${e.message}`);
+      }
+    }
+    try {
+      const divs = await this.api.loadDividends();
+      this.state.dividends.set(divs);
+    } catch {}
+    this.syncing.set(false);
+    this.syncMsg.set(lines.join('\n'));
+  }
 
   async saveNew() {
     if (!this.f.code || (!this.f.cashDiv && !this.f.stockDiv)) return;

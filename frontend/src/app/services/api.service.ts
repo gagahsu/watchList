@@ -163,8 +163,12 @@ export class ApiService {
   }
 
   // ── Dividends ─────────────────────────────────────────────────────────────
+  loadDividends() { return this.get<DividendRecord[]>('/dividends'); }
   createDividend(d: DividendRecord) { return this.post<DividendRecord>('/dividends', d); }
   deleteDividend(id: string) { return this.delete<{ok:boolean}>(`/dividends/${id}`); }
+  syncDividends(code: string) {
+    return this.post<{code:string; source:string|null; fetched:number; saved:number; errors:string[]}>(`/dividends/sync/${code}`, {});
+  }
 
   // ── Funds ─────────────────────────────────────────────────────────────────
   getFunds() { return this.get<FundHolding[]>('/funds'); }
