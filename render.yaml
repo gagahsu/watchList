@@ -4,7 +4,8 @@ services:
     runtime: python
     pythonVersion: "3.13"
     buildCommand: >
-      sh -c "cd backend && pip install -r requirements.txt" &&
+      pip install backend/vendor/fubon_neo-2.2.8-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl &&
+      pip install -r backend/requirements.txt &&
       npm install -g pnpm &&
       cd frontend && pnpm install && pnpm ng build
     startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
