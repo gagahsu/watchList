@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from database import get_db
 from models import DividendRecordIn, DividendRecordOut
-import uuid, time, json
+import uuid, json
 import urllib.request, urllib.parse
 
 router = APIRouter()
@@ -29,12 +29,31 @@ def _http_get(url: str, extra_headers: dict = {}) -> bytes:
         return r.read()
 
 
+def _fetch_yfinance(code: str) -> list[dict]:
+    """Use yfinance .dividends — works on non-blocked IPs, tries .TW then .TWO."""
+    import yfinance as yf
+    for suffix in (".TW", ".TWO"):
+        try:
+            divs = yf.Ticker(code + suffix).dividends
+            if divs.empty:
+                continue
+            records = []
+            for dt, amount in divs.items():
+                if float(amount) <= 0:
+                    continue
+                ex_date = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
+                records.append({"exDate": ex_date, "cashDiv": float(amount), "payDate": None})
+            if records:
+                return records
+        except Exception:
+            continue
+    return []
+
+
 def _fetch_cmoney(code: str) -> list[dict]:
     """Scrape CMoney ETF dividend page — Next.js __NEXT_DATA__ embedded JSON."""
     url = f"https://www.cmoney.tw/etf/tw/{code}/cashdividend"
     html = _http_get(url).decode("utf-8", errors="ignore")
-
-    # Next.js embeds all page data as JSON inside <script id="__NEXT_DATA__">
     marker = '__NEXT_DATA__" type="application/json">'
     start = html.find(marker)
     if start == -1:
@@ -42,11 +61,8 @@ def _fetch_cmoney(code: str) -> list[dict]:
     start += len(marker)
     end = html.find("</script>", start)
     data = json.loads(html[start:end])
-
-    # Navigate to the dividend records in the page props
     records = []
     props = data.get("props", {}).get("pageProps", {})
-    # CMoney stores dividend list under various keys — walk to find it
     for key in ("cashDividendList", "dividendList", "data", "dividends"):
         items = props.get(key, [])
         if items:
@@ -116,7 +132,7 @@ def sync_dividends(code: str):
     results = {"code": code, "source": None, "fetched": 0, "saved": 0, "errors": []}
 
     records: list[dict] = []
-    for name, fn in [("cmoney", _fetch_cmoney), ("twse", _fetch_twse), ("finmind", _fetch_finmind)]:
+    for name, fn in [("yfinance", _fetch_yfinance), ("cmoney", _fetch_cmoney), ("twse", _fetch_twse), ("finmind", _fetch_finmind)]:
         try:
             records = fn(code)
             if records:
