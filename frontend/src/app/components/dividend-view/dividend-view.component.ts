@@ -5,123 +5,176 @@ import { StockService } from '../../services/stock.service';
 import { DividendRecord } from '../../models/types';
 import { calcFIFO, uid } from '../../utils';
 
+const PAGE = 10;
+
 @Component({
   selector: 'app-dividend-view',
   template: `
-<!-- ── Holdings summary ───────────────────────────── -->
-@if (holdingSummary().length > 0) {
-  <div class="dv-summary-bar">
-    <span class="dv-summary-label">持股年化股利收入</span>
-    <span class="dv-summary-value">{{ fmtNT(totalAnnual()) }}</span>
-    <span class="dv-summary-sub">（以近 12 個月除息記錄估算）</span>
-  </div>
-
-  <table class="index-table" style="margin-bottom:28px">
-    <thead><tr>
-      <th style="width:80px">代碼</th>
-      <th>名稱</th>
-      <th style="text-align:right">持股數</th>
-      <th style="text-align:right">年股利/股</th>
-      <th style="text-align:right">殖利率</th>
-      <th style="text-align:right">估計年收息</th>
-      <th>最近除息日</th>
-    </tr></thead>
-    <tbody>
-      @for (h of holdingSummary(); track h.code) {
-        <tr style="cursor:default">
-          <td><span class="idx-code">{{ h.code }}</span></td>
-          <td><span class="idx-name" style="font-size:14px">{{ h.name }}</span></td>
-          <td class="dv-num">{{ h.shares.toLocaleString() }}</td>
-          <td class="dv-num" style="color:var(--green,#27ae60)">
-            {{ h.annualDiv > 0 ? '$' + h.annualDiv.toFixed(2) : '—' }}
-          </td>
-          <td class="dv-num" style="color:var(--gold,#b5851b);font-weight:700">
-            {{ h.yieldRate != null ? h.yieldRate.toFixed(2) + '%' : '—' }}
-          </td>
-          <td class="dv-num" style="color:var(--green,#27ae60);font-weight:700">
-            {{ h.annualIncome > 0 ? fmtNT(h.annualIncome) : '—' }}
-          </td>
-          <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">
-            {{ h.lastExDate || '—' }}
-          </td>
-        </tr>
-      }
-    </tbody>
-  </table>
-}
-
-<!-- ── Dividend records ───────────────────────────── -->
-<div class="index-filter-bar">
-  <div class="index-search-wrap" style="margin-bottom:0;flex:1;max-width:240px">
-    <span class="index-search-icon">🔍</span>
-    <input class="index-search" style="padding-top:8px;padding-bottom:8px;font-size:14px"
-      placeholder="搜尋代碼…"
-      [value]="search()" (input)="search.set(asStr($event))" />
-  </div>
-  <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">{{ filtered().length }} 筆</span>
-  <button class="idx-add-btn" style="margin-left:8px;background:rgba(39,174,96,.15);border-color:rgba(39,174,96,.4);color:var(--green,#27ae60)"
-    [disabled]="syncing()" (click)="syncHoldings()">
-    {{ syncing() ? syncMsg() : '⟳ 同步股息' }}
+<!-- ── Tabs ──────────────────────────────────────── -->
+<div class="dv-tabs">
+  <button class="dv-tab" [class.active]="tab() === 'holdings'" (click)="tab.set('holdings')">
+    持股概覽
+    @if (holdingSummary().length > 0) {
+      <span class="dv-tab-badge">{{ holdingSummary().length }}</span>
+    }
+  </button>
+  <button class="dv-tab" [class.active]="tab() === 'records'" (click)="tab.set('records')">
+    股息記錄
+    @if (state.dividends().length > 0) {
+      <span class="dv-tab-badge">{{ state.dividends().length }}</span>
+    }
   </button>
 </div>
 
-@if (syncDone()) {
-  <div class="dv-sync-result">
-    <div class="dv-sync-summary">
-      ✓ 同步完成：成功 {{ syncSuccessCount() }} 支，失敗 {{ syncFailCount() }} 支
-      <button class="dv-sync-toggle" (click)="showSyncDetail.update(v => !v)">
-        {{ showSyncDetail() ? '收合' : '查看詳情' }}
-      </button>
-      <button class="dv-sync-close" (click)="syncDone.set(false)">×</button>
-    </div>
-    @if (showSyncDetail()) {
-      <div class="dv-sync-detail">{{ syncLines().join('\n') }}</div>
-    }
+<!-- ══════════════════════════════════════════════ -->
+<!-- TAB 1: 持股概覽                               -->
+<!-- ══════════════════════════════════════════════ -->
+@if (tab() === 'holdings') {
+
+  <div class="index-toolbar">
+    <span style="font-size:12px;color:var(--text-muted)">
+      依近 12 個月除息記錄估算年化收益
+    </span>
+    <button class="idx-add-btn"
+      style="background:rgba(39,174,96,.15);border-color:rgba(39,174,96,.4);color:var(--green,#27ae60)"
+      [disabled]="syncing()" (click)="syncHoldings()">
+      {{ syncing() ? syncMsg() : '⟳ 同步股息' }}
+    </button>
   </div>
+
+  @if (syncDone()) {
+    <div class="dv-sync-result">
+      <div class="dv-sync-summary">
+        ✓ 同步完成：成功 {{ syncSuccessCount() }} 支，失敗 {{ syncFailCount() }} 支
+        <button class="dv-sync-toggle" (click)="showSyncDetail.update(v => !v)">
+          {{ showSyncDetail() ? '收合' : '查看詳情' }}
+        </button>
+        <button class="dv-sync-close" (click)="syncDone.set(false)">×</button>
+      </div>
+      @if (showSyncDetail()) {
+        <div class="dv-sync-detail">{{ syncLines().join('\n') }}</div>
+      }
+    </div>
+  }
+
+  @if (holdingSummary().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon" style="font-size:36px;opacity:0.4">📊</div>
+      <div class="empty-title">尚無持股股息資料</div>
+      <div class="empty-sub">按「同步股息」從網路抓取持倉股票的除息記錄</div>
+      <button class="empty-btn" [disabled]="syncing()" (click)="syncHoldings()">
+        {{ syncing() ? syncMsg() : '⟳ 同步股息' }}
+      </button>
+    </div>
+  } @else {
+    <div class="dv-summary-bar">
+      <span class="dv-summary-label">持股年化股利收入</span>
+      <span class="dv-summary-value">{{ fmtNT(totalAnnual()) }}</span>
+      <span class="dv-summary-sub">（以近 12 個月除息記錄估算）</span>
+    </div>
+
+    <table class="index-table">
+      <thead><tr>
+        <th style="width:80px">代碼</th>
+        <th>名稱</th>
+        <th style="text-align:right">持股數</th>
+        <th style="text-align:right">年股利/股</th>
+        <th style="text-align:right">殖利率</th>
+        <th style="text-align:right">估計年收息</th>
+        <th>最近除息日</th>
+      </tr></thead>
+      <tbody>
+        @for (h of pagedHoldings(); track h.code) {
+          <tr style="cursor:default">
+            <td><span class="idx-code">{{ h.code }}</span></td>
+            <td><span class="idx-name" style="font-size:14px">{{ h.name }}</span></td>
+            <td class="dv-num">{{ h.shares.toLocaleString() }}</td>
+            <td class="dv-num" style="color:var(--green,#27ae60)">
+              {{ h.annualDiv > 0 ? '$' + h.annualDiv.toFixed(2) : '—' }}
+            </td>
+            <td class="dv-num" style="color:var(--gold,#b5851b);font-weight:700">
+              {{ h.yieldRate != null ? h.yieldRate.toFixed(2) + '%' : '—' }}
+            </td>
+            <td class="dv-num" style="color:var(--green,#27ae60);font-weight:700">
+              {{ h.annualIncome > 0 ? fmtNT(h.annualIncome) : '—' }}
+            </td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">
+              {{ h.lastExDate || '—' }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <div class="dv-pagination">
+      <button class="dv-page-btn" [disabled]="holdingsPage() === 0" (click)="holdingsPage.update(p => p - 1)">‹</button>
+      <span class="dv-page-info">
+        第 {{ holdingsPage() + 1 }} / {{ holdingsTotalPages() }} 頁
+        · {{ holdingSummary().length }} 筆
+      </span>
+      <button class="dv-page-btn" [disabled]="holdingsPage() >= holdingsTotalPages() - 1"
+        (click)="holdingsPage.update(p => p + 1)">›</button>
+    </div>
+  }
 }
 
-@if (state.dividends().length === 0) {
-  <div class="empty-state">
-    <div class="empty-icon" style="font-size:36px;opacity:0.4">💵</div>
-    <div class="empty-title">尚無股息記錄</div>
-    <div class="empty-sub">記錄每次除息資訊，追蹤收息狀況與年化收益</div>
-    <button class="empty-btn" (click)="openNew()">＋ 新增記錄</button>
-  </div>
-} @else {
-  <div class="index-toolbar">
-    <span style="font-size:12px;color:var(--text-muted)">股息記錄 · 點擊列查看</span>
+<!-- ══════════════════════════════════════════════ -->
+<!-- TAB 2: 股息記錄                               -->
+<!-- ══════════════════════════════════════════════ -->
+@if (tab() === 'records') {
+
+  <div class="index-filter-bar">
+    <div class="index-search-wrap" style="margin-bottom:0;flex:1;max-width:240px">
+      <span class="index-search-icon">🔍</span>
+      <input class="index-search" style="padding-top:8px;padding-bottom:8px;font-size:14px"
+        placeholder="搜尋代碼…"
+        [value]="search()" (input)="onSearch($event)" />
+    </div>
+    <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">{{ filtered().length }} 筆</span>
     <button class="idx-add-btn" (click)="openNew()">＋ 新增記錄</button>
   </div>
-  <table class="index-table">
-    <thead><tr>
-      <th style="width:100px">除息日</th>
-      <th style="width:80px">代碼</th>
-      <th>名稱</th>
-      <th style="text-align:right">現金股利/股</th>
-      <th style="text-align:right">股票股利/股</th>
-      <th>備註</th>
-    </tr></thead>
-    <tbody>
-      @for (d of pagedRecords(); track d.id) {
-        <tr (click)="openView(d)">
-          <td style="font-family:'JetBrains Mono',monospace;font-size:13px">{{ d.exDate }}</td>
-          <td><span class="idx-code">{{ d.code }}</span></td>
-          <td style="font-size:13px">{{ stockName(d.code) }}</td>
-          <td class="dv-num" style="color:var(--green,#27ae60)">
-            {{ d.cashDiv > 0 ? '$' + d.cashDiv.toFixed(2) : '—' }}
-          </td>
-          <td class="dv-num" style="color:var(--gold,#b5851b)">
-            {{ d.stockDiv > 0 ? d.stockDiv.toFixed(4) + ' 股' : '—' }}
-          </td>
-          <td style="font-size:12px;color:var(--text-muted)">{{ d.note || '—' }}</td>
-        </tr>
-      }
-    </tbody>
-  </table>
-  @if (filtered().length > pageSize) {
-    <div style="text-align:center;padding:12px 0;font-size:13px;color:var(--text-muted)">
-      顯示最近 {{ pagedRecords().length }} / {{ filtered().length }} 筆
-      <button class="dv-load-more" (click)="pageSize = filtered().length">顯示全部</button>
+
+  @if (state.dividends().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon" style="font-size:36px;opacity:0.4">💵</div>
+      <div class="empty-title">尚無股息記錄</div>
+      <div class="empty-sub">記錄每次除息資訊，追蹤收息狀況與年化收益</div>
+      <button class="empty-btn" (click)="openNew()">＋ 新增記錄</button>
+    </div>
+  } @else {
+    <table class="index-table">
+      <thead><tr>
+        <th style="width:100px">除息日</th>
+        <th style="width:80px">代碼</th>
+        <th>名稱</th>
+        <th style="text-align:right">現金股利/股</th>
+        <th style="text-align:right">股票股利/股</th>
+        <th>備註</th>
+      </tr></thead>
+      <tbody>
+        @for (d of pagedRecords(); track d.id) {
+          <tr (click)="openView(d)">
+            <td style="font-family:'JetBrains Mono',monospace;font-size:13px">{{ d.exDate }}</td>
+            <td><span class="idx-code">{{ d.code }}</span></td>
+            <td style="font-size:13px">{{ stockName(d.code) }}</td>
+            <td class="dv-num" style="color:var(--green,#27ae60)">
+              {{ d.cashDiv > 0 ? '$' + d.cashDiv.toFixed(2) : '—' }}
+            </td>
+            <td class="dv-num" style="color:var(--gold,#b5851b)">
+              {{ d.stockDiv > 0 ? d.stockDiv.toFixed(4) + ' 股' : '—' }}
+            </td>
+            <td style="font-size:12px;color:var(--text-muted)">{{ d.note || '—' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <div class="dv-pagination">
+      <button class="dv-page-btn" [disabled]="recordsPage() === 0" (click)="recordsPage.update(p => p - 1)">‹</button>
+      <span class="dv-page-info">
+        第 {{ recordsPage() + 1 }} / {{ recordsTotalPages() }} 頁
+        · {{ filtered().length }} 筆
+      </span>
+      <button class="dv-page-btn" [disabled]="recordsPage() >= recordsTotalPages() - 1"
+        (click)="recordsPage.update(p => p + 1)">›</button>
     </div>
   }
 }
@@ -221,6 +274,39 @@ import { calcFIFO, uid } from '../../utils';
 }
   `,
   styles: [`
+    .dv-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 18px;
+      border-bottom: 1.5px solid var(--border);
+      padding-bottom: 0;
+    }
+    .dv-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      border-bottom: 2.5px solid transparent;
+      margin-bottom: -1.5px;
+      padding: 8px 16px 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .dv-tab:hover { color: var(--text); }
+    .dv-tab.active { color: var(--text); border-bottom-color: var(--gold, #d4a017); }
+    .dv-tab-badge {
+      background: rgba(255,255,255,.12);
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 7px;
+      color: var(--text-muted);
+    }
+    .dv-tab.active .dv-tab-badge { background: rgba(212,160,23,.2); color: var(--gold, #d4a017); }
     .dv-summary-bar {
       display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
       background:var(--panel-bg); border:1.5px solid rgba(39,174,96,.3);
@@ -253,15 +339,34 @@ import { calcFIFO, uid } from '../../utils';
       white-space:pre-line; color:var(--text-muted); line-height:1.7;
       max-height:200px; overflow-y:auto;
     }
-    .dv-load-more {
-      margin-left:10px; background:none; border:1px solid var(--border);
-      border-radius:5px; color:var(--text-muted); font-size:12px;
-      padding:3px 10px; cursor:pointer;
+    .dv-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 14px 0 4px;
     }
-    .dv-load-more:hover { border-color:var(--gold); color:var(--gold); }
+    .dv-page-btn {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color .15s, color .15s;
+    }
+    .dv-page-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+    .dv-page-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .dv-page-info { font-size: 13px; color: var(--text-muted); }
   `],
 })
 export class DividendViewComponent {
+  tab            = signal<'holdings' | 'records'>('holdings');
   search         = signal('');
   openModal      = signal<'new' | DividendRecord | null>(null);
   syncing        = signal(false);
@@ -269,7 +374,9 @@ export class DividendViewComponent {
   syncDone       = signal(false);
   syncLines      = signal<string[]>([]);
   showSyncDetail = signal(false);
-  pageSize       = 100;
+  holdingsPage   = signal(0);
+  recordsPage    = signal(0);
+
   f = this.blankForm();
 
   syncSuccessCount = computed(() => this.syncLines().filter(l => l.startsWith('✓')).length);
@@ -296,13 +403,24 @@ export class DividendViewComponent {
   openView(d: DividendRecord) { this.openModal.set(d); }
   closeModal() { this.openModal.set(null); }
 
+  onSearch(e: Event) {
+    this.search.set((e.target as HTMLInputElement).value);
+    this.recordsPage.set(0);
+  }
+
   filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
     if (!q) return this.state.dividends();
-    return this.state.dividends().filter(d => d.code.toLowerCase().includes(q) || this.stockName(d.code).toLowerCase().includes(q));
+    return this.state.dividends().filter(d =>
+      d.code.toLowerCase().includes(q) || this.stockName(d.code).toLowerCase().includes(q)
+    );
   });
 
-  pagedRecords = computed(() => this.filtered().slice(0, this.pageSize));
+  recordsTotalPages = computed(() => Math.max(1, Math.ceil(this.filtered().length / PAGE)));
+  pagedRecords = computed(() => {
+    const p = Math.min(this.recordsPage(), this.recordsTotalPages() - 1);
+    return this.filtered().slice(p * PAGE, p * PAGE + PAGE);
+  });
 
   sharesOnDate(code: string): number {
     const trades = this.state.trades()[code] ?? [];
@@ -337,6 +455,12 @@ export class DividendViewComponent {
       })
       .filter((h): h is NonNullable<typeof h> => h !== null && h.annualDiv > 0)
       .sort((a, b) => b.annualIncome - a.annualIncome);
+  });
+
+  holdingsTotalPages = computed(() => Math.max(1, Math.ceil(this.holdingSummary().length / PAGE)));
+  pagedHoldings = computed(() => {
+    const p = Math.min(this.holdingsPage(), this.holdingsTotalPages() - 1);
+    return this.holdingSummary().slice(p * PAGE, p * PAGE + PAGE);
   });
 
   totalAnnual = computed(() => this.holdingSummary().reduce((s, h) => s + h.annualIncome, 0));
