@@ -1,9 +1,10 @@
 import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { StockService } from '../../services/stock.service';
+import { settlementDate } from '../../utils';
 
 interface CalEvent {
-  type: 'credit-card' | 'loan' | 'fund' | 'dividend' | 'balance-alert';
+  type: 'credit-card' | 'loan' | 'fund' | 'dividend' | 'balance-alert' | 'settlement';
   label: string;
   sublabel?: string;
   amount?: number;
@@ -16,6 +17,7 @@ const META = {
   'fund':          { icon: '🏦', color: '#3498db', bg: 'rgba(52,152,219,.18)',  text: '基金扣款'   },
   'dividend':      { icon: '💵', color: '#27ae60', bg: 'rgba(39,174,96,.18)',   text: '股息除息'   },
   'balance-alert': { icon: '⚠️', color: '#c0392b', bg: 'rgba(192,57,43,.22)',   text: '餘額警示'   },
+  'settlement':    { icon: '📅', color: '#8e44ad', bg: 'rgba(142,68,173,.18)',  text: '股票交割'   },
 } as const;
 
 @Component({
@@ -364,12 +366,22 @@ export class CalendarViewComponent {
       map.get(d)!.push(ev);
     };
 
+    // Deductions tracker: day → accountId → total (for balance alerts)
+    const dedByDay = new Map<number, Map<string, number>>();
+    const addDed = (rawDay: number, accountId: string, amt: number) => {
+      const d = Math.min(Math.max(rawDay, 1), lastDay);
+      if (!dedByDay.has(d)) dedByDay.set(d, new Map());
+      const m2 = dedByDay.get(d)!;
+      m2.set(accountId, (m2.get(accountId) ?? 0) + amt);
+    };
+
     for (const c of this.state.creditCards()) {
       push(c.paymentDay, { type: 'credit-card', label: c.name, sublabel: c.note || undefined });
     }
     for (const l of this.state.liabilities()) {
       if (!l.reminderEnabled || !l.reminderDay) continue;
       push(l.reminderDay, { type: 'loan', label: l.name, amount: l.monthlyPayment ?? undefined, accountId: l.accountId });
+      if (l.accountId && l.monthlyPayment) addDed(l.reminderDay, l.accountId, l.monthlyPayment);
     }
     for (const f of this.state.funds()) {
       for (const s of f.schedules) {
@@ -388,22 +400,30 @@ export class CalendarViewComponent {
       }
     }
 
-    // ── Balance-alert: warn on D-1 if account balance won't cover D's deductions ──
-    // Collect deductions by day → accountId → total
-    const dedByDay = new Map<number, Map<string, number>>();
-    const addDed = (rawDay: number, accountId: string, amt: number) => {
-      const d = Math.min(Math.max(rawDay, 1), lastDay);
-      if (!dedByDay.has(d)) dedByDay.set(d, new Map());
-      const m2 = dedByDay.get(d)!;
-      m2.set(accountId, (m2.get(accountId) ?? 0) + amt);
-    };
-    for (const l of this.state.liabilities()) {
-      if (!l.reminderEnabled || !l.reminderDay || !l.accountId || !l.monthlyPayment) continue;
-      addDed(l.reminderDay, l.accountId, l.monthlyPayment);
+    // ── Settlement events: unsettled buy trades with T+2 date in this month ──
+    for (const [code, trades] of Object.entries(this.state.trades())) {
+      for (const t of trades) {
+        if (t.type !== 'buy' || t.settled) continue;
+        const sd = settlementDate(t.date);
+        if (sd.getFullYear() === y && sd.getMonth() === m) {
+          const day = sd.getDate();
+          const amount = t.shares * t.price + t.fee;
+          push(day, {
+            type: 'settlement',
+            label: `${code} 交割`,
+            sublabel: `${t.shares}股 × ${t.price}`,
+            amount,
+            accountId: t.accountId,
+          });
+          if (t.accountId) addDed(day, t.accountId, amount);
+        }
+      }
     }
+
+    // ── Balance-alert: warn on D-1 if account balance won't cover D's deductions ──
     const accounts = this.state.accounts();
     for (const [day, acctMap] of dedByDay) {
-      if (day <= 1) continue;   // can't warn on previous month's day
+      if (day <= 1) continue;
       const warnDay = day - 1;
       for (const [accountId, totalDue] of acctMap) {
         const acct = accounts.find(a => a.id === accountId);

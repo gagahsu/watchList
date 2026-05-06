@@ -4,7 +4,7 @@ import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { uid } from '../../utils';
 import { Note } from '../../models/types';
-import { pendingSettlements } from '../../utils';
+import { pendingSettlements, settlementDate } from '../../utils';
 
 @Component({
   selector: 'app-sidebar',
@@ -201,10 +201,26 @@ export class SidebarComponent {
       const dt = new Date(dv.exDate + 'T00:00:00');
       return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
     }).length;
-    // Balance alerts: payments due TOMORROW — warn today
+
+    // Count today's unsettled buy settlements + collect tomorrow's for balance alert
     const tomorrow = d + 1;
     const accts = this.state.accounts();
     const dedTomorrow = new Map<string, number>();
+    for (const trades of Object.values(this.state.trades())) {
+      for (const t of trades) {
+        if (t.type !== 'buy' || t.settled) continue;
+        const sd = settlementDate(t.date);
+        if (sd.getFullYear() === y && sd.getMonth() === m) {
+          if (sd.getDate() === d) count++;
+          if (sd.getDate() === tomorrow && t.accountId) {
+            const amt = t.shares * t.price + t.fee;
+            dedTomorrow.set(t.accountId, (dedTomorrow.get(t.accountId) ?? 0) + amt);
+          }
+        }
+      }
+    }
+
+    // Balance alerts: liability payments due TOMORROW — warn today
     for (const l of this.state.liabilities()) {
       if (!l.reminderEnabled || l.reminderDay !== tomorrow || !l.accountId || !l.monthlyPayment) continue;
       dedTomorrow.set(l.accountId, (dedTomorrow.get(l.accountId) ?? 0) + l.monthlyPayment);

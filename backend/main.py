@@ -46,6 +46,15 @@ def _scheduled_process_due_payments():
     process_due_payments()
 
 
+def _scheduled_process_due_settlements():
+    """Daily job: auto-deduct T+2 stock settlement payments on settlement day."""
+    try:
+        from routers.trades import process_due_settlements
+        process_due_settlements()
+    except Exception as e:
+        logger.error("排程：股票交割扣款失敗: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -75,8 +84,14 @@ async def lifespan(app: FastAPI):
         id="process_due_payments_daily",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _scheduled_process_due_settlements,
+        CronTrigger(hour=9, minute=5, timezone="Asia/Taipei"),
+        id="process_due_settlements_daily",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、淨資產快照 23:58）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、股票交割 09:05、淨資產快照 23:58）")
     yield
     scheduler.shutdown(wait=False)
 

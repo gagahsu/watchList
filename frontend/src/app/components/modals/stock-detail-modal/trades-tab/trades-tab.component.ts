@@ -144,7 +144,7 @@ export class TradesTabComponent implements OnInit {
       id: uid(), date: this.f.date, type: this.f.type as Trade['type'],
       shares: parseFloat(this.f.shares), price: parseFloat(this.f.price),
       fee: parseFloat(this.f.fee) || 0, sigRef: '', note: this.f.note.trim(),
-      accountId: this.selectedAccount() || null,
+      accountId: this.selectedAccount() || null, settled: false,
     };
     await this.api.createTrade(code, trade);
     this.state.addTrade(code, trade);

@@ -90,6 +90,8 @@ DDL = [
     "ALTER TABLE trades ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_trades_code ON trades(code)",
+    # settled: TRUE for all existing trades (already settled); new trades default to FALSE
+    "ALTER TABLE trades ADD COLUMN IF NOT EXISTS settled BOOLEAN NOT NULL DEFAULT TRUE",
     """
     CREATE TABLE IF NOT EXISTS sources (
         id   SERIAL PRIMARY KEY,

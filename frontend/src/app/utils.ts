@@ -49,14 +49,14 @@ export function settlementDate(dateStr: string): Date {
   return d;
 }
 
-/** Sum of pending buy settlement amounts for an account (settlement date >= today) */
+/** Sum of pending buy settlement amounts for an account (settlement date >= today, not yet settled) */
 export function pendingSettlements(accountId: string, allTrades: Record<string, Trade[]>): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   let total = 0;
   for (const trades of Object.values(allTrades)) {
     for (const t of trades) {
-      if (t.type !== 'buy' || t.accountId !== accountId) continue;
+      if (t.type !== 'buy' || t.settled || t.accountId !== accountId) continue;
       const sd = settlementDate(t.date);
       if (sd >= today) total += t.shares * t.price + (t.fee || 0);
     }

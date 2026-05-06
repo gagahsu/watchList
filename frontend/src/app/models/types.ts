@@ -58,6 +58,7 @@ export interface Trade {
   sigRef: string;
   note: string;
   accountId: string | null;
+  settled: boolean;
 }
 
 export interface Account {

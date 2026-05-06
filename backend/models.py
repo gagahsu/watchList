@@ -112,6 +112,7 @@ class TradeIn(BaseModel):
     sigRef: str = ""
     note: str = ""
     accountId: Optional[str] = None
+    settled: bool = False
 
 
 class TradeOut(BaseModel):
@@ -124,6 +125,7 @@ class TradeOut(BaseModel):
     sigRef: str
     note: str
     accountId: Optional[str]
+    settled: bool
 
 
 # ── Accounts ─────────────────────────────────────────
