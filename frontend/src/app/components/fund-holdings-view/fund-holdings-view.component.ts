@@ -60,6 +60,7 @@ import { uid } from '../../utils';
       <th style="text-align:right">損益</th>
       <th style="text-align:right">報酬率</th>
       <th style="text-align:right">每月扣款</th>
+      <th>扣款帳戶</th>
       <th>備註</th>
     </tr></thead>
     <tbody>
@@ -67,6 +68,7 @@ import { uid } from '../../utils';
         @let pnl = f.marketValue - f.cost;
         @let pct = f.cost > 0 ? pnl / f.cost * 100 : null;
         @let monthly = f.schedules.reduce((s, sc) => s + sc.amount, 0);
+        @let acct = f.accountId ? state.accounts().find(a => a.id === f.accountId) : null;
         <tr (click)="openEdit(f)">
           <td>
             <div style="font-weight:600">{{ f.name }}</div>
@@ -89,6 +91,13 @@ import { uid } from '../../utils';
           </td>
           <td class="fv-num" style="color:var(--gold)">
             {{ monthly > 0 ? fmtNT(monthly) : '—' }}
+          </td>
+          <td style="font-size:12px;color:var(--text-muted)">
+            @if (acct) {
+              <span class="fv-acct-tag">{{ acct.name }}</span>
+            } @else {
+              —
+            }
           </td>
           <td style="font-size:13px;color:var(--text-muted)">{{ f.note || '—' }}</td>
         </tr>
@@ -133,6 +142,22 @@ import { uid } from '../../utils';
           </span>
         </div>
       }
+
+      <!-- 扣款帳戶 -->
+      @if (state.accounts().length > 0) {
+        <div class="broker-form-group" style="margin-top:12px">
+          <div class="modal-label">扣款帳戶 <span style="color:var(--text-muted);font-size:11px">（定期定額從此帳戶扣款）</span></div>
+          <select class="modal-input" style="padding:8px 10px"
+            [value]="f.accountId ?? ''"
+            (change)="f.accountId = asStr($event) || null">
+            <option value="">— 不連結 —</option>
+            @for (a of state.accounts(); track a.id) {
+              <option [value]="a.id">{{ a.name }}</option>
+            }
+          </select>
+        </div>
+      }
+
       <div class="broker-form-group" style="margin-top:12px">
         <div class="modal-label">備註 (選填)</div>
         <input class="modal-input" placeholder="如：含低檔智動投"
@@ -223,6 +248,11 @@ import { uid } from '../../utils';
     .fv-num { text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:nowrap; }
     .fv-pos { color:var(--green,#27ae60) !important; }
     .fv-neg { color:var(--red,#c0392b) !important; }
+    .fv-acct-tag {
+      display:inline-block; font-size:11px; font-weight:600;
+      background:rgba(52,152,219,.12); color:#3498db;
+      border:1px solid rgba(52,152,219,.3); border-radius:4px; padding:1px 6px;
+    }
     .fv-sched-list { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
     .fv-sched-row {
       display:flex; align-items:center; gap:10px; padding:8px 12px;
@@ -244,10 +274,10 @@ export class FundHoldingsViewComponent {
 
   constructor(public state: AppStateService, private api: ApiService) {}
 
-  blank() { return { name: '', cost: 0, marketValue: 0, note: '' }; }
+  blank() { return { name: '', cost: 0, marketValue: 0, note: '', accountId: null as string | null }; }
   isNew()   { return this.openModal() === 'new'; }
   asFund()  { const m = this.openModal(); return m !== 'new' ? m as FundHolding : null; }
-  asStr(e: Event) { return (e.target as HTMLInputElement).value; }
+  asStr(e: Event) { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
   toNum(e: Event) { return parseFloat((e.target as HTMLInputElement).value) || 0; }
   toInt(e: Event) { return parseInt((e.target as HTMLInputElement).value) || 0; }
   fmtNT(n: number) {
@@ -264,7 +294,7 @@ export class FundHoldingsViewComponent {
 
   openNew() { this.f = this.blank(); this.openModal.set('new'); }
   openEdit(fund: FundHolding) {
-    this.f = { name: fund.name, cost: fund.cost, marketValue: fund.marketValue, note: fund.note };
+    this.f = { name: fund.name, cost: fund.cost, marketValue: fund.marketValue, note: fund.note, accountId: fund.accountId };
     this.newSched = { day: 0, amount: 0, note: '' };
     this.openModal.set(fund);
   }
@@ -273,12 +303,19 @@ export class FundHoldingsViewComponent {
   async save() {
     if (!this.f.name.trim()) return;
     if (this.isNew()) {
-      const fund: FundHolding = { id: uid(), ...this.f, name: this.f.name.trim(), note: this.f.note.trim(), schedules: [] };
+      const fund: FundHolding = {
+        id: uid(), ...this.f, name: this.f.name.trim(), note: this.f.note.trim(),
+        accountId: this.f.accountId, schedules: [],
+      };
       const saved = await this.api.createFund(fund);
       this.state.addFund(saved);
     } else {
       const id = (this.openModal() as FundHolding).id;
-      const saved = await this.api.patchFund(id, { ...this.f, name: this.f.name.trim(), note: this.f.note.trim() });
+      const saved = await this.api.patchFund(id, {
+        name: this.f.name.trim(), cost: this.f.cost,
+        marketValue: this.f.marketValue, note: this.f.note.trim(),
+        accountId: this.f.accountId,
+      });
       this.state.updateFund(saved);
     }
     this.close();
@@ -289,7 +326,6 @@ export class FundHoldingsViewComponent {
     const s: FundSchedule = { id: uid(), dayOfMonth: this.newSched.day, amount: this.newSched.amount, note: this.newSched.note.trim() };
     const saved = await this.api.createFundSchedule(fundId, s);
     this.state.addFundSchedule(fundId, saved);
-    // update openModal reference so schedules list re-renders
     const updated = this.state.funds().find(f => f.id === fundId);
     if (updated) this.openModal.set(updated);
     this.newSched = { day: 0, amount: 0, note: '' };

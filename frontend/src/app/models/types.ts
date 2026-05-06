@@ -204,6 +204,7 @@ export interface FundHolding {
   cost: number;
   marketValue: number;
   note: string;
+  accountId: string | null;
   schedules: FundSchedule[];
 }
 

@@ -335,6 +335,7 @@ class FundIn(BaseModel):
     cost: float = 0
     marketValue: float = 0
     note: str = ""
+    accountId: Optional[str] = None
 
 
 class FundPatch(BaseModel):
@@ -342,6 +343,7 @@ class FundPatch(BaseModel):
     cost: Optional[float] = None
     marketValue: Optional[float] = None
     note: Optional[str] = None
+    accountId: Optional[str] = None
 
 
 class FundOut(BaseModel):
@@ -350,6 +352,7 @@ class FundOut(BaseModel):
     cost: float
     marketValue: float
     note: str
+    accountId: Optional[str]
 
 
 # ── Credit Cards ──────────────────────────────────────

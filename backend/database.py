@@ -268,6 +268,8 @@ DDL = [
     EXCEPTION WHEN duplicate_table THEN NULL;
              WHEN others THEN NULL; END $$
     """,
+    # migrate: add deduction account to funds
+    "ALTER TABLE funds ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
 ]
 
 

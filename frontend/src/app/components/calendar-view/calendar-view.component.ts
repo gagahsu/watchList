@@ -4,7 +4,7 @@ import { StockService } from '../../services/stock.service';
 import { settlementDate } from '../../utils';
 
 interface CalEvent {
-  type: 'credit-card' | 'loan' | 'fund' | 'dividend' | 'balance-alert' | 'settlement';
+  type: 'credit-card' | 'loan' | 'fund' | 'dividend' | 'balance-alert' | 'settlement' | 'account-total';
   label: string;
   sublabel?: string;
   amount?: number;
@@ -12,12 +12,13 @@ interface CalEvent {
 }
 
 const META = {
-  'credit-card':   { icon: '💳', color: '#e74c3c', bg: 'rgba(231,76,60,.18)',   text: '信用卡扣款' },
-  'loan':          { icon: '🔔', color: '#e67e22', bg: 'rgba(230,126,34,.18)',  text: '貸款還款'   },
-  'fund':          { icon: '🏦', color: '#3498db', bg: 'rgba(52,152,219,.18)',  text: '基金扣款'   },
-  'dividend':      { icon: '💵', color: '#27ae60', bg: 'rgba(39,174,96,.18)',   text: '股息除息'   },
-  'balance-alert': { icon: '⚠️', color: '#c0392b', bg: 'rgba(192,57,43,.22)',   text: '餘額警示'   },
-  'settlement':    { icon: '📅', color: '#8e44ad', bg: 'rgba(142,68,173,.18)',  text: '股票交割'   },
+  'credit-card':   { icon: '💳', color: '#e74c3c', bg: 'rgba(231,76,60,.18)',   text: '信用卡扣款'   },
+  'loan':          { icon: '🔔', color: '#e67e22', bg: 'rgba(230,126,34,.18)',  text: '貸款還款'     },
+  'fund':          { icon: '🏦', color: '#3498db', bg: 'rgba(52,152,219,.18)',  text: '基金扣款'     },
+  'dividend':      { icon: '💵', color: '#27ae60', bg: 'rgba(39,174,96,.18)',   text: '股息除息'     },
+  'balance-alert': { icon: '⚠️', color: '#c0392b', bg: 'rgba(192,57,43,.22)',   text: '餘額警示'     },
+  'settlement':    { icon: '📅', color: '#8e44ad', bg: 'rgba(142,68,173,.18)',  text: '股票交割'     },
+  'account-total': { icon: '💰', color: '#d4a017', bg: 'rgba(212,160,23,.18)',  text: '帳戶扣款合計' },
 } as const;
 
 @Component({
@@ -70,15 +71,15 @@ const META = {
         {{ cell.day }}
       </div>
       @if (cell.curr) {
-        @for (ev of eventsForDay(cell.day).slice(0, 3); track $index) {
+        @for (ev of cellEventsForDay(cell.day).slice(0, 3); track $index) {
           <div class="cal-ev-pill"
             [style.background]="META[ev.type].bg"
             [style.color]="META[ev.type].color">
             {{ META[ev.type].icon }} {{ ev.label }}
           </div>
         }
-        @if (eventsForDay(cell.day).length > 3) {
-          <div class="cal-ev-more">+{{ eventsForDay(cell.day).length - 3 }} 更多</div>
+        @if (cellEventsForDay(cell.day).length > 3) {
+          <div class="cal-ev-more">+{{ cellEventsForDay(cell.day).length - 3 }} 更多</div>
         }
       }
     </div>
@@ -385,7 +386,8 @@ export class CalendarViewComponent {
     }
     for (const f of this.state.funds()) {
       for (const s of f.schedules) {
-        push(s.dayOfMonth, { type: 'fund', label: f.name, amount: s.amount });
+        push(s.dayOfMonth, { type: 'fund', label: f.name, amount: s.amount, accountId: f.accountId ?? null });
+        if (f.accountId) addDed(s.dayOfMonth, f.accountId, s.amount);
       }
     }
     const nameMap = this.stock.codeToName();
@@ -455,6 +457,41 @@ export class CalendarViewComponent {
   });
 
   eventsForDay(day: number): CalEvent[] { return this.eventsMap().get(day) ?? []; }
+
+  /** Aggregated view for calendar cell pills: loan + fund + settlement → one pill per account. */
+  cellEventsMap = computed(() => {
+    const accounts = this.state.accounts();
+    const result = new Map<number, CalEvent[]>();
+    for (const [day, events] of this.eventsMap()) {
+      const acctTotals = new Map<string, number>();
+      let noAcctTotal = 0;
+      const standalones: CalEvent[] = [];
+      for (const ev of events) {
+        if (ev.type === 'balance-alert') continue;
+        if ((ev.type === 'loan' || ev.type === 'fund' || ev.type === 'settlement') && ev.amount != null) {
+          if (ev.accountId) {
+            acctTotals.set(ev.accountId, (acctTotals.get(ev.accountId) ?? 0) + ev.amount);
+          } else {
+            noAcctTotal += ev.amount;
+          }
+        } else {
+          standalones.push(ev);
+        }
+      }
+      const items: CalEvent[] = [...standalones];
+      for (const [accountId, total] of acctTotals) {
+        const name = accounts.find(a => a.id === accountId)?.name ?? '帳戶';
+        items.push({ type: 'account-total', label: `${name}　NT$${Math.round(total).toLocaleString()}`, amount: total, accountId });
+      }
+      if (noAcctTotal > 0) {
+        items.push({ type: 'account-total', label: `未連結　NT$${Math.round(noAcctTotal).toLocaleString()}`, amount: noAcctTotal, accountId: null });
+      }
+      if (items.length > 0) result.set(day, items);
+    }
+    return result;
+  });
+
+  cellEventsForDay(day: number): CalEvent[] { return this.cellEventsMap().get(day) ?? []; }
 
   selectedEvents = computed(() => {
     const d = this.selectedDay();
