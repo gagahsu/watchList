@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
-  AccountTransaction, CreditCard, DividendRecord, FundHolding, FundSchedule,
+  AccountTransaction, CreditCard, DividendRecord, FundHolding, FundSchedule, NetWorthSnapshot,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -47,6 +47,7 @@ export class ApiService {
       this.get<{rate: number}>('/fx-rate'),
       this.get<FundHolding[]>('/funds'),
       this.get<CreditCard[]>('/credit-cards'),
+      this.get<NetWorthSnapshot[]>('/net-worth-snapshots'),
     ]);
   }
 
@@ -184,4 +185,9 @@ export class ApiService {
   createCreditCard(c: CreditCard) { return this.post<CreditCard>('/credit-cards', c); }
   patchCreditCard(id: string, body: Partial<Omit<CreditCard, 'id'>>) { return this.patch<CreditCard>(`/credit-cards/${id}`, body); }
   deleteCreditCard(id: string) { return this.delete<{ok:boolean}>(`/credit-cards/${id}`); }
+
+  // ── Net Worth Snapshots ───────────────────────────────────────────────────
+  getNetWorthSnapshots() { return this.get<NetWorthSnapshot[]>('/net-worth-snapshots'); }
+  createNetWorthSnapshot(s: NetWorthSnapshot) { return this.post<NetWorthSnapshot>('/net-worth-snapshots', s); }
+  deleteNetWorthSnapshot(id: string) { return this.delete<{ok:boolean}>(`/net-worth-snapshots/${id}`); }
 }

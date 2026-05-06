@@ -7,6 +7,7 @@ interface CalEvent {
   label: string;
   sublabel?: string;
   amount?: number;
+  accountId?: string | null;
 }
 
 const META = {
@@ -106,6 +107,9 @@ const META = {
             <span class="cal-detail-label">{{ ev.label }}</span>
             <span class="cal-detail-sub">
               {{ META[ev.type].text }}{{ ev.sublabel ? ' · ' + ev.sublabel : '' }}
+              @if (ev.accountId) {
+                &nbsp;·&nbsp;<span class="cal-acct-tag">{{ accountName(ev.accountId) }}</span>
+              }
             </span>
           </div>
           @if (ev.amount != null) {
@@ -117,6 +121,19 @@ const META = {
           }
         </div>
       }
+    }
+
+    <!-- Per-account deduction summary -->
+    @if (selectedAccountTotals().length > 0) {
+      <div class="cal-acct-summary">
+        <div class="cal-acct-summary-title">💳 帳戶扣款彙總</div>
+        @for (row of selectedAccountTotals(); track row.accountId) {
+          <div class="cal-acct-summary-row">
+            <span class="cal-acct-name">{{ row.name }}</span>
+            <span class="cal-acct-amt neg">{{ fmtNT(row.total) }}</span>
+          </div>
+        }
+      </div>
     }
   </div>
 }
@@ -259,6 +276,29 @@ const META = {
       font-family: 'JetBrains Mono', monospace;
       font-size: 14px; font-weight: 700; flex-shrink: 0;
     }
+    .cal-acct-tag {
+      display: inline-block;
+      font-size: 10px; font-weight: 600;
+      background: rgba(52,152,219,.12); color: #3498db;
+      border: 1px solid rgba(52,152,219,.3); border-radius: 4px;
+      padding: 0 5px; font-family: 'JetBrains Mono', monospace;
+    }
+    .cal-acct-summary {
+      border-top: 1px solid var(--border);
+      margin: 4px 0 0;
+      padding: 12px 18px;
+      background: rgba(52,152,219,.04);
+    }
+    .cal-acct-summary-title {
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px;
+    }
+    .cal-acct-summary-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; padding: 3px 0;
+    }
+    .cal-acct-name { color: var(--text); }
+    .cal-acct-amt  { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
     .pos { color: var(--green, #27ae60); }
     .neg { color: var(--red, #e74c3c); }
   `],
@@ -328,7 +368,7 @@ export class CalendarViewComponent {
     }
     for (const l of this.state.liabilities()) {
       if (!l.reminderEnabled || !l.reminderDay) continue;
-      push(l.reminderDay, { type: 'loan', label: l.name, amount: l.monthlyPayment ?? undefined });
+      push(l.reminderDay, { type: 'loan', label: l.name, amount: l.monthlyPayment ?? undefined, accountId: l.accountId });
     }
     for (const f of this.state.funds()) {
       for (const s of f.schedules) {
@@ -355,6 +395,22 @@ export class CalendarViewComponent {
     const d = this.selectedDay();
     return d != null ? (this.eventsMap().get(d) ?? []) : [];
   });
+
+  selectedAccountTotals = computed(() => {
+    const evs = this.selectedEvents();
+    const map = new Map<string, number>();
+    for (const ev of evs) {
+      if (!ev.accountId || ev.type === 'dividend' || ev.amount == null) continue;
+      map.set(ev.accountId, (map.get(ev.accountId) ?? 0) + ev.amount);
+    }
+    return Array.from(map.entries()).map(([accountId, total]) => ({
+      accountId, total, name: this.accountName(accountId),
+    }));
+  });
+
+  accountName(id: string) {
+    return this.state.accounts().find(a => a.id === id)?.name ?? id;
+  }
 
   totalLoan = computed(() =>
     this.state.liabilities()

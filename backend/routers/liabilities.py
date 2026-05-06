@@ -19,6 +19,7 @@ def _row_to_liability(r) -> dict:
         "paidPeriods": r["paid_periods"],
         "interestRate": r["interest_rate"],
         "monthlyPayment": r["monthly_payment"],
+        "accountId": r["account_id"],
     }
 
 
@@ -35,19 +36,19 @@ def create_liability(body: LiabilityIn):
         conn.execute(
             "INSERT INTO liabilities"
             " (id, name, type, amount, reminder_enabled, reminder_day, note,"
-            "  total_amount, periods, paid_periods, interest_rate, monthly_payment)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            "  total_amount, periods, paid_periods, interest_rate, monthly_payment, account_id)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT(id) DO UPDATE SET"
             "  name=EXCLUDED.name, type=EXCLUDED.type, amount=EXCLUDED.amount,"
             "  reminder_enabled=EXCLUDED.reminder_enabled, reminder_day=EXCLUDED.reminder_day,"
             "  note=EXCLUDED.note,"
             "  total_amount=EXCLUDED.total_amount, periods=EXCLUDED.periods,"
             "  paid_periods=EXCLUDED.paid_periods, interest_rate=EXCLUDED.interest_rate,"
-            "  monthly_payment=EXCLUDED.monthly_payment",
+            "  monthly_payment=EXCLUDED.monthly_payment, account_id=EXCLUDED.account_id",
             (body.id, body.name, body.type, body.amount,
              body.reminderEnabled, body.reminderDay, body.note,
              body.totalAmount, body.periods, body.paidPeriods,
-             body.interestRate, body.monthlyPayment),
+             body.interestRate, body.monthlyPayment, body.accountId),
         )
         row = conn.execute("SELECT * FROM liabilities WHERE id=%s", (body.id,)).fetchone()
     return _row_to_liability(row)
@@ -71,6 +72,8 @@ def patch_liability(liability_id: str, body: LiabilityPatch):
         if body.paidPeriods is not None:     updates["paid_periods"]     = body.paidPeriods
         if body.interestRate is not None:    updates["interest_rate"]    = body.interestRate
         if body.monthlyPayment is not None:  updates["monthly_payment"]  = body.monthlyPayment
+        if body.accountId is not None:       updates["account_id"]       = body.accountId
+        if body.accountId == "":             updates["account_id"]       = None
         if updates:
             cols = ", ".join(f"{k}=%s" for k in updates)
             conn.execute(f"UPDATE liabilities SET {cols} WHERE id=%s",

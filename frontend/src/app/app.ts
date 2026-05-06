@@ -22,6 +22,7 @@ import { DividendViewComponent } from './components/dividend-view/dividend-view.
 import { FundHoldingsViewComponent } from './components/fund-holdings-view/fund-holdings-view.component';
 import { CashFlowViewComponent } from './components/cash-flow-view/cash-flow-view.component';
 import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
+import { LiabilitiesViewComponent } from './components/liabilities-view/liabilities-view.component';
 
 @Component({
   selector: 'app-root',
@@ -32,6 +33,7 @@ import { CalendarViewComponent } from './components/calendar-view/calendar-view.
     BrokerSettingsModalComponent, CreditCardSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
     DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent, CalendarViewComponent,
+    LiabilitiesViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -44,7 +46,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -60,6 +62,7 @@ export class App implements OnInit {
       this.state.usdTwdRate.set(fxRate.rate);
       this.state.funds.set(funds);
       this.state.creditCards.set(creditCards);
+      this.state.netWorthSnapshots.set(netWorthSnapshots);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -100,6 +103,7 @@ export class App implements OnInit {
       'funds': '基金持倉',
       'cash-flow': '每月現金流',
       'calendar':  '財務行事曆',
+      'liabilities': '負債管理',
     };
     return titles[this.state.view()] ?? '理債富';
   }

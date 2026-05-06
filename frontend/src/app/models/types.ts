@@ -3,7 +3,7 @@ export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities';
 
 export interface OhlcBar {
   date: string;
@@ -111,6 +111,16 @@ export interface Liability {
   paidPeriods: number | null;
   interestRate: number | null;
   monthlyPayment: number | null;
+  accountId: string | null;
+}
+
+export interface NetWorthSnapshot {
+  id: string;
+  date: string;
+  assets: number;
+  liabilities: number;
+  note: string;
+  recordedAt: number;
 }
 
 export interface InstitutionalDay {

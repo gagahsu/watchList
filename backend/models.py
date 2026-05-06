@@ -224,6 +224,7 @@ class LiabilityIn(BaseModel):
     paidPeriods: Optional[int] = None
     interestRate: Optional[float] = None
     monthlyPayment: Optional[float] = None
+    accountId: Optional[str] = None
 
 
 class LiabilityPatch(BaseModel):
@@ -238,6 +239,7 @@ class LiabilityPatch(BaseModel):
     paidPeriods: Optional[int] = None
     interestRate: Optional[float] = None
     monthlyPayment: Optional[float] = None
+    accountId: Optional[str] = None
 
 
 class LiabilityOut(BaseModel):
@@ -253,6 +255,26 @@ class LiabilityOut(BaseModel):
     paidPeriods: Optional[int]
     interestRate: Optional[float]
     monthlyPayment: Optional[float]
+    accountId: Optional[str]
+
+
+# ── Net Worth Snapshots ────────────────────────────────
+class NetWorthSnapshotIn(BaseModel):
+    id: str
+    date: str
+    assets: float
+    liabilities: float
+    note: str = ""
+    recordedAt: int
+
+
+class NetWorthSnapshotOut(BaseModel):
+    id: str
+    date: str
+    assets: float
+    liabilities: float
+    note: str
+    recordedAt: int
 
 
 # ── Account Transactions ──────────────────────────────

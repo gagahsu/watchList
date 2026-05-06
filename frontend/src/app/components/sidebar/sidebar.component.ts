@@ -31,6 +31,12 @@ import { pendingSettlements } from '../../utils';
           <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">🔔 {{ liabilityReminderCount() }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('liabilities')" (click)="navigate('liabilities')">
+        <span class="nav-icon">📋</span> 負債管理
+        @if (state.liabilities().length > 0) {
+          <span class="sidebar-nav-badge" [style.background]="liabilityReminderCount() > 0 ? 'rgba(192,57,43,.8)' : ''">{{ state.liabilities().length }}</span>
+        }
+      </button>
       <button class="sidebar-nav-item" [class.active]="isActive('cash-flow')" (click)="navigate('cash-flow')">
         <span class="nav-icon">📊</span> 每月現金流
         @if (creditCardReminderCount() > 0) {
@@ -160,7 +166,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }

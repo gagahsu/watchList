@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Account, AccountTransaction, Broker, CreditCard, DividendRecord, EditTarget, Entry, FundHolding, FundSchedule, Liability, MainView, Market, Note,
+  Account, AccountTransaction, Broker, CreditCard, DividendRecord, EditTarget, Entry, FundHolding, FundSchedule, Liability, MainView, Market, NetWorthSnapshot, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -230,6 +230,11 @@ export class AppStateService {
   addCreditCard(c: CreditCard) { this.creditCards.update(cs => [...cs, c]); }
   updateCreditCard(updated: CreditCard) { this.creditCards.update(cs => cs.map(c => c.id === updated.id ? updated : c)); }
   removeCreditCard(id: string) { this.creditCards.update(cs => cs.filter(c => c.id !== id)); }
+
+  // ── Net Worth Snapshot mutations ──────────────────────────────────────────
+  netWorthSnapshots = signal<NetWorthSnapshot[]>([]);
+  addNetWorthSnapshot(s: NetWorthSnapshot) { this.netWorthSnapshots.update(ss => [...ss, s].sort((a, b) => a.date.localeCompare(b.date))); }
+  removeNetWorthSnapshot(id: string) { this.netWorthSnapshots.update(ss => ss.filter(s => s.id !== id)); }
 
   // ── Fund mutations ────────────────────────────────────────────────────────
   funds = signal<FundHolding[]>([]);

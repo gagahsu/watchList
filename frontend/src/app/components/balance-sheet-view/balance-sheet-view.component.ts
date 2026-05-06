@@ -2,20 +2,19 @@ import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
-import { CreditCard, Liability } from '../../models/types';
+import { NetWorthSnapshot } from '../../models/types';
 import { calcFIFO, uid } from '../../utils';
 
-const LIABILITY_TYPES = ['房貸', '車貸', '信用貸款', '信用卡', '學貸', '其他'];
-const LOAN_TYPES = new Set(['房貸', '車貸', '信用貸款', '學貸']);
-const TYPE_ICON: Record<string, string> = {
-  '房貸': '🏠', '車貸': '🚗', '信用貸款': '🏦', '信用卡': '💳', '學貸': '🎓', '其他': '📋',
-};
+const CHART_W = 560;
+const CHART_H = 180;
+const PAD = { l: 64, r: 16, t: 18, b: 32 };
+const IW = CHART_W - PAD.l - PAD.r;
+const IH = CHART_H - PAD.t - PAD.b;
 
-function isReminderToday(l: Liability): boolean {
-  if (!l.reminderEnabled || !l.reminderDay) return false;
-  const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  return now.getDate() === Math.min(l.reminderDay, lastDay);
+function fmtK(n: number) {
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
+  return String(Math.round(n));
 }
 
 @Component({
@@ -73,14 +72,16 @@ function isReminderToday(l: Liability): boolean {
   }
 </div>
 
-<!-- ── Liability cards ─────────────────────────────── -->
+<!-- ── Liability summary ────────────────────────────── -->
 <div class="bs-group-header">
   <div class="bs-group-title">負債</div>
-  <button class="idx-add-btn" (click)="startNew()">＋ 新增負債</button>
+  <button class="idx-add-btn" (click)="goLiabilities()">管理負債 →</button>
 </div>
 
-@if (state.liabilities().length === 0 && !showAddForm()) {
-  <div class="bs-empty">尚無負債記錄</div>
+@if (state.liabilities().length === 0) {
+  <div class="bs-empty">尚無負債記錄，
+    <button class="bs-text-link" (click)="goLiabilities()">點此管理負債</button>
+  </div>
 } @else {
   <div class="bs-card-grid">
     @for (grp of liabilityGroups(); track grp.type) {
@@ -92,257 +93,85 @@ function isReminderToday(l: Liability): boolean {
         </div>
         <div class="bs-card-amount text-danger">{{ fmtNT(grp.total) }}</div>
         <div class="bs-card-sub">{{ grp.count }} 筆</div>
-        <button class="bs-card-btn" (click)="toggleType(grp.type)">
-          {{ expandedType() === grp.type ? '收合 ▲' : '明細 ▼' }}
-        </button>
       </div>
     }
   </div>
-
-  <!-- expanded detail for selected type -->
-  @if (expandedType()) {
-    <div class="bs-detail-panel">
-      @for (l of liabilitiesOfType(expandedType()!); track l.id) {
-        @let isAlert = isReminderToday(l);
-        @if (editId() === l.id) {
-          <div class="bs-edit-form" [class.bs-reminder-alert]="isAlert">
-            <div class="broker-form-row">
-              <div class="broker-form-group" style="flex:2">
-                <div class="modal-label">名稱</div>
-                <input class="modal-input" [value]="editF.name" (input)="editF.name=asStr($event)" />
-              </div>
-              <div class="broker-form-group" style="flex:1">
-                <div class="modal-label">類型</div>
-                <select class="trade-form-select" (change)="editF.type=asStr($event); editF.selectedBank=''">
-                  @for (t of liabilityTypes; track t) {
-                    <option [value]="t" [selected]="editF.type===t">{{ t }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-            <div class="broker-form-row">
-              <div class="broker-form-group" style="flex:1">
-                <div class="modal-label">{{ isLoanType(editF.type) ? '未償餘額' : '金額' }}</div>
-                <input class="modal-input" type="number" step="1" min="0"
-                  [value]="editF.amount" (input)="editF.amount=toNum($event)" />
-              </div>
-              <div class="broker-form-group" style="flex:2">
-                <div class="modal-label">備註</div>
-                <input class="modal-input" [value]="editF.note" (input)="editF.note=asStr($event)" />
-              </div>
-            </div>
-            @if (isLoanType(editF.type)) {
-              <div class="bs-loan-divider">貸款明細</div>
-              <div class="broker-form-row">
-                <div class="broker-form-group" style="flex:1">
-                  <div class="modal-label">貸款總額</div>
-                  <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
-                    [value]="editF.totalAmount ?? ''" (input)="editF.totalAmount=toNumOrNull($event)" />
-                </div>
-                <div class="broker-form-group" style="flex:1">
-                  <div class="modal-label">年利率 (%)</div>
-                  <input class="modal-input" type="number" step="0.01" min="0" placeholder="選填"
-                    [value]="editF.interestRate ?? ''" (input)="editF.interestRate=toNumOrNull($event)" />
-                </div>
-              </div>
-              <div class="broker-form-row">
-                <div class="broker-form-group" style="flex:1">
-                  <div class="modal-label">總期數 (月)</div>
-                  <input class="modal-input" type="number" step="1" min="1" placeholder="選填"
-                    [value]="editF.periods ?? ''" (input)="editF.periods=toIntOrNull($event)" />
-                </div>
-                <div class="broker-form-group" style="flex:1">
-                  <div class="modal-label">已還期數</div>
-                  <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
-                    [value]="editF.paidPeriods ?? ''" (input)="editF.paidPeriods=toIntOrNull($event)" />
-                </div>
-                <div class="broker-form-group" style="flex:1">
-                  <div class="modal-label">每月還款</div>
-                  <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
-                    [value]="editF.monthlyPayment ?? ''" (input)="editF.monthlyPayment=toNumOrNull($event)" />
-                </div>
-              </div>
-            }
-            @if (editF.type === '信用卡' && state.creditCards().length > 0) {
-              <div class="bs-loan-divider">扣款日設定</div>
-              <div class="broker-form-row">
-                <div class="broker-form-group" style="flex:1">
-                  <div class="modal-label">銀行（自動帶入扣款日）</div>
-                  <select class="trade-form-select" [value]="editF.selectedBank" (change)="onBankChange($event, editF)">
-                    <option value="">— 選擇銀行 —</option>
-                    @for (c of state.creditCards(); track c.id) {
-                      <option [value]="c.name">{{ c.name }}（每月 {{ c.paymentDay }} 日）</option>
-                    }
-                  </select>
-                </div>
-                @if (editF.selectedBank) {
-                  <div class="broker-form-group" style="flex:0 0 auto;align-self:flex-end">
-                    <div class="bs-bank-day-tag">🔔 每月 {{ editF.reminderDay }} 日扣款</div>
-                  </div>
-                }
-              </div>
-            }
-            @if (editF.type !== '信用卡' || !editF.selectedBank) {
-              <div class="broker-form-row" style="align-items:flex-end;margin-top:4px">
-                <div class="broker-form-group" style="flex:0 0 auto">
-                  <div class="modal-label">提醒</div>
-                  <label class="bs-toggle">
-                    <input type="checkbox" [checked]="editF.reminderEnabled"
-                      (change)="editF.reminderEnabled=asChecked($event)" />
-                    <span class="bs-toggle-label">開啟提醒</span>
-                  </label>
-                </div>
-                @if (editF.reminderEnabled) {
-                  <div class="broker-form-group" style="flex:1">
-                    <div class="modal-label">每月幾號 (1–31)</div>
-                    <input class="modal-input" type="number" min="1" max="31" step="1"
-                      [value]="editF.reminderDay" (input)="editF.reminderDay=toInt($event)" />
-                  </div>
-                }
-              </div>
-            }
-            <div style="display:flex;gap:8px;margin-top:10px">
-              <button class="btn-primary" style="flex:1" (click)="saveEdit(l.id)">儲存</button>
-              <button class="btn-cancel" (click)="editId.set(null)">取消</button>
-            </div>
-          </div>
-        } @else {
-          <div class="bs-detail-row" [class.bs-reminder-alert]="isAlert">
-            <div class="bs-detail-info">
-              <div class="bs-detail-name">
-                @if (isAlert) { <span class="bs-alert-badge">🔔</span> }
-                {{ l.name }}
-                @if (l.reminderEnabled && l.reminderDay) {
-                  <span class="bs-reminder-tag" [class.bs-reminder-tag-due]="isAlert">每月{{ l.reminderDay }}號</span>
-                }
-              </div>
-              @if (l.note) { <div class="bs-detail-note">{{ l.note }}</div> }
-              @if (isLoanType(l.type) && l.periods && l.paidPeriods != null) {
-                <div class="bs-progress-bar" style="margin-top:6px">
-                  <div class="bs-progress-fill" [style.width.%]="progressPct(l.paidPeriods, l.periods)"></div>
-                </div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ l.paidPeriods }}/{{ l.periods }} 期</div>
-              }
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-              <span class="bs-detail-amount text-danger">{{ fmtNT(l.amount) }}</span>
-              <button class="sig-action-btn" (click)="startEdit(l)">編輯</button>
-              <button class="sig-action-btn danger" (click)="deleteLiability(l.id)">刪除</button>
-            </div>
-          </div>
-        }
-      }
-    </div>
-  }
 }
 
-<!-- ── Add form ─────────────────────────────────────── -->
-@if (showAddForm()) {
-  <div class="bs-edit-form" style="margin-top:12px">
-    <div class="broker-form-row">
-      <div class="broker-form-group" style="flex:2">
-        <div class="modal-label">名稱</div>
-        <input class="modal-input" placeholder="如：玉山房貸、信用卡帳單"
-          [value]="newF.name" (input)="newF.name=asStr($event)" autofocus />
-      </div>
-      <div class="broker-form-group" style="flex:1">
-        <div class="modal-label">類型</div>
-        <select class="trade-form-select" (change)="newF.type=asStr($event); newF.selectedBank=''">
-          @for (t of liabilityTypes; track t) {
-            <option [value]="t" [selected]="newF.type===t">{{ t }}</option>
-          }
-        </select>
-      </div>
-    </div>
-    <div class="broker-form-row">
-      <div class="broker-form-group" style="flex:1">
-        <div class="modal-label">{{ isLoanType(newF.type) ? '未償餘額' : '金額' }}</div>
-        <input class="modal-input" type="number" step="1" min="0" placeholder="如：5000000"
-          [value]="newF.amount" (input)="newF.amount=toNum($event)" />
-      </div>
-      <div class="broker-form-group" style="flex:2">
-        <div class="modal-label">備註 (選填)</div>
-        <input class="modal-input" placeholder="如：玉山銀行"
-          [value]="newF.note" (input)="newF.note=asStr($event)" />
-      </div>
-    </div>
-    @if (isLoanType(newF.type)) {
-      <div class="bs-loan-divider">貸款明細</div>
-      <div class="broker-form-row">
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">貸款總額</div>
-          <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
-            [value]="newF.totalAmount ?? ''" (input)="newF.totalAmount=toNumOrNull($event)" />
-        </div>
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">年利率 (%)</div>
-          <input class="modal-input" type="number" step="0.01" min="0" placeholder="選填"
-            [value]="newF.interestRate ?? ''" (input)="newF.interestRate=toNumOrNull($event)" />
-        </div>
-      </div>
-      <div class="broker-form-row">
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">總期數 (月)</div>
-          <input class="modal-input" type="number" step="1" min="1" placeholder="選填"
-            [value]="newF.periods ?? ''" (input)="newF.periods=toIntOrNull($event)" />
-        </div>
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">已還期數</div>
-          <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
-            [value]="newF.paidPeriods ?? ''" (input)="newF.paidPeriods=toIntOrNull($event)" />
-        </div>
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">每月還款</div>
-          <input class="modal-input" type="number" step="1" min="0" placeholder="選填"
-            [value]="newF.monthlyPayment ?? ''" (input)="newF.monthlyPayment=toNumOrNull($event)" />
-        </div>
-      </div>
+<!-- ── Net Worth History Chart ──────────────────────── -->
+<div class="bs-group-header" style="margin-top:28px">
+  <div class="bs-group-title">資產負債歷史</div>
+  <div style="display:flex;gap:8px">
+    @if (state.netWorthSnapshots().length > 0) {
+      <button class="sig-action-btn danger" (click)="deleteLatest()" title="刪除最後一筆快照">刪除最後快照</button>
     }
-    @if (newF.type === '信用卡' && state.creditCards().length > 0) {
-      <div class="bs-loan-divider">扣款日設定</div>
-      <div class="broker-form-row">
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">銀行（自動帶入扣款日）</div>
-          <select class="trade-form-select" [value]="newF.selectedBank" (change)="onBankChange($event, newF)">
-            <option value="">— 選擇銀行 —</option>
-            @for (c of state.creditCards(); track c.id) {
-              <option [value]="c.name">{{ c.name }}（每月 {{ c.paymentDay }} 日）</option>
-            }
-          </select>
-        </div>
-        @if (newF.selectedBank) {
-          <div class="broker-form-group" style="flex:0 0 auto;align-self:flex-end">
-            <div class="bs-bank-day-tag">
-              🔔 每月 {{ newF.reminderDay }} 日扣款
-            </div>
-          </div>
-        }
-      </div>
-    }
-    @if (newF.type !== '信用卡' || !newF.selectedBank) {
-      <div class="broker-form-row" style="align-items:flex-end;margin-top:4px">
-        <div class="broker-form-group" style="flex:0 0 auto">
-          <div class="modal-label">提醒</div>
-          <label class="bs-toggle">
-            <input type="checkbox" [checked]="newF.reminderEnabled"
-              (change)="newF.reminderEnabled=asChecked($event)" />
-            <span class="bs-toggle-label">開啟提醒</span>
-          </label>
-        </div>
-        @if (newF.reminderEnabled) {
-          <div class="broker-form-group" style="flex:1">
-            <div class="modal-label">每月幾號 (1–31)</div>
-            <input class="modal-input" type="number" min="1" max="31" step="1"
-              [value]="newF.reminderDay" (input)="newF.reminderDay=toInt($event)" />
-          </div>
-        }
-      </div>
-    }
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="btn-primary" style="flex:1" (click)="saveNew()">新增</button>
-      <button class="btn-cancel" (click)="showAddForm.set(false)">取消</button>
-    </div>
+    <button class="idx-add-btn" (click)="saveSnapshot()" [disabled]="saving()">
+      {{ saving() ? '記錄中…' : '📌 記錄本月快照' }}
+    </button>
   </div>
+</div>
+
+@if (state.netWorthSnapshots().length < 2) {
+  <div class="bs-chart-placeholder">
+    <div style="font-size:28px;opacity:.3">📊</div>
+    <div>尚無足夠資料繪製趨勢圖</div>
+    <div style="font-size:12px;margin-top:4px">每月點擊「記錄本月快照」以追蹤變化趨勢</div>
+  </div>
+} @else {
+  @let chart = chartData();
+  @if (chart) {
+    <div class="bs-chart-wrap">
+      <svg [attr.viewBox]="'0 0 ' + chart.w + ' ' + chart.h" class="bs-chart-svg">
+        <!-- Grid lines -->
+        @for (y of chart.yAxis; track y.val) {
+          <line [attr.x1]="chart.pad.l" [attr.x2]="chart.w - chart.pad.r"
+            [attr.y1]="y.y" [attr.y2]="y.y" class="bs-grid-line" />
+          <text [attr.x]="chart.pad.l - 6" [attr.y]="y.y + 4"
+            class="bs-axis-label" text-anchor="end">{{ y.label }}</text>
+        }
+        <!-- X labels -->
+        @for (pt of chart.xLabels; track $index) {
+          <text [attr.x]="pt.x" [attr.y]="chart.h - 4"
+            class="bs-axis-label" text-anchor="middle">{{ pt.label }}</text>
+        }
+        <!-- Asset line -->
+        <polyline [attr.points]="chart.assetsPoints" class="bs-line-assets" fill="none" />
+        <!-- Liability line -->
+        <polyline [attr.points]="chart.liabPoints" class="bs-line-liab" fill="none" />
+        <!-- Net worth line -->
+        <polyline [attr.points]="chart.netPoints" class="bs-line-net" fill="none" />
+        <!-- Dots -->
+        @for (pt of chart.dots; track $index) {
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.assetsY" r="3" class="bs-dot-assets" />
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.liabY" r="3" class="bs-dot-liab" />
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.netY" r="3.5" class="bs-dot-net" />
+        }
+      </svg>
+      <!-- Legend -->
+      <div class="bs-chart-legend">
+        <span><span class="bs-legend-dot" style="background:#3498db"></span>資產</span>
+        <span><span class="bs-legend-dot" style="background:#e74c3c"></span>負債</span>
+        <span><span class="bs-legend-dot" style="background:#d4a017"></span>淨資產</span>
+      </div>
+      <!-- Snapshot table -->
+      <table class="bs-snap-table">
+        <thead><tr>
+          <th>月份</th><th style="text-align:right">資產</th>
+          <th style="text-align:right">負債</th><th style="text-align:right">淨資產</th>
+        </tr></thead>
+        <tbody>
+          @for (s of state.netWorthSnapshots(); track s.id) {
+            <tr>
+              <td>{{ s.date }}</td>
+              <td style="text-align:right" class="pos">{{ fmtNT(s.assets) }}</td>
+              <td style="text-align:right" class="neg">{{ fmtNT(s.liabilities) }}</td>
+              <td style="text-align:right" [class.pos]="s.assets - s.liabilities >= 0" [class.neg]="s.assets - s.liabilities < 0">{{ fmtNT(s.assets - s.liabilities) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
 }
   `,
   styles: [`
@@ -352,7 +181,7 @@ function isReminderToday(l: Liability): boolean {
     .bs-liab-card { border-color:rgba(192,57,43,.25); }
     .bs-label { font-size:12px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
     .bs-value { font-size:20px; font-weight:700; font-family:'JetBrains Mono',monospace; }
-    /* group title */
+    /* group */
     .bs-group-title { font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
     .bs-group-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; margin-top:24px; }
     .bs-group-header .bs-group-title { margin-bottom:0; }
@@ -369,33 +198,28 @@ function isReminderToday(l: Liability): boolean {
     .bs-card-btn { margin-top:10px; font-size:12px; color:var(--gold); background:none; border:none; padding:0; cursor:pointer; text-align:left; }
     .bs-card-btn:hover { text-decoration:underline; }
     .bs-alert-dot { font-size:13px; }
-    /* detail panel */
-    .bs-detail-panel { background:var(--sidebar-bg); border:1px solid var(--border); border-radius:8px; padding:4px 0; margin-bottom:16px; }
-    .bs-detail-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:10px 14px; border-bottom:1px solid var(--border); }
-    .bs-detail-row:last-of-type { border-bottom:none; }
-    .bs-detail-info { flex:1; min-width:0; }
-    .bs-detail-name { font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-    .bs-detail-note { font-size:12px; color:var(--text-muted); margin-top:3px; }
-    .bs-detail-amount { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; white-space:nowrap; }
-    /* misc */
     .bs-empty { text-align:center; color:var(--text-muted); font-size:14px; padding:20px 0; }
-    .bs-edit-form { background:var(--sidebar-bg); border:1px solid var(--border); border-radius:8px; padding:14px; margin:8px 0; }
-    .bs-reminder-tag { font-size:11px; background:var(--tracking-bg); color:var(--text-muted); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-family:'JetBrains Mono',monospace; }
-    .bs-reminder-tag-due { background:rgba(192,57,43,.12); color:var(--red); border-color:rgba(192,57,43,.3); }
-    .bs-reminder-alert { border-left:3px solid var(--red,#c0392b); }
-    .bs-alert-badge { font-size:12px; font-weight:700; color:var(--red,#c0392b); }
-    .bs-loan-divider { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin:10px 0 6px; padding-top:8px; border-top:1px solid var(--border); }
-    .bs-toggle { display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:6px; }
-    .bs-toggle input { width:16px; height:16px; cursor:pointer; accent-color:var(--gold); }
-    .bs-toggle-label { font-size:14px; }
-    .bs-progress-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
-    .bs-progress-fill { height:100%; background:var(--gold); border-radius:2px; }
-    .bs-bank-day-tag {
-      background: rgba(192,57,43,.1); color: var(--red,#c0392b);
-      border: 1px solid rgba(192,57,43,.3); border-radius:6px;
-      padding: 6px 12px; font-size:13px; font-weight:600; white-space:nowrap;
-      font-family:'JetBrains Mono',monospace;
-    }
+    .bs-text-link { background:none; border:none; color:var(--gold); cursor:pointer; font-size:14px; text-decoration:underline; padding:0; }
+    /* chart */
+    .bs-chart-placeholder { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:32px 16px; text-align:center; color:var(--text-muted); font-size:13px; margin-bottom:16px; }
+    .bs-chart-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
+    .bs-chart-svg { width:100%; display:block; }
+    .bs-grid-line { stroke:var(--border); stroke-width:0.5; }
+    .bs-axis-label { font-size:9px; fill:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+    .bs-line-assets { stroke:#3498db; stroke-width:2; }
+    .bs-line-liab   { stroke:#e74c3c; stroke-width:2; stroke-dasharray:4,3; }
+    .bs-line-net    { stroke:#d4a017; stroke-width:2.5; }
+    .bs-dot-assets  { fill:#3498db; }
+    .bs-dot-liab    { fill:#e74c3c; }
+    .bs-dot-net     { fill:#d4a017; }
+    .bs-chart-legend { display:flex; gap:16px; font-size:11px; color:var(--text-muted); margin-top:6px; flex-wrap:wrap; }
+    .bs-legend-dot  { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+    /* snapshot table */
+    .bs-snap-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:14px; }
+    .bs-snap-table th { text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border); padding:4px 6px; }
+    .bs-snap-table td { padding:4px 6px; border-bottom:1px solid rgba(255,255,255,.04); font-family:'JetBrains Mono',monospace; }
+    .pos { color:var(--green,#27ae60); }
+    .neg { color:var(--red,#e74c3c); }
     .text-danger { color:var(--red,#c0392b); }
     @media (max-width:600px) {
       .bs-summary { grid-template-columns:1fr 1fr; }
@@ -405,65 +229,13 @@ function isReminderToday(l: Liability): boolean {
   `],
 })
 export class BalanceSheetViewComponent {
-  liabilityTypes  = LIABILITY_TYPES;
-  isLoanType      = (t: string) => LOAN_TYPES.has(t);
-  typeIcon        = (t: string) => TYPE_ICON[t] ?? '📋';
-  isReminderToday = isReminderToday;
-
-  showAddForm  = signal(false);
-  editId       = signal<string | null>(null);
-  expandedType = signal<string | null>(null);
-  newF  = this.blankForm();
-  editF = this.blankForm();
+  saving = signal(false);
 
   constructor(
     public state: AppStateService,
     private api: ApiService,
     private stock: StockService,
   ) {}
-
-  blankForm() {
-    return {
-      name: '', type: '其他', amount: 0, note: '',
-      reminderEnabled: false, reminderDay: 1,
-      totalAmount: null as number | null,
-      periods: null as number | null,
-      paidPeriods: null as number | null,
-      interestRate: null as number | null,
-      monthlyPayment: null as number | null,
-      selectedBank: '',
-    };
-  }
-
-  onBankChange(e: Event, f: ReturnType<typeof this.blankForm>) {
-    const bankName = (e.target as HTMLSelectElement).value;
-    f.selectedBank = bankName;
-    if (!bankName) {
-      f.reminderEnabled = false;
-      f.reminderDay = 1;
-      return;
-    }
-    const card = this.state.creditCards().find(c => c.name === bankName);
-    if (card) {
-      f.reminderEnabled = true;
-      f.reminderDay = card.paymentDay;
-    }
-  }
-
-  asStr(e: Event)       { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
-  toNum(e: Event)       { return parseFloat((e.target as HTMLInputElement).value) || 0; }
-  toInt(e: Event)       { return parseInt((e.target as HTMLInputElement).value, 10) || 1; }
-  toNumOrNull(e: Event) { const v = parseFloat((e.target as HTMLInputElement).value); return isNaN(v) || v === 0 ? null : v; }
-  toIntOrNull(e: Event) { const v = parseInt((e.target as HTMLInputElement).value, 10); return isNaN(v) || v === 0 ? null : v; }
-  asChecked(e: Event)   { return (e.target as HTMLInputElement).checked; }
-
-  fmtNT(n: number) {
-    return `NT$${Math.round(Math.abs(n)).toLocaleString()}`;
-  }
-
-  progressPct(paid: number, total: number) {
-    return Math.min(100, Math.round((paid / total) * 100));
-  }
 
   holdingRows = computed(() => {
     const trades = this.state.trades();
@@ -481,90 +253,104 @@ export class BalanceSheetViewComponent {
       .filter((h): h is NonNullable<typeof h> => h !== null);
   });
 
-  cashTotal  = computed(() => this.state.accounts().reduce((s, a) => s + a.balance, 0));
-  stockTotal = computed(() => this.holdingRows().reduce((s, h) => s + (h.mv ?? 0), 0));
-  fundTotal  = computed(() => this.state.funds().reduce((s, f) => s + f.marketValue, 0));
-  assetTotal = computed(() => this.cashTotal() + this.stockTotal() + this.fundTotal());
+  cashTotal      = computed(() => this.state.accounts().reduce((s, a) => s + a.balance, 0));
+  stockTotal     = computed(() => this.holdingRows().reduce((s, h) => s + (h.mv ?? 0), 0));
+  fundTotal      = computed(() => this.state.funds().reduce((s, f) => s + f.marketValue, 0));
+  assetTotal     = computed(() => this.cashTotal() + this.stockTotal() + this.fundTotal());
   liabilityTotal = computed(() => this.state.liabilities().reduce((s, l) => s + l.amount, 0));
 
   liabilityGroups = computed(() => {
     const map = new Map<string, { total: number; count: number; hasAlert: boolean }>();
     for (const l of this.state.liabilities()) {
       const g = map.get(l.type) ?? { total: 0, count: 0, hasAlert: false };
-      g.total += l.amount;
-      g.count += 1;
-      if (isReminderToday(l)) g.hasAlert = true;
+      g.total += l.amount; g.count += 1;
+      if (this.isReminderToday(l)) g.hasAlert = true;
       map.set(l.type, g);
     }
     return Array.from(map.entries()).map(([type, g]) => ({ type, ...g }));
   });
 
-  liabilitiesOfType(type: string) {
-    return this.state.liabilities().filter(l => l.type === type);
+  isReminderToday(l: { reminderEnabled: boolean; reminderDay: number | null }) {
+    if (!l.reminderEnabled || !l.reminderDay) return false;
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return now.getDate() === Math.min(l.reminderDay, lastDay);
   }
 
-  toggleType(type: string) {
-    this.expandedType.update(t => t === type ? null : type);
-    this.editId.set(null);
+  typeIcon(t: string) {
+    const icons: Record<string, string> = { '房貸': '🏠', '車貸': '🚗', '信用貸款': '🏦', '信用卡': '💳', '學貸': '🎓', '其他': '📋' };
+    return icons[t] ?? '📋';
   }
 
-  goAccounts() { this.state.view.set('accounts'); }
-  goFunds()    { this.state.view.set('funds'); }
+  fmtNT(n: number) { return `NT$${Math.round(Math.abs(n)).toLocaleString()}`; }
 
-  startNew() { this.newF = this.blankForm(); this.showAddForm.set(true); this.editId.set(null); }
+  goAccounts()    { this.state.view.set('accounts'); }
+  goFunds()       { this.state.view.set('funds'); }
+  goLiabilities() { this.state.view.set('liabilities'); }
 
-  async saveNew() {
-    if (!this.newF.name.trim()) return;
-    const l: Liability = {
-      id: uid(), name: this.newF.name.trim(), type: this.newF.type,
-      amount: this.newF.amount,
-      reminderEnabled: this.newF.reminderEnabled,
-      reminderDay: this.newF.reminderEnabled ? this.newF.reminderDay : null,
-      note: this.newF.note.trim(),
-      totalAmount: this.newF.totalAmount, periods: this.newF.periods,
-      paidPeriods: this.newF.paidPeriods, interestRate: this.newF.interestRate,
-      monthlyPayment: this.newF.monthlyPayment,
-    };
-    const saved = await this.api.createLiability(l);
-    this.state.addLiability(saved);
-    this.showAddForm.set(false);
-    this.expandedType.set(saved.type);
-  }
-
-  startEdit(l: Liability) {
-    let selectedBank = '';
-    if (l.type === '信用卡' && l.reminderEnabled && l.reminderDay) {
-      const match = this.state.creditCards().find(c => c.paymentDay === l.reminderDay);
-      if (match) selectedBank = match.name;
+  async saveSnapshot() {
+    this.saving.set(true);
+    try {
+      const now = new Date();
+      const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const snap: NetWorthSnapshot = {
+        id: uid(), date,
+        assets: Math.round(this.assetTotal()),
+        liabilities: Math.round(this.liabilityTotal()),
+        note: '', recordedAt: Date.now(),
+      };
+      const saved = await this.api.createNetWorthSnapshot(snap);
+      this.state.addNetWorthSnapshot(saved);
+    } finally {
+      this.saving.set(false);
     }
-    this.editF = {
-      name: l.name, type: l.type, amount: l.amount, note: l.note,
-      reminderEnabled: l.reminderEnabled, reminderDay: l.reminderDay ?? 1,
-      totalAmount: l.totalAmount, periods: l.periods,
-      paidPeriods: l.paidPeriods, interestRate: l.interestRate,
-      monthlyPayment: l.monthlyPayment, selectedBank,
+  }
+
+  async deleteLatest() {
+    const snaps = this.state.netWorthSnapshots();
+    if (!snaps.length) return;
+    const last = snaps[snaps.length - 1];
+    await this.api.deleteNetWorthSnapshot(last.id);
+    this.state.removeNetWorthSnapshot(last.id);
+  }
+
+  chartData = computed(() => {
+    const snaps = this.state.netWorthSnapshots().slice(-12);
+    if (snaps.length < 2) return null;
+
+    const allVals = snaps.flatMap(s => [s.assets, s.liabilities, s.assets - s.liabilities]);
+    const maxVal = Math.max(...allVals, 1);
+    const minVal = Math.min(...allVals, 0);
+    const range  = maxVal - minVal || 1;
+
+    const xOf = (i: number) => PAD.l + (i / (snaps.length - 1)) * IW;
+    const yOf = (v: number) => PAD.t + IH - ((v - minVal) / range) * IH;
+
+    const toPoints = (vals: number[]) =>
+      vals.map((v, i) => `${xOf(i)},${yOf(v)}`).join(' ');
+
+    const STEPS = 4;
+    const yAxis = Array.from({ length: STEPS + 1 }, (_, i) => {
+      const val = minVal + (range * i / STEPS);
+      return { y: yOf(val), val, label: fmtK(val) };
+    }).reverse();
+
+    return {
+      w: CHART_W, h: CHART_H, pad: PAD,
+      assetsPoints: toPoints(snaps.map(s => s.assets)),
+      liabPoints:   toPoints(snaps.map(s => s.liabilities)),
+      netPoints:    toPoints(snaps.map(s => s.assets - s.liabilities)),
+      dots: snaps.map((s, i) => ({
+        x: xOf(i),
+        assetsY: yOf(s.assets),
+        liabY:   yOf(s.liabilities),
+        netY:    yOf(s.assets - s.liabilities),
+      })),
+      xLabels: snaps.map((s, i) => ({
+        x: xOf(i),
+        label: s.date.slice(2),  // "YY-MM"
+      })),
+      yAxis,
     };
-    this.editId.set(l.id);
-    this.showAddForm.set(false);
-  }
-
-  async saveEdit(id: string) {
-    const updated = await this.api.patchLiability(id, {
-      name: this.editF.name.trim(), type: this.editF.type,
-      amount: this.editF.amount,
-      reminderEnabled: this.editF.reminderEnabled,
-      reminderDay: this.editF.reminderEnabled ? this.editF.reminderDay : null,
-      note: this.editF.note.trim(),
-      totalAmount: this.editF.totalAmount, periods: this.editF.periods,
-      paidPeriods: this.editF.paidPeriods, interestRate: this.editF.interestRate,
-      monthlyPayment: this.editF.monthlyPayment,
-    });
-    this.state.updateLiability(updated);
-    this.editId.set(null);
-  }
-
-  async deleteLiability(id: string) {
-    await this.api.deleteLiability(id);
-    this.state.removeLiability(id);
-  }
+  });
 }

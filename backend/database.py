@@ -244,6 +244,19 @@ DDL = [
         note        TEXT NOT NULL DEFAULT ''
     )
     """,
+    # migrate: add deduction account to liabilities
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    """
+    CREATE TABLE IF NOT EXISTS net_worth_snapshots (
+        id          TEXT PRIMARY KEY,
+        date        TEXT NOT NULL,
+        assets      DOUBLE PRECISION NOT NULL DEFAULT 0,
+        liabilities DOUBLE PRECISION NOT NULL DEFAULT 0,
+        note        TEXT NOT NULL DEFAULT '',
+        recorded_at BIGINT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_nws_date ON net_worth_snapshots(date)",
 ]
 
 
