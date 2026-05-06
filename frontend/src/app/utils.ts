@@ -9,12 +9,12 @@ export const fmtDate = (d: number) =>
   new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
 
 export const STATUS_LABELS: Record<string, string> = {
-  holding: '已持有', tracking: '追蹤中',
+  holding: '已持有', tracking: '追蹤中', locked: '鎖定',
 };
 export const STATUS_CLASS: Record<string, string> = {
-  holding: 'chip-holding', tracking: 'chip-tracking',
+  holding: 'chip-holding', tracking: 'chip-tracking', locked: 'chip-locked',
 };
-export const STATUS_ORDER = ['tracking', 'holding'];
+export const STATUS_ORDER = ['tracking', 'locked', 'holding'];
 
 export const SIG_DIR_LABELS: Record<string, string> = {
   enter: '進場', exit: '出場', watch: '觀察',
@@ -38,8 +38,40 @@ export function fmtMoney(n: number, market: string): string {
   return market === 'us' ? `${sign}$${abs.toFixed(2)}` : `${sign}${Math.round(abs).toLocaleString()}`;
 }
 
+/** Returns the T+2 settlement date (skip weekends) for a trade date string YYYY-MM-DD */
+export function settlementDate(dateStr: string): Date {
+  const d = new Date(dateStr + 'T00:00:00');
+  let added = 0;
+  while (added < 2) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) added++;
+  }
+  return d;
+}
+
+/** Sum of pending buy settlement amounts for an account (settlement date >= today, not yet settled) */
+export function pendingSettlements(accountId: string, allTrades: Record<string, Trade[]>): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let total = 0;
+  for (const trades of Object.values(allTrades)) {
+    for (const t of trades) {
+      if (t.type !== 'buy' || t.settled || t.accountId !== accountId) continue;
+      const sd = settlementDate(t.date);
+      if (sd >= today) total += t.shares * t.price + (t.fee || 0);
+    }
+  }
+  return total;
+}
+
 export function calcFIFO(trades: Trade[], market: string): FifoResult {
-  const sorted = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sorted = [...trades].sort((a, b) => {
+    const d = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (d !== 0) return d;
+    if (a.type === 'buy' && b.type !== 'buy') return -1;
+    if (a.type !== 'buy' && b.type === 'buy') return 1;
+    return 0;
+  });
   const buyQueue: { shares: number; unitCost: number }[] = [];
   let realizedPnL = 0;
   const results: FifoResult['results'] = [];

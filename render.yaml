@@ -4,6 +4,7 @@ services:
     runtime: python
     pythonVersion: "3.13"
     buildCommand: >
+      pip install backend/vendor/fubon_neo-2.2.8-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl &&
       pip install -r backend/requirements.txt &&
       npm install -g pnpm &&
       cd frontend && pnpm install && pnpm ng build

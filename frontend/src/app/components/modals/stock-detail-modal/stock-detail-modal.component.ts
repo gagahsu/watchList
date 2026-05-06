@@ -4,12 +4,13 @@ import { ApiService } from '../../../services/api.service';
 import { StockService } from '../../../services/stock.service';
 import { SignalsTabComponent } from './signals-tab/signals-tab.component';
 import { TradesTabComponent } from './trades-tab/trades-tab.component';
+import { ChipsTabComponent } from './chips-tab/chips-tab.component';
 import { Entry, TrackedStock } from '../../../models/types';
 import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
 
 @Component({
   selector: 'app-stock-detail-modal',
-  imports: [SignalsTabComponent, TradesTabComponent],
+  imports: [SignalsTabComponent, TradesTabComponent, ChipsTabComponent],
   template: `
 @let closeInfo = stock.closeMap()[code()];
 
@@ -53,6 +54,7 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
         @let tc = tradeCount(code());
         @if (tc > 0) { <span class="badge badge-gray">{{ tc }}</span> }
       </button>
+      <button class="detail-tab" [class.active]="tab()==='chips'" (click)="tab.set('chips')">籌碼</button>
     </div>
 
     <!-- Body -->
@@ -109,6 +111,9 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
         @case ('trades') {
           <app-trades-tab [entry]="entryFn" />
         }
+        @case ('chips') {
+          <app-chips-tab [code]="codeFn" />
+        }
       }
     </div>
 
@@ -133,7 +138,7 @@ import { STATUS_CLASS, STATUS_LABELS } from '../../../utils';
 export class StockDetailModalComponent {
   @ViewChild(TradesTabComponent) tradesTab?: TradesTabComponent;
 
-  tab        = signal<'info'|'signals'|'trades'>('info');
+  tab        = signal<'info'|'signals'|'trades'|'chips'>('info');
   code       = signal('');
   name       = signal('');
   status     = signal<Entry['status']>('tracking');
@@ -144,6 +149,7 @@ export class StockDetailModalComponent {
   statuses = ['tracking', 'holding'];
 
   entryFn: () => { code: string } = () => ({ code: this.code() });
+  codeFn:  () => string            = () => this.code();
 
   constructor(
     public state: AppStateService,

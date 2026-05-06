@@ -1,8 +1,9 @@
 from datetime import date
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from database import get_db
+from database import get_db, get_setting, set_setting
 import finmind as fm
+from routers.chips import sync_chips_for_codes
 
 router = APIRouter()
 
@@ -10,6 +11,46 @@ router = APIRouter()
 class SyncRequest(BaseModel):
     force: bool = False
 
+
+# ── stock list (names + industries) ──────────────────────────────────────────
+
+def _sync_stock_list() -> list[dict]:
+    """Fetch full stock list from FinMind and upsert names/industries into DB.
+
+    Returns list of dicts with keys stock_id, stock_name, industry_category.
+    Records today's date in settings so subsequent calls can skip the fetch.
+    """
+    stock_info = fm.fetch_stock_info()
+    if not stock_info:
+        raise fm.FinMindError("FinMind 回傳空白股票清單")
+
+    seen: dict[str, dict] = {}
+    for s in stock_info:
+        seen.setdefault(s["stock_id"], s)
+
+    with get_db() as conn:
+        conn.execute_values(
+            """
+            INSERT INTO stocks(code, name, industry)
+            VALUES %s
+            ON CONFLICT(code) DO UPDATE SET
+                name     = EXCLUDED.name,
+                industry = EXCLUDED.industry
+            """,
+            [(s["stock_id"], s["stock_name"], s.get("industry_category", ""))
+             for s in seen.values()],
+        )
+
+    set_setting("stock_list_synced_at", date.today().isoformat())
+    return list(seen.values())
+
+
+def _stock_count_in_db() -> int:
+    with get_db() as conn:
+        return conn.execute("SELECT COUNT(*) FROM stocks").fetchone()[0]
+
+
+# ── endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/stocks")
 def get_stocks():
@@ -28,111 +69,89 @@ def get_stocks():
 def sync_stocks(body: SyncRequest = SyncRequest()):
     force = body.force
     log: list[str] = []
+    today = date.today().isoformat()
 
-    # ── 1. Stock list (code + name) ───────────────────────────────────────────
-    try:
-        stock_info = fm.fetch_stock_info()
-        log.append(f"股票清單: {len(stock_info)} 支")
-    except fm.FinMindError as e:
-        raise HTTPException(502, f"FinMind 無法取得股票清單: {e}")
-
-    if not stock_info:
-        raise HTTPException(502, "FinMind 回傳空白股票清單")
-
-    # ── 2. Bulk price fetch ───────────────────────────────────────────────────
-    price_map: dict[str, float] = {}
-    date_map:  dict[str, str]   = {}   # code -> actual trading date from API
-
-    bulk_map, bulk_date, bulk_err = fm.find_latest_prices_bulk()
-
-    if bulk_map:
-        price_map = bulk_map
-        date_map  = {code: bulk_date for code in bulk_map}
-        log.append(f"批量價格: {len(price_map)} 筆 ({bulk_date})")
+    # ── 1. Stock list (code + name + industry) ────────────────────────────────
+    last_sync = get_setting("stock_list_synced_at")
+    if not force and last_sync == today:
+        log.append(f"股票清單: 使用今日快取（{_stock_count_in_db()} 支，排程已更新）")
     else:
-        if bulk_err:
-            log.append("批量價格不支援（FinMind 免費帳號需逐檔查詢）")
-        else:
-            log.append("批量價格: 無資料（非交易日或資料尚未更新）")
+        try:
+            fetched = _sync_stock_list()
+            log.append(f"股票清單: 從 FinMind 更新 {len(fetched)} 支")
+        except fm.FinMindError as e:
+            raise HTTPException(502, f"FinMind 無法取得股票清單: {e}")
 
-        # ── 3. Per-stock fallback: watchlist entries + previously-tracked stocks ─
+    # ── 2. Determine target codes (only what the user tracks) ─────────────────
+    with get_db() as conn:
+        entry_codes    = {r["code"] for r in conn.execute("SELECT DISTINCT code FROM entries").fetchall() if r["code"]}
+        direct_tracked = {r["code"] for r in conn.execute("SELECT code FROM tracked_stocks").fetchall()}
+
+    all_codes = entry_codes | direct_tracked
+
+    skipped: set[str] = set()
+    if not force:
         with get_db() as conn:
-            entry_codes = {r["code"] for r in
-                           conn.execute("SELECT DISTINCT code FROM entries").fetchall()
-                           if r["code"]}
-            direct_tracked = {r["code"] for r in
-                              conn.execute("SELECT code FROM tracked_stocks").fetchall()}
-            prev_prices = {r["code"] for r in
-                           conn.execute("SELECT code FROM stocks WHERE close IS NOT NULL").fetchall()}
+            up_to_date = {r["code"] for r in
+                          conn.execute("SELECT code FROM stocks WHERE updated_at=%s", (today,)).fetchall()}
+        skipped   = all_codes & up_to_date
+        to_fetch  = list(all_codes - up_to_date)
+        if skipped:
+            log.append(f"跳過 {len(skipped)} 支（今日已更新）")
+    else:
+        to_fetch = list(all_codes)
+        log.append("強制模式：重新抓取所有追蹤個股")
 
-        all_codes = entry_codes | direct_tracked | prev_prices
+    # ── 3. Price fetch ────────────────────────────────────────────────────────
+    price_map: dict[str, float] = {}
+    date_map:  dict[str, str]   = {}
 
-        # Skip codes already updated today unless force=True
-        today   = date.today().isoformat()
-        skipped: set[str] = set()
-        if not force:
-            with get_db() as conn:
-                up_to_date = {r["code"] for r in
-                              conn.execute(
-                                  "SELECT code FROM stocks WHERE updated_at=%s", (today,)
-                              ).fetchall()}
-            skipped = all_codes & up_to_date
-            codes   = list(all_codes - up_to_date)
-            if skipped:
-                log.append(f"跳過 {len(skipped)} 支（今日已更新）：{'、'.join(sorted(skipped)[:5])}"
-                           + ("…" if len(skipped) > 5 else ""))
+    if to_fetch:
+        bulk_unsupported = get_setting("bulk_price_unsupported") == "1"
+
+        if not bulk_unsupported:
+            bulk_map, bulk_date, bulk_err = fm.find_latest_prices_bulk()
+            if bulk_map:
+                price_map = {c: bulk_map[c] for c in to_fetch if c in bulk_map}
+                date_map  = {c: bulk_date for c in price_map}
+                missing   = [c for c in to_fetch if c not in bulk_map]
+                log.append(f"批量價格: {len(price_map)} 筆 ({bulk_date})" +
+                           (f"，{len(missing)} 支無資料" if missing else ""))
+            else:
+                if bulk_err and any(c in bulk_err for c in ("400", "401", "403")):
+                    set_setting("bulk_price_unsupported", "1")
+                    log.append("批量價格不支援（免費帳號限制，已記錄，往後自動跳過）")
+                else:
+                    log.append("批量價格: 無資料（非交易日或資料尚未更新）")
         else:
-            codes = list(all_codes)
-            log.append("強制模式：重新抓取所有個股")
+            log.append("批量價格: 跳過（免費帳號不支援）")
 
-        if codes:
-            log.append(f"逐檔查詢 {len(codes)} 支個股…")
-            price_map, date_map, errors = fm.fetch_prices_for_codes(codes)
+        if not price_map:
+            log.append(f"逐檔查詢 {len(to_fetch)} 支個股…")
+            price_map, date_map, errors = fm.fetch_prices_for_codes(to_fetch)
             log.append(f"逐檔結果: {len(price_map)} 筆成功")
             if errors:
                 log.append("部分失敗: " + "; ".join(errors[:5]))
-        elif not all_codes:
-            log.append("尚無個股資料，請先將股票加入 Watchlist 後再同步")
-        else:
-            log.append("所有個股均已是今日最新，無需更新")
+    elif not all_codes:
+        log.append("尚無追蹤個股，請先將股票加入 Watchlist 後再同步")
+    else:
+        log.append("所有追蹤個股均已是今日最新，無需更新")
 
-    # ── 4. Upsert: preserve existing price when no new data ───────────────────
-    # Deduplicate by stock_id — FinMind occasionally returns duplicate rows
-    seen: dict[str, dict] = {}
-    for s in stock_info:
-        seen.setdefault(s["stock_id"], s)
-
-    with get_db() as conn:
-        rows = [
-            (
-                s["stock_id"],
-                s["stock_name"],
-                s.get("industry_category", ""),
-                price_map.get(s["stock_id"]),
-                date_map.get(s["stock_id"]),
+    # ── 4. Upsert prices (only for stocks with new data) ─────────────────────
+    if price_map:
+        with get_db() as conn:
+            conn.execute_values(
+                """
+                INSERT INTO stocks(code, name, industry, close, updated_at)
+                VALUES %s
+                ON CONFLICT(code) DO UPDATE SET
+                    close      = EXCLUDED.close,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                [(code, '', '', price, date_map[code]) for code, price in price_map.items()],
             )
-            for s in seen.values()
-        ]
-        conn.execute_values(
-            """
-            INSERT INTO stocks(code, name, industry, close, updated_at)
-            VALUES %s
-            ON CONFLICT(code) DO UPDATE SET
-                name       = EXCLUDED.name,
-                industry   = EXCLUDED.industry,
-                close      = COALESCE(EXCLUDED.close,      stocks.close),
-                updated_at = COALESCE(EXCLUDED.updated_at, stocks.updated_at)
-            """,
-            rows,
-        )
 
     prices_synced = len(price_map)
-
-    with get_db() as conn:
-        total_with_price = conn.execute(
-            "SELECT COUNT(*) FROM stocks WHERE close IS NOT NULL"
-        ).fetchone()[0]
-
     skipped_count = len(skipped) if not force else 0
 
     if prices_synced:
@@ -143,15 +162,22 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
     elif skipped_count:
         msg = f"所有 {skipped_count} 支個股均已是今日最新，未重新抓取"
     else:
-        log.append(f"資料庫保留既有收盤價共 {total_with_price} 筆")
-        msg = f"同步完成：{len(stock_info)} 支股票，無新價格（保留舊資料 {total_with_price} 筆）"
+        msg = "同步完成：無新價格資料"
+
+    # ── 5. Chip data sync (tracked_stocks only) ──────────────────────────────
+    tracked_codes = list(direct_tracked)
+    if tracked_codes:
+        log.append(f"籌碼資料：同步 {len(tracked_codes)} 支追蹤個股…")
+        chips_synced = sync_chips_for_codes(tracked_codes, delay=0.5)
+        log.append(f"籌碼資料：更新 {chips_synced} 支，其餘已是今日最新")
+    else:
+        chips_synced = 0
 
     return {
-        "stocks_synced":    len(stock_info),
-        "prices_synced":    prices_synced,
-        "skipped":          skipped_count,
-        "total_with_price": total_with_price,
-        "all_up_to_date":   skipped_count > 0 and prices_synced == 0,
+        "prices_synced":  prices_synced,
+        "chips_synced":   chips_synced,
+        "skipped":        skipped_count,
+        "all_up_to_date": skipped_count > 0 and prices_synced == 0,
         "message": msg,
         "log": log,
     }

@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  Broker, EditTarget, Entry, MainView, Market, Note,
+  Account, AccountTransaction, Broker, CreditCard, DividendRecord, EditTarget, Entry, FundHolding, FundSchedule, Liability, MainView, Market, NetWorthSnapshot, Note,
   Row, Signal, Trade, TrackedStock,
 } from '../models/types';
 
@@ -15,10 +15,14 @@ export class AppStateService {
   sources      = signal<string[]>([]);
   tradeMarkets = signal<Record<string, Market>>({});
   tracked      = signal<TrackedStock[]>([]);
+  accounts     = signal<Account[]>([]);
+  liabilities  = signal<Liability[]>([]);
+  transactions = signal<AccountTransaction[]>([]);
+  dividends    = signal<DividendRecord[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
-  view         = signal<MainView>('notes-list');
+  view         = signal<MainView>('balance-sheet');
   sidebarOpen  = signal(false);
   editTarget   = signal<EditTarget | null>(null);
   addToRowId   = signal<string | null>(null);
@@ -33,12 +37,22 @@ export class AppStateService {
   portfolioLastUpdated    = signal<Date | null>(null);
   brokers                 = signal<Broker[]>([]);
   brokersOpen             = signal(false);
-  feeDiscount  = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
+  creditCardsOpen         = signal(false);
+  accountsOpen            = signal(false);
+  balanceSheetOpen        = signal(false);
+  feeDiscount    = signal<number>(parseFloat(localStorage.getItem('fee_discount') ?? '0.6'));
+  usdTwdRate     = signal<number>(31.5);
+  monthlySalary  = signal<number>(parseFloat(localStorage.getItem('monthly_salary') ?? '0'));
 
   setFeeDiscount(v: number) {
     const clamped = Math.max(0.1, Math.min(1, v));
     this.feeDiscount.set(clamped);
     localStorage.setItem('fee_discount', String(clamped));
+  }
+
+  setMonthlySalary(v: number) {
+    this.monthlySalary.set(v);
+    localStorage.setItem('monthly_salary', String(v));
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────
@@ -173,6 +187,69 @@ export class AppStateService {
   // ── Source mutations ──────────────────────────────────────────────────────
   addSource(name: string) {
     this.sources.update(ss => (ss.includes(name) ? ss : [...ss, name]));
+  }
+
+  // ── Account mutations ─────────────────────────────────────────────────────
+  addAccount(a: Account) {
+    this.accounts.update(as => [...as, a]);
+  }
+
+  updateAccount(updated: Account) {
+    this.accounts.update(as => as.map(a => a.id === updated.id ? updated : a));
+  }
+
+  removeAccount(id: string) {
+    this.accounts.update(as => as.filter(a => a.id !== id));
+  }
+
+  // ── Liability mutations ───────────────────────────────────────────────────
+  addLiability(l: Liability) {
+    this.liabilities.update(ls => [...ls, l]);
+  }
+
+  updateLiability(updated: Liability) {
+    this.liabilities.update(ls => ls.map(l => l.id === updated.id ? updated : l));
+  }
+
+  removeLiability(id: string) {
+    this.liabilities.update(ls => ls.filter(l => l.id !== id));
+  }
+
+  addTransaction(t: AccountTransaction) {
+    this.transactions.update(ts => [t, ...ts]);
+  }
+  removeTransaction(id: string) {
+    this.transactions.update(ts => ts.filter(t => t.id !== id));
+  }
+
+  addDividend(d: DividendRecord) { this.dividends.update(ds => [d, ...ds]); }
+  removeDividend(id: string) { this.dividends.update(ds => ds.filter(d => d.id !== id)); }
+
+  // ── Credit card mutations ─────────────────────────────────────────────────
+  creditCards = signal<CreditCard[]>([]);
+  addCreditCard(c: CreditCard) { this.creditCards.update(cs => [...cs, c]); }
+  updateCreditCard(updated: CreditCard) { this.creditCards.update(cs => cs.map(c => c.id === updated.id ? updated : c)); }
+  removeCreditCard(id: string) { this.creditCards.update(cs => cs.filter(c => c.id !== id)); }
+
+  // ── Net Worth Snapshot mutations ──────────────────────────────────────────
+  netWorthSnapshots = signal<NetWorthSnapshot[]>([]);
+  removeNetWorthSnapshot(id: string) { this.netWorthSnapshots.update(ss => ss.filter(s => s.id !== id)); }
+
+  // ── Fund mutations ────────────────────────────────────────────────────────
+  funds = signal<FundHolding[]>([]);
+  addFund(f: FundHolding) { this.funds.update(fs => [...fs, f]); }
+  updateFund(updated: FundHolding) { this.funds.update(fs => fs.map(f => f.id === updated.id ? updated : f)); }
+  removeFund(id: string) { this.funds.update(fs => fs.filter(f => f.id !== id)); }
+
+  addFundSchedule(fundId: string, s: FundSchedule) {
+    this.funds.update(fs => fs.map(f =>
+      f.id === fundId ? { ...f, schedules: [...f.schedules, s].sort((a, b) => a.dayOfMonth - b.dayOfMonth) } : f
+    ));
+  }
+  removeFundSchedule(fundId: string, scheduleId: string) {
+    this.funds.update(fs => fs.map(f =>
+      f.id === fundId ? { ...f, schedules: f.schedules.filter(s => s.id !== scheduleId) } : f
+    ));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

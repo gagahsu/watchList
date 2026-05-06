@@ -13,6 +13,16 @@ import { AddCompanyModalComponent } from './components/modals/add-company-modal/
 import { StockDetailModalComponent } from './components/modals/stock-detail-modal/stock-detail-modal.component';
 import { ImportModalComponent } from './components/modals/import-modal/import-modal.component';
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
+import { CreditCardSettingsModalComponent } from './components/modals/credit-card-settings-modal/credit-card-settings-modal.component';
+import { AccountsViewComponent } from './components/accounts-view/accounts-view.component';
+import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
+import { WatchViewComponent } from './components/watch-view/watch-view.component';
+import { AccountTransactionsViewComponent } from './components/account-transactions-view/account-transactions-view.component';
+import { DividendViewComponent } from './components/dividend-view/dividend-view.component';
+import { FundHoldingsViewComponent } from './components/fund-holdings-view/fund-holdings-view.component';
+import { CashFlowViewComponent } from './components/cash-flow-view/cash-flow-view.component';
+import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
+import { LiabilitiesViewComponent } from './components/liabilities-view/liabilities-view.component';
 
 @Component({
   selector: 'app-root',
@@ -20,7 +30,10 @@ import { BrokerSettingsModalComponent } from './components/modals/broker-setting
     SidebarComponent, NotesViewComponent, NotesListViewComponent,
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
-    BrokerSettingsModalComponent,
+    BrokerSettingsModalComponent, CreditCardSettingsModalComponent, AccountsViewComponent,
+    BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
+    DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent, CalendarViewComponent,
+    LiabilitiesViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -33,7 +46,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -42,6 +55,14 @@ export class App implements OnInit {
       this.stock.apply(stocks);
       this.state.tracked.set(trackedStocks);
       this.state.brokers.set(brokers);
+      this.state.accounts.set(accounts);
+      this.state.liabilities.set(liabilities);
+      this.state.transactions.set(transactions);
+      this.state.dividends.set(dividends);
+      this.state.usdTwdRate.set(fxRate.rate);
+      this.state.funds.set(funds);
+      this.state.creditCards.set(creditCards);
+      this.state.netWorthSnapshots.set(netWorthSnapshots);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -70,11 +91,20 @@ export class App implements OnInit {
   pageTitle() {
     const titles: Record<string, string> = {
       'notes-list': '筆記列表',
-      'notes': 'WatchList',
+      'notes': '理債富',
       'index': '個股索引',
       'signals': '訊號總覽',
       'portfolio': '投資組合',
+      'balance-sheet': '資產負債',
+      'watch':    '鎖定觀察',
+      'accounts': '帳戶管理',
+      'transactions': '資金流水帳',
+      'dividends': '股息追蹤',
+      'funds': '基金持倉',
+      'cash-flow': '每月現金流',
+      'calendar':  '財務行事曆',
+      'liabilities': '負債管理',
     };
-    return titles[this.state.view()] ?? 'WatchList';
+    return titles[this.state.view()] ?? '理債富';
   }
 }

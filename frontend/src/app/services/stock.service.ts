@@ -21,6 +21,12 @@ export class StockService {
 
   apply(stks: StockInfo[]) { this._list.set(stks); }
 
+  applyPrices(prices: Record<string, number | null>) {
+    this._list.update(list =>
+      list.map(s => prices[s.code] != null ? { ...s, close: prices[s.code] } : s)
+    );
+  }
+
   readonly industryMap = computed(() => {
     const m: Record<string, string> = {};
     this._list().forEach(s => (m[s.code] = s.industry));

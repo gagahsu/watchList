@@ -12,6 +12,16 @@ DEFAULT_SOURCES = ["口袋證券", "股癌", "方格子", "XQ全球贏家", "理
 
 DDL = [
     """
+    CREATE TABLE IF NOT EXISTS accounts (
+        id            TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        balance       DOUBLE PRECISION NOT NULL DEFAULT 0,
+        interest_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+        note          TEXT NOT NULL DEFAULT '',
+        sort_order    INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS notes (
         id          TEXT PRIMARY KEY,
         title       TEXT NOT NULL DEFAULT '',
@@ -34,11 +44,19 @@ DDL = [
         code     TEXT NOT NULL,
         name     TEXT NOT NULL DEFAULT '',
         status   TEXT NOT NULL DEFAULT 'tracking'
-                 CHECK(status IN ('holding','tracking')),
+                 CHECK(status IN ('holding','tracking','locked')),
         thesis   TEXT NOT NULL DEFAULT '',
         memo     TEXT NOT NULL DEFAULT '',
         position INTEGER NOT NULL DEFAULT 0
     )
+    """,
+    # migration: widen entries status CHECK to include 'locked'
+    """
+    DO $$ BEGIN
+      ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_status_check;
+      ALTER TABLE entries ADD CONSTRAINT entries_status_check
+        CHECK(status IN ('holding','tracking','locked'));
+    EXCEPTION WHEN OTHERS THEN NULL; END $$
     """,
     """
     CREATE TABLE IF NOT EXISTS signals (
@@ -57,18 +75,23 @@ DDL = [
     "CREATE INDEX IF NOT EXISTS idx_signals_code ON signals(code)",
     """
     CREATE TABLE IF NOT EXISTS trades (
-        id      TEXT PRIMARY KEY,
-        code    TEXT NOT NULL,
-        date    TEXT NOT NULL,
-        type    TEXT NOT NULL CHECK(type IN ('buy','sell')),
-        shares  DOUBLE PRECISION NOT NULL,
-        price   DOUBLE PRECISION NOT NULL,
-        fee     DOUBLE PRECISION NOT NULL DEFAULT 0,
-        sig_ref TEXT NOT NULL DEFAULT '',
-        note    TEXT NOT NULL DEFAULT ''
+        id         TEXT PRIMARY KEY,
+        code       TEXT NOT NULL,
+        date       TEXT NOT NULL,
+        type       TEXT NOT NULL CHECK(type IN ('buy','sell')),
+        shares     DOUBLE PRECISION NOT NULL,
+        price      DOUBLE PRECISION NOT NULL,
+        fee        DOUBLE PRECISION NOT NULL DEFAULT 0,
+        sig_ref    TEXT NOT NULL DEFAULT '',
+        note       TEXT NOT NULL DEFAULT '',
+        account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL
     )
     """,
+    "ALTER TABLE trades ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_trades_code ON trades(code)",
+    # settled: TRUE for all existing trades (already settled); new trades default to FALSE
+    "ALTER TABLE trades ADD COLUMN IF NOT EXISTS settled BOOLEAN NOT NULL DEFAULT TRUE",
     """
     CREATE TABLE IF NOT EXISTS sources (
         id   SERIAL PRIMARY KEY,
@@ -104,13 +127,146 @@ DDL = [
     CREATE TABLE IF NOT EXISTS tracked_stocks (
         code     TEXT PRIMARY KEY,
         status   TEXT NOT NULL DEFAULT 'tracking'
-                 CHECK(status IN ('holding','tracking')),
+                 CHECK(status IN ('holding','tracking','locked')),
         thesis      TEXT NOT NULL DEFAULT '',
         memo        TEXT NOT NULL DEFAULT '',
         stop_loss   TEXT NOT NULL DEFAULT '',
         take_profit TEXT NOT NULL DEFAULT '',
         added_at    BIGINT NOT NULL
     )
+    """,
+    # migration: widen the status CHECK to include 'locked'
+    """
+    DO $$ BEGIN
+      ALTER TABLE tracked_stocks DROP CONSTRAINT IF EXISTS tracked_stocks_status_check;
+      ALTER TABLE tracked_stocks ADD CONSTRAINT tracked_stocks_status_check
+        CHECK(status IN ('holding','tracking','locked'));
+    EXCEPTION WHEN OTHERS THEN NULL; END $$
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS liabilities (
+        id               TEXT PRIMARY KEY,
+        name             TEXT NOT NULL,
+        type             TEXT NOT NULL DEFAULT '其他',
+        amount           DOUBLE PRECISION NOT NULL DEFAULT 0,
+        reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        reminder_day     INTEGER,
+        note             TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    # migrate: replace reminder_date (TEXT) with reminder_day (INTEGER)
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS reminder_day INTEGER",
+    "ALTER TABLE liabilities DROP COLUMN IF EXISTS reminder_date",
+    # replace chip_cache blob with structured tables
+    "DROP TABLE IF EXISTS chip_cache",
+    """
+    CREATE TABLE IF NOT EXISTS institutional_daily (
+        code             TEXT    NOT NULL,
+        date             TEXT    NOT NULL,
+        foreign_net      INTEGER NOT NULL DEFAULT 0,
+        trust_net        INTEGER NOT NULL DEFAULT 0,
+        dealer_net       INTEGER NOT NULL DEFAULT 0,
+        dealer_hedge_net INTEGER NOT NULL DEFAULT 0,
+        total_net        INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (code, date)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS margin_daily (
+        code           TEXT             NOT NULL,
+        date           TEXT             NOT NULL,
+        margin_balance INTEGER          NOT NULL DEFAULT 0,
+        margin_usage   DOUBLE PRECISION NOT NULL DEFAULT 0,
+        short_balance  INTEGER          NOT NULL DEFAULT 0,
+        short_ratio    DOUBLE PRECISION NOT NULL DEFAULT 0,
+        PRIMARY KEY (code, date)
+    )
+    """,
+    # migrate: add loan detail columns
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS total_amount DOUBLE PRECISION",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS periods INTEGER",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS paid_periods INTEGER",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS interest_rate DOUBLE PRECISION",
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS monthly_payment DOUBLE PRECISION",
+    """
+    CREATE TABLE IF NOT EXISTS settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS account_transactions (
+        id            TEXT PRIMARY KEY,
+        date          TEXT NOT NULL,
+        type          TEXT NOT NULL CHECK(type IN ('deposit','withdrawal','transfer')),
+        amount        DOUBLE PRECISION NOT NULL,
+        account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        to_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+        note          TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_acctxn_account ON account_transactions(account_id)",
+    """
+    CREATE TABLE IF NOT EXISTS dividend_records (
+        id        TEXT PRIMARY KEY,
+        code      TEXT NOT NULL,
+        ex_date   TEXT NOT NULL,
+        cash_div  DOUBLE PRECISION NOT NULL DEFAULT 0,
+        stock_div DOUBLE PRECISION NOT NULL DEFAULT 0,
+        pay_date  TEXT,
+        note      TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_div_code ON dividend_records(code)",
+    """
+    CREATE TABLE IF NOT EXISTS funds (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        cost         DOUBLE PRECISION NOT NULL DEFAULT 0,
+        market_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+        note         TEXT NOT NULL DEFAULT '',
+        sort_order   INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS fund_schedules (
+        id           TEXT PRIMARY KEY,
+        fund_id      TEXT NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        day_of_month INTEGER NOT NULL,
+        amount       DOUBLE PRECISION NOT NULL,
+        note         TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS credit_cards (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        bank        TEXT NOT NULL DEFAULT '',
+        payment_day INTEGER NOT NULL,
+        note        TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    # migrate: add deduction account to liabilities
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    # migrate: track when auto-deduction was last run (YYYY-MM prevents same-month double deduction)
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS last_auto_date TEXT",
+    """
+    CREATE TABLE IF NOT EXISTS net_worth_snapshots (
+        id          TEXT PRIMARY KEY,
+        date        TEXT NOT NULL UNIQUE,
+        assets      DOUBLE PRECISION NOT NULL DEFAULT 0,
+        liabilities DOUBLE PRECISION NOT NULL DEFAULT 0,
+        note        TEXT NOT NULL DEFAULT '',
+        recorded_at BIGINT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_nws_date ON net_worth_snapshots(date)",
+    # migrate: add unique constraint on date if not already present
+    """
+    DO $$ BEGIN
+      ALTER TABLE net_worth_snapshots ADD CONSTRAINT net_worth_snapshots_date_key UNIQUE (date);
+    EXCEPTION WHEN duplicate_table THEN NULL;
+             WHEN others THEN NULL; END $$
     """,
 ]
 
@@ -152,6 +308,20 @@ def get_db():
         raise
     finally:
         conn.close()
+
+
+def get_setting(key: str) -> str | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key=%s", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str):
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
+            (key, value),
+        )
 
 
 def init_db():

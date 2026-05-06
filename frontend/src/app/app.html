@@ -50,7 +50,16 @@
         @case ('notes')      { <app-notes-view /> }
         @case ('index')      { <app-stock-index /> }
         @case ('signals')    { <app-signals-view /> }
-        @case ('portfolio')  { <app-portfolio-view /> }
+        @case ('portfolio')      { <app-portfolio-view /> }
+        @case ('balance-sheet') { <app-balance-sheet-view /> }
+        @case ('watch')         { <app-watch-view /> }
+        @case ('accounts')      { <app-accounts-view /> }
+        @case ('transactions')  { <app-account-transactions-view /> }
+        @case ('dividends')     { <app-dividend-view /> }
+        @case ('funds')         { <app-fund-holdings-view /> }
+        @case ('cash-flow')     { <app-cash-flow-view /> }
+        @case ('calendar')      { <app-calendar-view /> }
+        @case ('liabilities')   { <app-liabilities-view /> }
       }
     </div>
   </div>
@@ -59,5 +68,6 @@
   @if (state.addToRowId() || state.addingDirect()) { <app-add-company-modal /> }
   @if (state.editTarget())  { <app-stock-detail-modal /> }
   @if (state.importing())   { <app-import-modal /> }
-  @if (state.brokersOpen()) { <app-broker-settings-modal /> }
+  @if (state.brokersOpen())      { <app-broker-settings-modal /> }
+  @if (state.creditCardsOpen()) { <app-credit-card-settings-modal /> }
 }

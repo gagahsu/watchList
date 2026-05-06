@@ -111,6 +111,8 @@ class TradeIn(BaseModel):
     fee: float = 0
     sigRef: str = ""
     note: str = ""
+    accountId: Optional[str] = None
+    settled: bool = False
 
 
 class TradeOut(BaseModel):
@@ -122,6 +124,36 @@ class TradeOut(BaseModel):
     fee: float
     sigRef: str
     note: str
+    accountId: Optional[str]
+    settled: bool
+
+
+# ── Accounts ─────────────────────────────────────────
+class AccountIn(BaseModel):
+    id: str
+    name: str
+    balance: float = 0
+    interestRate: float = 0
+    note: str = ""
+
+
+class AccountPatch(BaseModel):
+    name: Optional[str] = None
+    balance: Optional[float] = None
+    interestRate: Optional[float] = None
+    note: Optional[str] = None
+
+
+class AccountOut(BaseModel):
+    id: str
+    name: str
+    balance: float
+    interestRate: float
+    note: str
+
+
+class ReorderIn(BaseModel):
+    ids: list[str]
 
 
 # ── Tracked Stocks ───────────────────────────────────
@@ -136,7 +168,7 @@ class TrackedIn(BaseModel):
 
 
 class TrackedPatch(BaseModel):
-    status: Optional[str] = None
+    status: Optional[str] = None  # 'tracking' | 'locked' | 'holding'
     thesis: Optional[str] = None
     memo: Optional[str] = None
     stopLoss: Optional[str] = None
@@ -178,3 +210,167 @@ class SourceIn(BaseModel):
 # ── Trade Markets ────────────────────────────────────
 class MarketIn(BaseModel):
     market: str
+
+
+# ── Liabilities ──────────────────────────────────────
+class LiabilityIn(BaseModel):
+    id: str
+    name: str
+    type: str = "其他"
+    amount: float = 0
+    reminderEnabled: bool = False
+    reminderDay: Optional[int] = None  # 1-31, None when reminder disabled
+    note: str = ""
+    totalAmount: Optional[float] = None
+    periods: Optional[int] = None
+    paidPeriods: Optional[int] = None
+    interestRate: Optional[float] = None
+    monthlyPayment: Optional[float] = None
+    accountId: Optional[str] = None
+
+
+class LiabilityPatch(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    amount: Optional[float] = None
+    reminderEnabled: Optional[bool] = None
+    reminderDay: Optional[int] = None
+    note: Optional[str] = None
+    totalAmount: Optional[float] = None
+    periods: Optional[int] = None
+    paidPeriods: Optional[int] = None
+    interestRate: Optional[float] = None
+    monthlyPayment: Optional[float] = None
+    accountId: Optional[str] = None
+
+
+class LiabilityOut(BaseModel):
+    id: str
+    name: str
+    type: str
+    amount: float
+    reminderEnabled: bool
+    reminderDay: Optional[int]
+    note: str
+    totalAmount: Optional[float]
+    periods: Optional[int]
+    paidPeriods: Optional[int]
+    interestRate: Optional[float]
+    monthlyPayment: Optional[float]
+    accountId: Optional[str]
+
+
+# ── Net Worth Snapshots ────────────────────────────────
+class NetWorthSnapshotIn(BaseModel):
+    id: str
+    date: str
+    assets: float
+    liabilities: float
+    note: str = ""
+    recordedAt: int
+
+
+class NetWorthSnapshotOut(BaseModel):
+    id: str
+    date: str
+    assets: float
+    liabilities: float
+    note: str
+    recordedAt: int
+
+
+# ── Account Transactions ──────────────────────────────
+class AccountTransactionIn(BaseModel):
+    id: str
+    date: str
+    type: str
+    amount: float
+    accountId: str
+    toAccountId: Optional[str] = None
+    note: str = ""
+
+
+class AccountTransactionOut(BaseModel):
+    id: str
+    date: str
+    type: str
+    amount: float
+    accountId: str
+    toAccountId: Optional[str]
+    note: str
+
+
+# ── Dividend Records ──────────────────────────────────
+class DividendRecordIn(BaseModel):
+    id: str
+    code: str
+    exDate: str
+    cashDiv: float = 0
+    stockDiv: float = 0
+    payDate: Optional[str] = None
+    note: str = ""
+
+
+class DividendRecordOut(BaseModel):
+    id: str
+    code: str
+    exDate: str
+    cashDiv: float
+    stockDiv: float
+    payDate: Optional[str]
+    note: str
+
+
+# ── Funds ─────────────────────────────────────────────
+class FundScheduleIn(BaseModel):
+    id: str
+    dayOfMonth: int
+    amount: float
+    note: str = ""
+
+
+class FundIn(BaseModel):
+    id: str
+    name: str
+    cost: float = 0
+    marketValue: float = 0
+    note: str = ""
+
+
+class FundPatch(BaseModel):
+    name: Optional[str] = None
+    cost: Optional[float] = None
+    marketValue: Optional[float] = None
+    note: Optional[str] = None
+
+
+class FundOut(BaseModel):
+    id: str
+    name: str
+    cost: float
+    marketValue: float
+    note: str
+
+
+# ── Credit Cards ──────────────────────────────────────
+class CreditCardIn(BaseModel):
+    id: str
+    name: str
+    bank: str = ""
+    paymentDay: int
+    note: str = ""
+
+
+class CreditCardPatch(BaseModel):
+    name: Optional[str] = None
+    bank: Optional[str] = None
+    paymentDay: Optional[int] = None
+    note: Optional[str] = None
+
+
+class CreditCardOut(BaseModel):
+    id: str
+    name: str
+    bank: str
+    paymentDay: int
+    note: str

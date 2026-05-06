@@ -1,9 +1,10 @@
-import { Component, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { uid } from '../../utils';
 import { Note } from '../../models/types';
+import { pendingSettlements, settlementDate } from '../../utils';
 
 @Component({
   selector: 'app-sidebar',
@@ -13,13 +14,97 @@ import { Note } from '../../models/types';
     <div class="sidebar-brand">
       <div class="sidebar-brand-icon">📋</div>
       <div>
-        <div>WatchList</div>
-        <div class="sidebar-brand-sub">投資研究筆記</div>
+        <div>理債富</div>
+        <div class="sidebar-brand-sub">財務暨投資管理平台</div>
       </div>
     </div>
+    <button class="sidebar-close-btn" (click)="state.sidebarOpen.set(false)" aria-label="關閉側邊欄">×</button>
   </div>
 
   <div class="sidebar-nav">
+    <!-- 財務 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">財務</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('balance-sheet')" (click)="navigate('balance-sheet')">
+        <span class="nav-icon">⚖️</span> 資產負債
+        @if (liabilityReminderCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">🔔 {{ liabilityReminderCount() }}</span>
+        }
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('liabilities')" (click)="navigate('liabilities')">
+        <span class="nav-icon">📋</span> 負債管理
+        @if (state.liabilities().length > 0) {
+          <span class="sidebar-nav-badge" [style.background]="liabilityReminderCount() > 0 ? 'rgba(192,57,43,.8)' : ''">{{ state.liabilities().length }}</span>
+        }
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('cash-flow')" (click)="navigate('cash-flow')">
+        <span class="nav-icon">📊</span> 每月現金流
+        @if (creditCardReminderCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">💳 {{ creditCardReminderCount() }}</span>
+        }
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('calendar')" (click)="navigate('calendar')">
+        <span class="nav-icon">📅</span> 財務行事曆
+        @if (calendarEventCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(212,160,23,.8)">{{ calendarEventCount() }}</span>
+        }
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('transactions')" (click)="navigate('transactions')">
+        <span class="nav-icon">📒</span> 資金流水帳
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('accounts')" (click)="navigate('accounts')">
+        <span class="nav-icon">💰</span> 帳戶管理
+        @if (accountWarningCount() > 0) {
+          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">⚠️ {{ accountWarningCount() }}</span>
+        } @else if (state.accounts().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.accounts().length }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 持倉 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">持倉</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
+        <span class="nav-icon">💼</span> 投資組合
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('dividends')" (click)="navigate('dividends')">
+        <span class="nav-icon">💵</span> 股息追蹤
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('funds')" (click)="navigate('funds')">
+        <span class="nav-icon">🏦</span> 基金持倉
+        @if (state.funds().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.funds().length }}</span>
+        }
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('watch')" (click)="navigate('watch')">
+        <span class="nav-icon">🔒</span> 鎖定觀察
+        @if (watchCount() > 0) {
+          <span class="sidebar-nav-badge">{{ watchCount() }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- 研究 -->
+    <div class="sidebar-section">
+      <span class="sidebar-section-label">研究</span>
+      <button class="sidebar-nav-item" [class.active]="isActive('index')" (click)="navigate('index')">
+        <span class="nav-icon">🔍</span> 個股索引
+      </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('signals')" (click)="navigate('signals')">
+        <span class="nav-icon">📡</span> 訊號總覽
+        @if (state.activeSignalCount() > 0) {
+          <span class="sidebar-nav-badge">{{ state.activeSignalCount() }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
     <!-- 筆記 -->
     <div class="sidebar-section">
       <span class="sidebar-section-label">筆記</span>
@@ -40,25 +125,6 @@ import { Note } from '../../models/types';
 
     <div class="sidebar-divider"></div>
 
-    <!-- 個股 -->
-    <div class="sidebar-section">
-      <span class="sidebar-section-label">個股</span>
-      <button class="sidebar-nav-item" [class.active]="isActive('index')" (click)="navigate('index')">
-        <span class="nav-icon">🔍</span> 個股索引
-      </button>
-      <button class="sidebar-nav-item" [class.active]="isActive('signals')" (click)="navigate('signals')">
-        <span class="nav-icon">📡</span> 訊號總覽
-        @if (state.activeSignalCount() > 0) {
-          <span class="sidebar-nav-badge">{{ state.activeSignalCount() }}</span>
-        }
-      </button>
-      <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
-        <span class="nav-icon">💼</span> 投資組合
-      </button>
-    </div>
-
-    <div class="sidebar-divider"></div>
-
     <!-- 設定 -->
     <div class="sidebar-section">
       <span class="sidebar-section-label">設定</span>
@@ -72,6 +138,12 @@ import { Note } from '../../models/types';
           <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" (click)="openCreditCards()">
+        <span class="nav-icon">💳</span> 信用卡扣款日
+        @if (state.creditCards().length > 0) {
+          <span class="sidebar-nav-badge">{{ state.creditCards().length }}</span>
+        }
+      </button>
     </div>
   </div>
 
@@ -82,6 +154,8 @@ import { Note } from '../../models/types';
   `,
 })
 export class SidebarComponent {
+  private _syncMsgTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     public state: AppStateService,
     private api: ApiService,
@@ -92,12 +166,81 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }
 
-  openBrokers() { this.state.brokersOpen.set(true); this.state.sidebarOpen.set(false); }
+  openBrokers()      { this.state.brokersOpen.set(true);      this.state.sidebarOpen.set(false); }
+  openCreditCards()  { this.state.creditCardsOpen.set(true);  this.state.sidebarOpen.set(false); }
+
+  accountWarningCount = computed(() => {
+    const trades = this.state.trades();
+    return this.state.accounts().filter(a => {
+      const pending = pendingSettlements(a.id, trades);
+      return pending > 0 && (a.balance - pending) < 0;
+    }).length;
+  });
+
+  watchCount = computed(() =>
+    this.state.tracked().filter(t => t.status === 'locked' || t.status === 'holding').length,
+  );
+
+  creditCardReminderCount = computed(() => {
+    const todayDay = new Date().getDate();
+    return this.state.creditCards().filter(c => c.paymentDay === todayDay).length;
+  });
+
+  calendarEventCount = computed(() => {
+    const n = new Date();
+    const d = n.getDate(), m = n.getMonth(), y = n.getFullYear();
+    let count = this.state.creditCards().filter(c => c.paymentDay === d).length;
+    count += this.state.liabilities().filter(l => l.reminderEnabled && l.reminderDay === d).length;
+    count += this.state.funds().flatMap(f => f.schedules).filter(s => s.dayOfMonth === d).length;
+    count += this.state.dividends().filter(dv => {
+      const dt = new Date(dv.exDate + 'T00:00:00');
+      return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
+    }).length;
+
+    // Count today's unsettled buy settlements + collect tomorrow's for balance alert
+    const tomorrow = d + 1;
+    const accts = this.state.accounts();
+    const dedTomorrow = new Map<string, number>();
+    for (const trades of Object.values(this.state.trades())) {
+      for (const t of trades) {
+        if (t.type !== 'buy' || t.settled) continue;
+        const sd = settlementDate(t.date);
+        if (sd.getFullYear() === y && sd.getMonth() === m) {
+          if (sd.getDate() === d) count++;
+          if (sd.getDate() === tomorrow && t.accountId) {
+            const amt = t.shares * t.price + t.fee;
+            dedTomorrow.set(t.accountId, (dedTomorrow.get(t.accountId) ?? 0) + amt);
+          }
+        }
+      }
+    }
+
+    // Balance alerts: liability payments due TOMORROW — warn today
+    for (const l of this.state.liabilities()) {
+      if (!l.reminderEnabled || l.reminderDay !== tomorrow || !l.accountId || !l.monthlyPayment) continue;
+      dedTomorrow.set(l.accountId, (dedTomorrow.get(l.accountId) ?? 0) + l.monthlyPayment);
+    }
+    for (const [accountId, due] of dedTomorrow) {
+      const acct = accts.find(a => a.id === accountId);
+      if (acct && acct.balance < due) count++;
+    }
+    return count;
+  });
+
+  liabilityReminderCount = computed(() => {
+    const now = new Date();
+    const todayDay = now.getDate();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return this.state.liabilities().filter(l => {
+      if (!l.reminderEnabled || !l.reminderDay) return false;
+      return todayDay === Math.min(l.reminderDay, lastDay);
+    }).length;
+  });
 
   openImport() {
     this.state.importing.set(true);
@@ -118,22 +261,23 @@ export class SidebarComponent {
   }
 
   async syncStocks() {
+    if (this._syncMsgTimer) clearTimeout(this._syncMsgTimer);
     this.state.syncing.set(true);
     this.state.syncMsg.set('');
     try {
-      const res = await this.api.syncStocks(false) as any;
+      const res = await this.api.syncStocks(false);
       const stocks = await this.api.getStocks();
       this.stock.apply(stocks);
-      let msg = res.message ?? '同步完成';
-      if ((res.prices_synced ?? 0) === 0 && !res.all_up_to_date && res.log?.length) {
-        msg += '\n' + (res.log as string[]).join('\n');
-      }
-      this.state.syncMsg.set(msg);
+
+      const lines: string[] = [res.message];
+      if (res.chips_synced > 0) lines.push(`籌碼資料更新 ${res.chips_synced} 支`);
+      if (res.log?.length) lines.push(...res.log);
+      this.state.syncMsg.set(lines.join('\n'));
     } catch (e: any) {
       this.state.syncMsg.set('同步失敗：' + (e.message ?? ''));
     } finally {
       this.state.syncing.set(false);
-      setTimeout(() => this.state.syncMsg.set(''), 30000);
+      this._syncMsgTimer = setTimeout(() => this.state.syncMsg.set(''), 30000);
     }
   }
 }
