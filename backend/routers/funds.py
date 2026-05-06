@@ -6,14 +6,20 @@ router = APIRouter()
 
 
 def _sched_row(r) -> dict:
-    return {"id": r["id"], "dayOfMonth": r["day_of_month"], "amount": r["amount"], "note": r["note"]}
+    # Handle possible column name variations (snake_case, lowercase, camelCase)
+    dom = r.get("day_of_month")
+    if dom is None:
+        dom = r.get("dayofmonth")
+    if dom is None:
+        dom = r.get("dayOfMonth")
+    return {"id": r["id"], "dayOfMonth": dom, "amount": r["amount"], "note": r["note"]}
 
 
 def _fund_row(r, scheds) -> dict:
     return {
         "id": r["id"], "name": r["name"],
-        "cost": r["cost"], "marketValue": r["market_value"],
-        "note": r["note"], "accountId": r["account_id"],
+        "cost": r["cost"], "marketValue": r.get("market_value"),
+        "note": r["note"], "accountId": r.get("account_id"),
         "schedules": [_sched_row(s) for s in scheds],
     }
 

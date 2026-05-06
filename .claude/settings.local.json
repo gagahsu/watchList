@@ -45,7 +45,8 @@
       "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import fastapi, yfinance; print\\('OK'\\)\" 2>&1)",
       "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\\\\.venv\\\\Scripts\\\\python.exe\" -m pip install yfinance --quiet 2>&1 | Select-Object -Last 5)",
       "PowerShell(& \"C:\\\\Users\\\\yunch\\\\Documents\\\\GitHub\\\\watchList\\\\backend\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import fastapi, yfinance; t = yfinance.Ticker\\('2330.TW'\\); print\\('fastapi OK, yfinance OK, 2330 price:', t.fast_info.last_price\\)\")",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "Bash(.venvScriptspython.exe -c ' *)"
     ]
   }
 }
