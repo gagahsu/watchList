@@ -1,8 +1,11 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from database import get_db
 from models import TradeIn, MarketIn
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _row_to_trade(r) -> dict:
@@ -23,6 +26,34 @@ def _settlement_date_str(date_str: str) -> str:
         if d.weekday() < 5:
             added += 1
     return d.isoformat()
+
+
+def fix_unsettled_trades():
+    """One-time startup correction: the initial schema migration set settled=TRUE
+    for all existing trades. Un-settle buy trades whose T+2 date is today or future
+    so they appear correctly in account management and calendar."""
+    from datetime import date as _date
+    with get_db() as conn:
+        already = conn.execute(
+            "SELECT value FROM settings WHERE key='fix_unsettled_applied'"
+        ).fetchone()
+        if already:
+            return
+        today = _date.today().isoformat()
+        rows = conn.execute(
+            "SELECT id, date FROM trades WHERE type='buy' AND settled=TRUE"
+        ).fetchall()
+        fixed = 0
+        for r in rows:
+            if _settlement_date_str(r["date"]) >= today:
+                conn.execute("UPDATE trades SET settled=FALSE WHERE id=%s", (r["id"],))
+                fixed += 1
+        conn.execute(
+            "INSERT INTO settings(key,value) VALUES('fix_unsettled_applied','true')"
+            " ON CONFLICT(key) DO UPDATE SET value='true'"
+        )
+    if fixed:
+        logger.info("fix_unsettled_trades: corrected %d trade(s) to settled=FALSE", fixed)
 
 
 def process_due_settlements():

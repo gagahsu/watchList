@@ -58,6 +58,8 @@ def _scheduled_process_due_settlements():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    from routers.trades import fix_unsettled_trades
+    fix_unsettled_trades()
     scheduler = BackgroundScheduler(timezone="Asia/Taipei")
     # Daily at 18:30 Taiwan time (after market data is available)
     scheduler.add_job(
