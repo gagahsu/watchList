@@ -1,8 +1,13 @@
+import uuid
+import logging
 from fastapi import APIRouter, HTTPException
 from database import get_db
 from models import LiabilityIn, LiabilityPatch
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+_LOAN_TYPES = {'房貸', '車貸', '信用貸款', '學貸'}
 
 
 def _row_to_liability(r) -> dict:
@@ -89,3 +94,76 @@ def delete_liability(liability_id: str):
             raise HTTPException(404, "Liability not found")
         conn.execute("DELETE FROM liabilities WHERE id=%s", (liability_id,))
     return {"ok": True}
+
+
+# ── Auto-deduction (called by scheduler) ──────────────────────────────────────
+
+def process_due_payments():
+    """Deduct loan/credit-card monthly payments from linked accounts on reminder day."""
+    from datetime import date as _date
+    today = _date.today()
+    today_ym = today.strftime("%Y-%m")   # idempotency key: one deduction per month
+
+    try:
+        with get_db() as conn:
+            due = conn.execute("""
+                SELECT id, name, type, monthly_payment, account_id,
+                       paid_periods, periods, amount
+                FROM liabilities
+                WHERE reminder_day = %s
+                  AND account_id IS NOT NULL
+                  AND monthly_payment IS NOT NULL AND monthly_payment > 0
+                  AND (last_auto_date IS NULL OR last_auto_date != %s)
+            """, (today.day, today_ym)).fetchall()
+    except Exception as exc:
+        logger.error("自動扣款查詢失敗: %s", exc)
+        return
+
+    for r in due:
+        _deduct_one(r, today.isoformat(), today_ym)
+
+
+def _deduct_one(r, today_iso: str, today_ym: str):
+    payment   = r["monthly_payment"]
+    acct_id   = r["account_id"]
+    liab_id   = r["id"]
+    is_loan   = r["type"] in _LOAN_TYPES
+
+    try:
+        with get_db() as conn:
+            acct = conn.execute(
+                "SELECT balance FROM accounts WHERE id=%s", (acct_id,)
+            ).fetchone()
+            if not acct:
+                logger.warning("自動扣款：帳戶不存在 %s，跳過「%s」", acct_id, r["name"])
+                return
+
+            new_balance = acct["balance"] - payment
+            # Reduce outstanding balance; for loans, also track paid periods
+            new_amount  = max(0.0, (r["amount"] or 0.0) - payment)
+            new_paid    = r["paid_periods"]
+            if is_loan:
+                new_paid = (new_paid or 0) + 1
+
+            txn_id = uuid.uuid4().hex[:12]
+            conn.execute(
+                "INSERT INTO account_transactions"
+                " (id, date, type, amount, account_id, to_account_id, note)"
+                " VALUES (%s,%s,'withdrawal',%s,%s,NULL,%s)",
+                (txn_id, today_iso, payment, acct_id, f"自動扣款：{r['name']}"),
+            )
+            conn.execute(
+                "UPDATE accounts SET balance=%s WHERE id=%s",
+                (new_balance, acct_id),
+            )
+            conn.execute(
+                "UPDATE liabilities SET amount=%s, paid_periods=%s, last_auto_date=%s WHERE id=%s",
+                (new_amount, new_paid, today_ym, liab_id),
+            )
+
+        logger.info(
+            "自動扣款成功：%s NT$%.0f，帳戶餘額 %.0f → %.0f",
+            r["name"], payment, acct["balance"], new_balance,
+        )
+    except Exception as exc:
+        logger.error("自動扣款失敗「%s」: %s", r["name"], exc)

@@ -3,7 +3,7 @@ import { AppStateService } from '../../services/app-state.service';
 import { StockService } from '../../services/stock.service';
 
 interface CalEvent {
-  type: 'credit-card' | 'loan' | 'fund' | 'dividend';
+  type: 'credit-card' | 'loan' | 'fund' | 'dividend' | 'balance-alert';
   label: string;
   sublabel?: string;
   amount?: number;
@@ -11,10 +11,11 @@ interface CalEvent {
 }
 
 const META = {
-  'credit-card': { icon: '💳', color: '#e74c3c', bg: 'rgba(231,76,60,.18)',  text: '信用卡扣款' },
-  'loan':        { icon: '🔔', color: '#e67e22', bg: 'rgba(230,126,34,.18)', text: '貸款還款'   },
-  'fund':        { icon: '🏦', color: '#3498db', bg: 'rgba(52,152,219,.18)', text: '基金扣款'   },
-  'dividend':    { icon: '💵', color: '#27ae60', bg: 'rgba(39,174,96,.18)',  text: '股息除息'   },
+  'credit-card':   { icon: '💳', color: '#e74c3c', bg: 'rgba(231,76,60,.18)',   text: '信用卡扣款' },
+  'loan':          { icon: '🔔', color: '#e67e22', bg: 'rgba(230,126,34,.18)',  text: '貸款還款'   },
+  'fund':          { icon: '🏦', color: '#3498db', bg: 'rgba(52,152,219,.18)',  text: '基金扣款'   },
+  'dividend':      { icon: '💵', color: '#27ae60', bg: 'rgba(39,174,96,.18)',   text: '股息除息'   },
+  'balance-alert': { icon: '⚠️', color: '#c0392b', bg: 'rgba(192,57,43,.22)',   text: '餘額警示'   },
 } as const;
 
 @Component({
@@ -386,6 +387,40 @@ export class CalendarViewComponent {
         });
       }
     }
+
+    // ── Balance-alert: warn on D-1 if account balance won't cover D's deductions ──
+    // Collect deductions by day → accountId → total
+    const dedByDay = new Map<number, Map<string, number>>();
+    const addDed = (rawDay: number, accountId: string, amt: number) => {
+      const d = Math.min(Math.max(rawDay, 1), lastDay);
+      if (!dedByDay.has(d)) dedByDay.set(d, new Map());
+      const m2 = dedByDay.get(d)!;
+      m2.set(accountId, (m2.get(accountId) ?? 0) + amt);
+    };
+    for (const l of this.state.liabilities()) {
+      if (!l.reminderEnabled || !l.reminderDay || !l.accountId || !l.monthlyPayment) continue;
+      addDed(l.reminderDay, l.accountId, l.monthlyPayment);
+    }
+    const accounts = this.state.accounts();
+    for (const [day, acctMap] of dedByDay) {
+      if (day <= 1) continue;   // can't warn on previous month's day
+      const warnDay = day - 1;
+      for (const [accountId, totalDue] of acctMap) {
+        const acct = accounts.find(a => a.id === accountId);
+        if (!acct) continue;
+        if (acct.balance < totalDue) {
+          const shortfall = totalDue - acct.balance;
+          push(warnDay, {
+            type: 'balance-alert',
+            label: `${acct.name} 餘額不足`,
+            sublabel: `明日扣 NT$${Math.round(totalDue).toLocaleString()}，缺 NT$${Math.round(shortfall).toLocaleString()}`,
+            amount: shortfall,
+            accountId,
+          });
+        }
+      }
+    }
+
     return map;
   });
 

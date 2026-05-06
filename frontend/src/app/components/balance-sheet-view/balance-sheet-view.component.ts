@@ -41,61 +41,64 @@ function fmtK(n: number) {
   </div>
 </div>
 
-<!-- ── Asset cards ─────────────────────────────────── -->
-<div class="bs-group-title">資產</div>
-<div class="bs-card-grid">
-  <div class="bs-card">
-    <div class="bs-card-icon">💰</div>
-    <div class="bs-card-name">現金帳戶</div>
-    <div class="bs-card-amount">{{ fmtNT(cashTotal()) }}</div>
-    <div class="bs-card-sub">{{ state.accounts().length }} 個帳戶</div>
-    <button class="bs-card-btn" (click)="goAccounts()">管理帳戶 →</button>
-  </div>
-  <div class="bs-card">
-    <div class="bs-card-icon">📈</div>
-    <div class="bs-card-name">持股市值</div>
-    <div class="bs-card-amount">{{ fmtNT(stockTotal()) }}</div>
-    <div class="bs-card-sub">{{ holdingRows().length }} 支股票</div>
-    @if (holdingRows().some(h => h.mv === null)) {
-      <div class="bs-card-warn">部分持股市價未知</div>
-    }
-  </div>
-  @if (state.funds().length > 0) {
-    <div class="bs-card" style="cursor:pointer" (click)="goFunds()">
-      <div class="bs-card-icon">🏦</div>
-      <div class="bs-card-name">基金市值</div>
-      <div class="bs-card-amount">{{ fmtNT(fundTotal()) }}</div>
-      <div class="bs-card-sub">{{ state.funds().length }} 筆基金</div>
-      <button class="bs-card-btn" (click)="goFunds()">管理基金 →</button>
-    </div>
-  }
-</div>
-
-<!-- ── Liability summary ────────────────────────────── -->
-<div class="bs-group-header">
-  <div class="bs-group-title">負債</div>
-  <button class="idx-add-btn" (click)="goLiabilities()">管理負債 →</button>
-</div>
-
-@if (state.liabilities().length === 0) {
-  <div class="bs-empty">尚無負債記錄，
-    <button class="bs-text-link" (click)="goLiabilities()">點此管理負債</button>
-  </div>
-} @else {
-  <div class="bs-card-grid">
-    @for (grp of liabilityGroups(); track grp.type) {
-      <div class="bs-card bs-card-liab" [class.bs-card-alert]="grp.hasAlert">
-        <div class="bs-card-icon">{{ typeIcon(grp.type) }}</div>
-        <div class="bs-card-name">
-          {{ grp.type }}
-          @if (grp.hasAlert) { <span class="bs-alert-dot">🔔</span> }
+<!-- ── Assets + Liabilities (same row) ─────────────── -->
+<div class="bs-two-col">
+  <!-- Assets column -->
+  <div class="bs-col">
+    <div class="bs-col-label">資產</div>
+    <div class="bs-inner-grid">
+      <div class="bs-card">
+        <div class="bs-card-icon">💰</div>
+        <div class="bs-card-name">現金帳戶</div>
+        <div class="bs-card-amount">{{ fmtNT(cashTotal()) }}</div>
+        <div class="bs-card-sub">{{ state.accounts().length }} 個帳戶</div>
+        <button class="bs-card-btn" (click)="goAccounts()">管理 →</button>
+      </div>
+      <div class="bs-card">
+        <div class="bs-card-icon">📈</div>
+        <div class="bs-card-name">持股市值</div>
+        <div class="bs-card-amount">{{ fmtNT(stockTotal()) }}</div>
+        <div class="bs-card-sub">{{ holdingRows().length }} 支股票</div>
+        @if (holdingRows().some(h => h.mv === null)) {
+          <div class="bs-card-warn">部分市價未知</div>
+        }
+      </div>
+      @if (state.funds().length > 0) {
+        <div class="bs-card">
+          <div class="bs-card-icon">🏦</div>
+          <div class="bs-card-name">基金市值</div>
+          <div class="bs-card-amount">{{ fmtNT(fundTotal()) }}</div>
+          <div class="bs-card-sub">{{ state.funds().length }} 筆基金</div>
+          <button class="bs-card-btn" (click)="goFunds()">管理 →</button>
         </div>
-        <div class="bs-card-amount text-danger">{{ fmtNT(grp.total) }}</div>
-        <div class="bs-card-sub">{{ grp.count }} 筆</div>
+      }
+    </div>
+  </div>
+
+  <div class="bs-col-sep"></div>
+
+  <!-- Liabilities column -->
+  <div class="bs-col">
+    <div class="bs-col-label">負債</div>
+    @if (state.liabilities().length === 0) {
+      <div class="bs-empty" style="padding:12px 0">尚無負債記錄</div>
+    } @else {
+      <div class="bs-inner-grid">
+        @for (grp of liabilityGroups(); track grp.type) {
+          <div class="bs-card bs-card-liab" [class.bs-card-alert]="grp.hasAlert">
+            <div class="bs-card-icon">{{ typeIcon(grp.type) }}</div>
+            <div class="bs-card-name">
+              {{ grp.type }}
+              @if (grp.hasAlert) { <span class="bs-alert-dot">🔔</span> }
+            </div>
+            <div class="bs-card-amount text-danger">{{ fmtNT(grp.total) }}</div>
+            <div class="bs-card-sub">{{ grp.count }} 筆</div>
+          </div>
+        }
       </div>
     }
   </div>
-}
+</div>
 
 <!-- ── Net Worth History Chart ──────────────────────── -->
 <div class="bs-group-title" style="margin-top:28px">資產負債歷史</div>
@@ -167,13 +170,21 @@ function fmtK(n: number) {
     .bs-liab-card { border-color:rgba(192,57,43,.25); }
     .bs-label { font-size:12px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
     .bs-value { font-size:20px; font-weight:700; font-family:'JetBrains Mono',monospace; }
-    /* group */
+    /* section heading */
     .bs-group-title { font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
-    .bs-group-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; margin-top:24px; }
-    .bs-group-header .bs-group-title { margin-bottom:0; }
+    /* two-column assets+liabilities */
+    .bs-two-col { display:flex; gap:0; align-items:flex-start; margin-bottom:20px; }
+    .bs-col { flex:1; min-width:0; }
+    .bs-col-label { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+    .bs-col-sep { width:1px; background:var(--border); margin:0 14px; align-self:stretch; flex-shrink:0; }
+    .bs-inner-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; }
+    @media (max-width:600px) {
+      .bs-two-col { flex-direction:column; gap:16px; }
+      .bs-col-sep { display:none; }
+      .bs-inner-grid { grid-template-columns:1fr 1fr; }
+    }
     /* cards */
-    .bs-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-bottom:20px; }
-    .bs-card { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:4px; }
+    .bs-card { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:4px; }
     .bs-card-liab { border-color:rgba(192,57,43,.15); }
     .bs-card-alert { border-color:rgba(192,57,43,.5); background:rgba(192,57,43,.04); }
     .bs-card-icon { font-size:22px; margin-bottom:4px; }
@@ -213,7 +224,6 @@ function fmtK(n: number) {
     @media (max-width:600px) {
       .bs-summary { grid-template-columns:1fr 1fr; }
       .bs-summary-card:last-child { grid-column:1/-1; }
-      .bs-card-grid { grid-template-columns:1fr 1fr; }
     }
   `],
 })

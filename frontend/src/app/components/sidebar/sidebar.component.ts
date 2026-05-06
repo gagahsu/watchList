@@ -201,6 +201,18 @@ export class SidebarComponent {
       const dt = new Date(dv.exDate + 'T00:00:00');
       return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
     }).length;
+    // Balance alerts: payments due TOMORROW — warn today
+    const tomorrow = d + 1;
+    const accts = this.state.accounts();
+    const dedTomorrow = new Map<string, number>();
+    for (const l of this.state.liabilities()) {
+      if (!l.reminderEnabled || l.reminderDay !== tomorrow || !l.accountId || !l.monthlyPayment) continue;
+      dedTomorrow.set(l.accountId, (dedTomorrow.get(l.accountId) ?? 0) + l.monthlyPayment);
+    }
+    for (const [accountId, due] of dedTomorrow) {
+      const acct = accts.find(a => a.id === accountId);
+      if (acct && acct.balance < due) count++;
+    }
     return count;
   });
 

@@ -246,6 +246,8 @@ DDL = [
     """,
     # migrate: add deduction account to liabilities
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    # migrate: track when auto-deduction was last run (YYYY-MM prevents same-month double deduction)
+    "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS last_auto_date TEXT",
     """
     CREATE TABLE IF NOT EXISTS net_worth_snapshots (
         id          TEXT PRIMARY KEY,

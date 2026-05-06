@@ -40,6 +40,12 @@ def _scheduled_net_worth_snapshot():
     take_daily_snapshot()
 
 
+def _scheduled_process_due_payments():
+    """Daily job: auto-deduct loan/credit-card payments on reminder day."""
+    from routers.liabilities import process_due_payments
+    process_due_payments()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -63,8 +69,14 @@ async def lifespan(app: FastAPI):
         id="net_worth_snapshot_daily",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _scheduled_process_due_payments,
+        CronTrigger(hour=9, minute=0, timezone="Asia/Taipei"),
+        id="process_due_payments_daily",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、淨資產快照 23:58）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、淨資產快照 23:58）")
     yield
     scheduler.shutdown(wait=False)
 
