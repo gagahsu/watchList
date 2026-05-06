@@ -188,6 +188,5 @@ export class ApiService {
 
   // ── Net Worth Snapshots ───────────────────────────────────────────────────
   getNetWorthSnapshots() { return this.get<NetWorthSnapshot[]>('/net-worth-snapshots'); }
-  createNetWorthSnapshot(s: NetWorthSnapshot) { return this.post<NetWorthSnapshot>('/net-worth-snapshots', s); }
   deleteNetWorthSnapshot(id: string) { return this.delete<{ok:boolean}>(`/net-worth-snapshots/${id}`); }
 }

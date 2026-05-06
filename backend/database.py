@@ -249,7 +249,7 @@ DDL = [
     """
     CREATE TABLE IF NOT EXISTS net_worth_snapshots (
         id          TEXT PRIMARY KEY,
-        date        TEXT NOT NULL,
+        date        TEXT NOT NULL UNIQUE,
         assets      DOUBLE PRECISION NOT NULL DEFAULT 0,
         liabilities DOUBLE PRECISION NOT NULL DEFAULT 0,
         note        TEXT NOT NULL DEFAULT '',
@@ -257,6 +257,13 @@ DDL = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_nws_date ON net_worth_snapshots(date)",
+    # migrate: add unique constraint on date if not already present
+    """
+    DO $$ BEGIN
+      ALTER TABLE net_worth_snapshots ADD CONSTRAINT net_worth_snapshots_date_key UNIQUE (date);
+    EXCEPTION WHEN duplicate_table THEN NULL;
+             WHEN others THEN NULL; END $$
+    """,
 ]
 
 

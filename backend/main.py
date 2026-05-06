@@ -34,6 +34,12 @@ def _scheduled_line_alerts():
         logger.error("排程：LINE 提醒推播失敗: %s", e)
 
 
+def _scheduled_net_worth_snapshot():
+    """Daily job: capture asset/liability snapshot at 23:58."""
+    from routers.net_worth import take_daily_snapshot
+    take_daily_snapshot()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -51,8 +57,14 @@ async def lifespan(app: FastAPI):
         id="line_alerts_daily",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _scheduled_net_worth_snapshot,
+        CronTrigger(hour=23, minute=58, timezone="Asia/Taipei"),
+        id="net_worth_snapshot_daily",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、淨資產快照 23:58）")
     yield
     scheduler.shutdown(wait=False)
 

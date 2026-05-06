@@ -233,7 +233,6 @@ export class AppStateService {
 
   // ── Net Worth Snapshot mutations ──────────────────────────────────────────
   netWorthSnapshots = signal<NetWorthSnapshot[]>([]);
-  addNetWorthSnapshot(s: NetWorthSnapshot) { this.netWorthSnapshots.update(ss => [...ss, s].sort((a, b) => a.date.localeCompare(b.date))); }
   removeNetWorthSnapshot(id: string) { this.netWorthSnapshots.update(ss => ss.filter(s => s.id !== id)); }
 
   // ── Fund mutations ────────────────────────────────────────────────────────

@@ -1,9 +1,8 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
-import { NetWorthSnapshot } from '../../models/types';
-import { calcFIFO, uid } from '../../utils';
+import { calcFIFO } from '../../utils';
 
 const CHART_W = 560;
 const CHART_H = 180;
@@ -99,65 +98,51 @@ function fmtK(n: number) {
 }
 
 <!-- ── Net Worth History Chart ──────────────────────── -->
-<div class="bs-group-header" style="margin-top:28px">
-  <div class="bs-group-title">資產負債歷史</div>
-  <div style="display:flex;gap:8px">
-    @if (state.netWorthSnapshots().length > 0) {
-      <button class="sig-action-btn danger" (click)="deleteLatest()" title="刪除最後一筆快照">刪除最後快照</button>
-    }
-    <button class="idx-add-btn" (click)="saveSnapshot()" [disabled]="saving()">
-      {{ saving() ? '記錄中…' : '📌 記錄本月快照' }}
-    </button>
-  </div>
-</div>
+<div class="bs-group-title" style="margin-top:28px">資產負債歷史</div>
+<div class="bs-chart-hint">每日 23:58 自動擷取快照</div>
 
 @if (state.netWorthSnapshots().length < 2) {
   <div class="bs-chart-placeholder">
     <div style="font-size:28px;opacity:.3">📊</div>
     <div>尚無足夠資料繪製趨勢圖</div>
-    <div style="font-size:12px;margin-top:4px">每月點擊「記錄本月快照」以追蹤變化趨勢</div>
+    <div style="font-size:12px;margin-top:4px">系統每日 23:58 自動記錄，幾天後即可看到趨勢</div>
   </div>
 } @else {
   @let chart = chartData();
   @if (chart) {
     <div class="bs-chart-wrap">
       <svg [attr.viewBox]="'0 0 ' + chart.w + ' ' + chart.h" class="bs-chart-svg">
-        <!-- Grid lines -->
         @for (y of chart.yAxis; track y.val) {
           <line [attr.x1]="chart.pad.l" [attr.x2]="chart.w - chart.pad.r"
             [attr.y1]="y.y" [attr.y2]="y.y" class="bs-grid-line" />
           <text [attr.x]="chart.pad.l - 6" [attr.y]="y.y + 4"
             class="bs-axis-label" text-anchor="end">{{ y.label }}</text>
         }
-        <!-- X labels -->
         @for (pt of chart.xLabels; track $index) {
           <text [attr.x]="pt.x" [attr.y]="chart.h - 4"
             class="bs-axis-label" text-anchor="middle">{{ pt.label }}</text>
         }
-        <!-- Asset line -->
         <polyline [attr.points]="chart.assetsPoints" class="bs-line-assets" fill="none" />
-        <!-- Liability line -->
-        <polyline [attr.points]="chart.liabPoints" class="bs-line-liab" fill="none" />
-        <!-- Net worth line -->
-        <polyline [attr.points]="chart.netPoints" class="bs-line-net" fill="none" />
-        <!-- Dots -->
+        <polyline [attr.points]="chart.liabPoints"   class="bs-line-liab"   fill="none" />
+        <polyline [attr.points]="chart.netPoints"    class="bs-line-net"    fill="none" />
         @for (pt of chart.dots; track $index) {
-          <circle [attr.cx]="pt.x" [attr.cy]="pt.assetsY" r="3" class="bs-dot-assets" />
-          <circle [attr.cx]="pt.x" [attr.cy]="pt.liabY" r="3" class="bs-dot-liab" />
-          <circle [attr.cx]="pt.x" [attr.cy]="pt.netY" r="3.5" class="bs-dot-net" />
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.assetsY" r="3"   class="bs-dot-assets" />
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.liabY"   r="3"   class="bs-dot-liab" />
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.netY"    r="3.5" class="bs-dot-net" />
         }
       </svg>
-      <!-- Legend -->
       <div class="bs-chart-legend">
         <span><span class="bs-legend-dot" style="background:#3498db"></span>資產</span>
         <span><span class="bs-legend-dot" style="background:#e74c3c"></span>負債</span>
         <span><span class="bs-legend-dot" style="background:#d4a017"></span>淨資產</span>
       </div>
-      <!-- Snapshot table -->
       <table class="bs-snap-table">
         <thead><tr>
-          <th>月份</th><th style="text-align:right">資產</th>
-          <th style="text-align:right">負債</th><th style="text-align:right">淨資產</th>
+          <th>日期</th>
+          <th style="text-align:right">資產</th>
+          <th style="text-align:right">負債</th>
+          <th style="text-align:right">淨資產</th>
+          <th></th>
         </tr></thead>
         <tbody>
           @for (s of state.netWorthSnapshots(); track s.id) {
@@ -165,7 +150,8 @@ function fmtK(n: number) {
               <td>{{ s.date }}</td>
               <td style="text-align:right" class="pos">{{ fmtNT(s.assets) }}</td>
               <td style="text-align:right" class="neg">{{ fmtNT(s.liabilities) }}</td>
-              <td style="text-align:right" [class.pos]="s.assets - s.liabilities >= 0" [class.neg]="s.assets - s.liabilities < 0">{{ fmtNT(s.assets - s.liabilities) }}</td>
+              <td style="text-align:right" [class.pos]="s.assets-s.liabilities>=0" [class.neg]="s.assets-s.liabilities<0">{{ fmtNT(s.assets - s.liabilities) }}</td>
+              <td><button class="bs-del-btn" (click)="deleteSnapshot(s.id)" title="刪除">✕</button></td>
             </tr>
           }
         </tbody>
@@ -200,6 +186,7 @@ function fmtK(n: number) {
     .bs-alert-dot { font-size:13px; }
     .bs-empty { text-align:center; color:var(--text-muted); font-size:14px; padding:20px 0; }
     .bs-text-link { background:none; border:none; color:var(--gold); cursor:pointer; font-size:14px; text-decoration:underline; padding:0; }
+    .bs-chart-hint { font-size:11px; color:var(--text-muted); margin-bottom:10px; }
     /* chart */
     .bs-chart-placeholder { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:32px 16px; text-align:center; color:var(--text-muted); font-size:13px; margin-bottom:16px; }
     .bs-chart-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
@@ -218,6 +205,8 @@ function fmtK(n: number) {
     .bs-snap-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:14px; }
     .bs-snap-table th { text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border); padding:4px 6px; }
     .bs-snap-table td { padding:4px 6px; border-bottom:1px solid rgba(255,255,255,.04); font-family:'JetBrains Mono',monospace; }
+    .bs-del-btn { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:11px; padding:2px 5px; border-radius:4px; opacity:.5; }
+    .bs-del-btn:hover { opacity:1; color:var(--red,#e74c3c); background:rgba(231,76,60,.1); }
     .pos { color:var(--green,#27ae60); }
     .neg { color:var(--red,#e74c3c); }
     .text-danger { color:var(--red,#c0392b); }
@@ -229,8 +218,6 @@ function fmtK(n: number) {
   `],
 })
 export class BalanceSheetViewComponent {
-  saving = signal(false);
-
   constructor(
     public state: AppStateService,
     private api: ApiService,
@@ -288,30 +275,9 @@ export class BalanceSheetViewComponent {
   goFunds()       { this.state.view.set('funds'); }
   goLiabilities() { this.state.view.set('liabilities'); }
 
-  async saveSnapshot() {
-    this.saving.set(true);
-    try {
-      const now = new Date();
-      const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const snap: NetWorthSnapshot = {
-        id: uid(), date,
-        assets: Math.round(this.assetTotal()),
-        liabilities: Math.round(this.liabilityTotal()),
-        note: '', recordedAt: Date.now(),
-      };
-      const saved = await this.api.createNetWorthSnapshot(snap);
-      this.state.addNetWorthSnapshot(saved);
-    } finally {
-      this.saving.set(false);
-    }
-  }
-
-  async deleteLatest() {
-    const snaps = this.state.netWorthSnapshots();
-    if (!snaps.length) return;
-    const last = snaps[snaps.length - 1];
-    await this.api.deleteNetWorthSnapshot(last.id);
-    this.state.removeNetWorthSnapshot(last.id);
+  async deleteSnapshot(id: string) {
+    await this.api.deleteNetWorthSnapshot(id);
+    this.state.removeNetWorthSnapshot(id);
   }
 
   chartData = computed(() => {
@@ -348,7 +314,7 @@ export class BalanceSheetViewComponent {
       })),
       xLabels: snaps.map((s, i) => ({
         x: xOf(i),
-        label: s.date.slice(2),  // "YY-MM"
+        label: s.date.slice(5),  // "MM-DD"
       })),
       yAxis,
     };
