@@ -400,28 +400,38 @@ export class CalendarViewComponent {
       }
     }
 
-    // ── Settlement events: unsettled buy trades with T+2 date in this month ──
+    // ── Settlement events: aggregate unsettled buy trades by (day, account) ──
+    const accounts = this.state.accounts();
+    const settlMap = new Map<string, { day: number; accountId: string | null; amount: number; codes: string[] }>();
     for (const [code, trades] of Object.entries(this.state.trades())) {
       for (const t of trades) {
         if (t.type !== 'buy' || t.settled) continue;
         const sd = settlementDate(t.date);
-        if (sd.getFullYear() === y && sd.getMonth() === m) {
-          const day = sd.getDate();
-          const amount = t.shares * t.price + t.fee;
-          push(day, {
-            type: 'settlement',
-            label: `${code} 交割`,
-            sublabel: `${t.shares}股 × ${t.price}`,
-            amount,
-            accountId: t.accountId,
-          });
-          if (t.accountId) addDed(day, t.accountId, amount);
-        }
+        if (sd.getFullYear() !== y || sd.getMonth() !== m) continue;
+        const day = sd.getDate();
+        const amount = t.shares * t.price + (t.fee || 0);
+        const acctKey = t.accountId ?? '__none__';
+        const mapKey = `${day}::${acctKey}`;
+        if (!settlMap.has(mapKey)) settlMap.set(mapKey, { day, accountId: t.accountId, amount: 0, codes: [] });
+        const entry = settlMap.get(mapKey)!;
+        entry.amount += amount;
+        entry.codes.push(code);
+        if (t.accountId) addDed(day, t.accountId, amount);
       }
+    }
+    for (const { day, accountId, amount, codes } of settlMap.values()) {
+      const acctName = accountId ? (accounts.find(a => a.id === accountId)?.name ?? '未知帳戶') : '未連結帳戶';
+      const codesLabel = codes.length <= 3 ? codes.join('、') : `${codes.slice(0, 3).join('、')} 等 ${codes.length} 支`;
+      push(day, {
+        type: 'settlement',
+        label: `${acctName}　NT$${Math.round(amount).toLocaleString()}`,
+        sublabel: codesLabel,
+        amount,
+        accountId,
+      });
     }
 
     // ── Balance-alert: warn on D-1 if account balance won't cover D's deductions ──
-    const accounts = this.state.accounts();
     for (const [day, acctMap] of dedByDay) {
       if (day <= 1) continue;
       const warnDay = day - 1;
