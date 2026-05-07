@@ -125,18 +125,12 @@ function fmtK(n: number) {
           <text [attr.x]="pt.x" [attr.y]="chart.h - 4"
             class="bs-axis-label" text-anchor="middle">{{ pt.label }}</text>
         }
-        <polyline [attr.points]="chart.assetsPoints" class="bs-line-assets" fill="none" />
-        <polyline [attr.points]="chart.liabPoints"   class="bs-line-liab"   fill="none" />
-        <polyline [attr.points]="chart.netPoints"    class="bs-line-net"    fill="none" />
+        <polyline [attr.points]="chart.netPoints" class="bs-line-net" fill="none" />
         @for (pt of chart.dots; track $index) {
-          <circle [attr.cx]="pt.x" [attr.cy]="pt.assetsY" r="3"   class="bs-dot-assets" />
-          <circle [attr.cx]="pt.x" [attr.cy]="pt.liabY"   r="3"   class="bs-dot-liab" />
-          <circle [attr.cx]="pt.x" [attr.cy]="pt.netY"    r="3.5" class="bs-dot-net" />
+          <circle [attr.cx]="pt.x" [attr.cy]="pt.netY" r="3.5" class="bs-dot-net" />
         }
       </svg>
       <div class="bs-chart-legend">
-        <span><span class="bs-legend-dot" style="background:#3498db"></span>資產</span>
-        <span><span class="bs-legend-dot" style="background:#e74c3c"></span>負債</span>
         <span><span class="bs-legend-dot" style="background:#d4a017"></span>淨資產</span>
       </div>
       <table class="bs-snap-table">
@@ -297,9 +291,12 @@ export class BalanceSheetViewComponent {
     const snaps = this.state.netWorthSnapshots().slice(-12);
     if (snaps.length < 2) return null;
 
-    const allVals = snaps.flatMap(s => [s.assets, s.liabilities, s.assets - s.liabilities]);
-    const maxVal = Math.max(...allVals, 1);
-    const minVal = Math.min(...allVals, 0);
+    const netVals = snaps.map(s => s.assets - s.liabilities);
+    const rawMax = Math.max(...netVals);
+    const rawMin = Math.min(...netVals);
+    const pad    = (rawMax - rawMin) * 0.12 || Math.abs(rawMax) * 0.12 || 1;
+    const maxVal = rawMax + pad;
+    const minVal = rawMin - pad;
     const range  = maxVal - minVal || 1;
 
     const xOf = (i: number) => PAD.l + (i / (snaps.length - 1)) * IW;
@@ -316,14 +313,10 @@ export class BalanceSheetViewComponent {
 
     return {
       w: CHART_W, h: CHART_H, pad: PAD,
-      assetsPoints: toPoints(snaps.map(s => s.assets)),
-      liabPoints:   toPoints(snaps.map(s => s.liabilities)),
-      netPoints:    toPoints(snaps.map(s => s.assets - s.liabilities)),
+      netPoints: toPoints(netVals),
       dots: snaps.map((s, i) => ({
         x: xOf(i),
-        assetsY: yOf(s.assets),
-        liabY:   yOf(s.liabilities),
-        netY:    yOf(s.assets - s.liabilities),
+        netY: yOf(s.assets - s.liabilities),
       })),
       xLabels: snaps.map((s, i) => ({
         x: xOf(i),
