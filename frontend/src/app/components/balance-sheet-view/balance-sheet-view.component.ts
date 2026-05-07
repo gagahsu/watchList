@@ -58,7 +58,7 @@ function fmtK(n: number) {
         <div class="bs-card-icon">📈</div>
         <div class="bs-card-name">持股市值</div>
         <div class="bs-card-amount">{{ fmtNT(stockTotal()) }}</div>
-        <div class="bs-card-sub">{{ holdingRows().length }} 支股票</div>
+        <div class="bs-card-sub">{{ holdingRows().length }} 支股票・以收盤價計</div>
         @if (holdingRows().some(h => h.mv === null)) {
           <div class="bs-card-warn">部分市價未知</div>
         }
@@ -239,13 +239,16 @@ export class BalanceSheetViewComponent {
     const markets = this.state.tradeMarkets();
     const closeMap = this.stock.closeMap();
     const nameMap = this.stock.codeToName();
+    const fx = this.state.usdTwdRate();
     return Object.entries(trades)
       .map(([code, ts]) => {
         const mkt = markets[code] ?? 'tw';
         const fifo = calcFIFO(ts, mkt);
         if (fifo.holdingShares <= 0) return null;
         const price = closeMap[code]?.close ?? null;
-        return { code, name: nameMap[code] ?? '', shares: fifo.holdingShares, price, mv: price !== null ? price * fifo.holdingShares : null };
+        const toNTD = mkt === 'us' ? fx : 1;
+        const mv = price !== null ? price * fifo.holdingShares * toNTD : null;
+        return { code, name: nameMap[code] ?? '', shares: fifo.holdingShares, price, mv };
       })
       .filter((h): h is NonNullable<typeof h> => h !== null);
   });
