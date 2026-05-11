@@ -103,53 +103,131 @@ def check_and_push_alerts():
         return
 
     today = date.today()
+    today_day = today.day
+    last_day_today = calendar.monthrange(today.year, today.month)[1]
+    tomorrow = today + timedelta(days=1)
+    tomorrow_day = tomorrow.day
+    last_day_tomorrow = calendar.monthrange(tomorrow.year, tomorrow.month)[1]
     messages: list[str] = []
 
     with get_db() as conn:
-        # ── Account settlement warnings ─────────────────────────────────
-        accounts = conn.execute("SELECT id, name, balance FROM accounts").fetchall()
-        buy_trades = conn.execute(
-            "SELECT account_id, date, shares, price, fee FROM trades "
-            "WHERE type = 'buy' AND account_id IS NOT NULL"
+        accounts = {r["id"]: r for r in conn.execute("SELECT id, name, balance FROM accounts").fetchall()}
+
+        # ── 1. Credit card payment reminders ────────────────────────────
+        credit_cards = conn.execute(
+            "SELECT name, note FROM credit_cards WHERE payment_day = %s",
+            (min(today_day, last_day_today),)
         ).fetchall()
+        for cc in credit_cards:
+            msg = f"💳 信用卡繳費提醒\n\n卡片：{cc['name']}"
+            if cc["note"]:
+                msg += f"\n備註：{cc['note']}"
+            msg += "\n\n請確認今日是否已繳款。"
+            messages.append(msg)
 
-        for acc in accounts:
-            pending = sum(
-                t["shares"] * t["price"] + (t["fee"] or 0)
-                for t in buy_trades
-                if t["account_id"] == acc["id"] and _settlement_date(t["date"]) >= today
-            )
-            available = acc["balance"] - pending
-            if pending > 0 and available < 0:
-                messages.append(
-                    f"⚠️ 交割款不足提醒\n\n"
-                    f"帳戶：{acc['name']}\n"
-                    f"帳戶餘額：NT${acc['balance']:,.0f}\n"
-                    f"待交割：NT${pending:,.0f}\n"
-                    f"缺口：NT${-available:,.0f}\n\n"
-                    f"請儘速補足款項！"
-                )
-
-        # ── Liability reminders ─────────────────────────────────────────
-        today_day = today.day
-        last_day  = calendar.monthrange(today.year, today.month)[1]
-
+        # ── 2. Liability reminders ───────────────────────────────────────
         liabilities = conn.execute(
-            "SELECT name, type, amount, reminder_day, note FROM liabilities "
-            "WHERE reminder_enabled = TRUE AND reminder_day IS NOT NULL"
+            "SELECT name, type, amount, monthly_payment, reminder_day, note, account_id "
+            "FROM liabilities WHERE reminder_enabled = TRUE AND reminder_day IS NOT NULL"
         ).fetchall()
-
         for l in liabilities:
-            if today_day == min(l["reminder_day"], last_day):
+            if today_day == min(l["reminder_day"], last_day_today):
                 msg = (
                     f"🔔 負債還款提醒\n\n"
                     f"項目：{l['name']}（{l['type']}）\n"
                     f"未償餘額：NT${l['amount']:,.0f}"
                 )
+                if l["monthly_payment"]:
+                    msg += f"\n本月應繳：NT${l['monthly_payment']:,.0f}"
                 if l["note"]:
                     msg += f"\n備註：{l['note']}"
                 msg += "\n\n請確認今日是否已繳款。"
                 messages.append(msg)
+
+        # ── 3. Fund deduction reminders ──────────────────────────────────
+        all_fund_schedules = conn.execute(
+            "SELECT f.name, fs.day_of_month, fs.amount, f.account_id "
+            "FROM fund_schedules fs JOIN funds f ON fs.fund_id = f.id"
+        ).fetchall()
+        for fs in all_fund_schedules:
+            if min(fs["day_of_month"], last_day_today) == today_day:
+                acc_name = accounts[fs["account_id"]]["name"] if fs["account_id"] and fs["account_id"] in accounts else None
+                msg = f"🏦 基金扣款提醒\n\n基金：{fs['name']}\n扣款金額：NT${fs['amount']:,.0f}"
+                if acc_name:
+                    msg += f"\n扣款帳戶：{acc_name}"
+                messages.append(msg)
+
+        # ── 4. Dividend ex-date reminders ────────────────────────────────
+        dividends = conn.execute(
+            "SELECT code, cash_div FROM dividend_records WHERE ex_date = %s AND cash_div > 0",
+            (today.isoformat(),)
+        ).fetchall()
+        if dividends:
+            div_lines = "\n".join(f"  • {d['code']}　每股 NT${d['cash_div']}" for d in dividends)
+            messages.append(f"💵 今日股息除息\n\n{div_lines}")
+
+        # ── 5. Stock settlement reminders (T+2 due today) ────────────────
+        all_buy_trades = conn.execute(
+            "SELECT code, date, shares, price, fee, account_id FROM trades "
+            "WHERE type = 'buy' AND settled = FALSE"
+        ).fetchall()
+
+        settle_today: dict[str, dict] = {}
+        for t in all_buy_trades:
+            if _settlement_date(t["date"]) != today:
+                continue
+            amount = t["shares"] * t["price"] + (t["fee"] or 0)
+            key = t["account_id"] or "__none__"
+            if key not in settle_today:
+                acc_name = (accounts[t["account_id"]]["name"] if t["account_id"] and t["account_id"] in accounts else "未連結帳戶")
+                settle_today[key] = {"name": acc_name, "amount": 0.0, "codes": []}
+            settle_today[key]["amount"] += amount
+            settle_today[key]["codes"].append(t["code"])
+
+        for info in settle_today.values():
+            codes_str = "、".join(info["codes"][:3])
+            if len(info["codes"]) > 3:
+                codes_str += f" 等 {len(info['codes'])} 支"
+            messages.append(
+                f"📅 今日股票交割\n\n"
+                f"帳戶：{info['name']}\n"
+                f"交割金額：NT${info['amount']:,.0f}\n"
+                f"股票：{codes_str}\n\n"
+                f"請確認帳戶已有足夠餘額。"
+            )
+
+        # ── 6. Balance alert (D-1: warn today if tomorrow's deductions exceed balance) ──
+        tomorrow_ded: dict[str, float] = {}
+
+        def _add_ded(account_id: str | None, amt: float) -> None:
+            if account_id and account_id in accounts:
+                tomorrow_ded[account_id] = tomorrow_ded.get(account_id, 0) + amt
+
+        for l in liabilities:
+            if tomorrow_day == min(l["reminder_day"], last_day_tomorrow) and l["monthly_payment"] and l["account_id"]:
+                _add_ded(l["account_id"], l["monthly_payment"])
+
+        for fs in all_fund_schedules:
+            if min(fs["day_of_month"], last_day_tomorrow) == tomorrow_day:
+                _add_ded(fs["account_id"], fs["amount"])
+
+        for t in all_buy_trades:
+            if _settlement_date(t["date"]) == tomorrow:
+                _add_ded(t["account_id"], t["shares"] * t["price"] + (t["fee"] or 0))
+
+        for account_id, total_due in tomorrow_ded.items():
+            acct = accounts.get(account_id)
+            if not acct or acct["balance"] >= total_due:
+                continue
+            shortfall = total_due - acct["balance"]
+            messages.append(
+                f"⚠️ 明日帳戶餘額不足提醒\n\n"
+                f"帳戶：{acct['name']}\n"
+                f"帳戶餘額：NT${acct['balance']:,.0f}\n"
+                f"明日應扣：NT${total_due:,.0f}\n"
+                f"缺口：NT${shortfall:,.0f}\n\n"
+                f"請儘速補足款項！"
+            )
 
     if messages:
         combined = "\n\n─────────────────\n\n".join(messages)
@@ -188,8 +266,12 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     reply_token,
                     "已訂閱提醒通知 ✓\n\n"
                     "我會在以下情況主動通知您：\n"
-                    "• ⚠️ 交割款帳戶餘額不足\n"
-                    "• 🔔 負債還款提醒日\n\n"
+                    "• 💳 信用卡繳費日\n"
+                    "• 🔔 負債還款提醒日\n"
+                    "• 🏦 基金扣款日\n"
+                    "• 💵 股息除息日\n"
+                    "• 📅 股票交割日（T+2）\n"
+                    "• ⚠️ 明日帳戶餘額不足預警\n\n"
                     "通知時間：每日早上 08:00",
                 )
             else:
