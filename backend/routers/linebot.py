@@ -280,6 +280,93 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
     return {"status": "ok"}
 
 
+# ── Stop-loss check ──────────────────────────────────────────────────────────
+
+def check_stop_loss_alerts():
+    """Called at 13:00 on weekdays. Pushes stop-loss triggered alerts."""
+    if date.today().weekday() >= 5:
+        return
+
+    subscribers = _get_subscribers()
+    if not subscribers:
+        return
+
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT ts.code, ts.stop_loss, COALESCE(tm.market, 'tw') AS market "
+            "FROM tracked_stocks ts "
+            "LEFT JOIN trade_markets tm ON ts.code = tm.code "
+            "WHERE ts.stop_loss IS NOT NULL AND ts.stop_loss != ''"
+        ).fetchall()
+
+    targets = []
+    for r in rows:
+        try:
+            sl = float(r["stop_loss"])
+            if sl > 0:
+                targets.append({"code": r["code"], "market": r["market"], "stop_loss": sl})
+        except (ValueError, TypeError):
+            continue
+
+    if not targets:
+        return
+
+    import concurrent.futures
+    import math
+    import yfinance as yf
+
+    def _safe(p) -> float | None:
+        try:
+            f = float(p)
+            return f if f > 0 and not math.isnan(f) else None
+        except Exception:
+            return None
+
+    def _fetch(item: dict) -> tuple[str, float | None, float]:
+        code, market, sl = item["code"], item["market"], item["stop_loss"]
+        if market == "us":
+            try:
+                return code, _safe(yf.Ticker(code).fast_info.last_price), sl
+            except Exception:
+                return code, None, sl
+        for suffix in (".TW", ".TWO"):
+            try:
+                p = _safe(yf.Ticker(code + suffix).fast_info.last_price)
+                if p is not None:
+                    return code, p, sl
+            except Exception:
+                continue
+        return code, None, sl
+
+    triggered: list[tuple[str, float, float]] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {pool.submit(_fetch, item): item for item in targets}
+        for fut in concurrent.futures.as_completed(futures, timeout=30):
+            try:
+                code, price, sl = fut.result()
+                if price is not None and price <= sl:
+                    triggered.append((code, price, sl))
+            except Exception as e:
+                logger.warning("Stop-loss price fetch error: %s", e)
+
+    if not triggered:
+        logger.debug("Stop-loss check: no triggers at 13:00")
+        return
+
+    lines = "\n".join(
+        f"  • {code}　現價 {price:.2f}（停損 {sl:.2f}）"
+        for code, price, sl in triggered
+    )
+    msg = (
+        f"🚨 停損提醒\n\n"
+        f"以下股票已觸及停損價格：\n{lines}\n\n"
+        f"請確認是否執行停損。"
+    )
+    for uid in subscribers:
+        _push_sync(uid, msg)
+    logger.info("LINE stop-loss alert pushed: %d stock(s) triggered", len(triggered))
+
+
 # ── Manual trigger (for testing) ─────────────────────────────────────────────
 
 @router.post("/push-test")
@@ -287,4 +374,12 @@ async def push_test():
     """Manually trigger alert check (for testing)."""
     import asyncio
     await asyncio.to_thread(check_and_push_alerts)
+    return {"status": "ok", "subscribers": len(_get_subscribers())}
+
+
+@router.post("/push-test-sl")
+async def push_test_sl():
+    """Manually trigger stop-loss check (for testing)."""
+    import asyncio
+    await asyncio.to_thread(check_stop_loss_alerts)
     return {"status": "ok", "subscribers": len(_get_subscribers())}

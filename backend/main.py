@@ -55,6 +55,15 @@ def _scheduled_process_due_settlements():
         logger.error("排程：股票交割扣款失敗: %s", e)
 
 
+def _scheduled_stop_loss_check():
+    """Weekday 13:00 job: check stop-loss prices and push LINE alerts."""
+    try:
+        from routers.linebot import check_stop_loss_alerts
+        check_stop_loss_alerts()
+    except Exception as e:
+        logger.error("排程：停損推播失敗: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -92,8 +101,14 @@ async def lifespan(app: FastAPI):
         id="process_due_settlements_daily",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _scheduled_stop_loss_check,
+        CronTrigger(hour=13, minute=0, day_of_week="mon-fri", timezone="Asia/Taipei"),
+        id="stop_loss_check_daily",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、股票交割 09:05、淨資產快照 23:58）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、股票交割 09:05、淨資產快照 23:58、停損檢查 13:00 平日）")
     yield
     scheduler.shutdown(wait=False)
 
