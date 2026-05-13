@@ -148,6 +148,12 @@ if os.path.isdir(STATIC_DIR):
     app.mount("/static-files", StaticFiles(directory=STATIC_DIR), name="static_files")
 
 
+@app.get("/api/ping", include_in_schema=False)
+def ping():
+    """Keep-alive endpoint for external cron jobs (does NOT trigger any alerts)."""
+    return {"status": "ok"}
+
+
 @app.get("/{full_path:path}", include_in_schema=False)
 def serve_frontend(full_path: str):
     candidate = os.path.join(STATIC_DIR, full_path)
