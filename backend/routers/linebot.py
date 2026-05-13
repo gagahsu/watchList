@@ -103,6 +103,14 @@ def check_and_push_alerts():
         return
 
     today = date.today()
+
+    # Guard: skip if alerts were already sent today (prevents duplicate pushes
+    # when the endpoint is called manually while APScheduler already ran).
+    last_sent = get_setting("line_alerts_last_sent")
+    if last_sent == today.isoformat():
+        logger.info("LINE alert already sent today (%s), skipping.", today)
+        return
+
     today_day = today.day
     last_day_today = calendar.monthrange(today.year, today.month)[1]
     tomorrow = today + timedelta(days=1)
@@ -229,6 +237,7 @@ def check_and_push_alerts():
                 f"請儘速補足款項！"
             )
 
+    set_setting("line_alerts_last_sent", today.isoformat())
     if messages:
         combined = "\n\n─────────────────\n\n".join(messages)
         for uid in subscribers:
