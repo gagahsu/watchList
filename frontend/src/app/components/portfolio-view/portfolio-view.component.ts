@@ -110,6 +110,9 @@ interface ClosedPosition {
       <div class="empty-sub">在個股詳情中新增交易記錄，<br>買進後即會顯示於此。</div>
     </div>
   } @else {
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button class="idx-add-btn" style="padding:5px 12px;font-size:13px" (click)="exportCsv()">匯出 CSV</button>
+    </div>
     <div class="table-scroll-wrap">
     <table class="supply-table portfolio-table">
       <thead>
@@ -119,6 +122,7 @@ interface ClosedPosition {
           <th style="width:80px;text-align:right">持股</th>
           <th style="width:100px;text-align:right">均成本</th>
           <th style="width:100px;text-align:right">現價</th>
+          <th style="width:130px;text-align:right">市值（NTD）</th>
           <th style="width:130px;text-align:right">未實現損益</th>
           <th style="width:50px"></th>
         </tr>
@@ -159,6 +163,18 @@ interface ClosedPosition {
               {{ h.currentPrice != null ? fmtPrice(h.currentPrice, h.market) : '—' }}
               @if (h.market === 'us' && h.currentPrice != null) { <span class="mkt-usd">USD</span> }
             </td>
+            <td style="text-align:right;font-family:'JetBrains Mono',monospace">
+              @if (h.mvNTD != null) {
+                {{ Math.round(h.mvNTD).toLocaleString() }}
+                @if (h.market === 'us') {
+                  <div style="font-size:11px;color:var(--text-muted)">
+                    USD {{ (h.currentPrice! * h.holdingShares).toFixed(2) }}
+                  </div>
+                }
+              } @else {
+                <span style="color:var(--border)">—</span>
+              }
+            </td>
             <td style="text-align:right">
               @if (h.netUnrealizedNTD != null) {
                 <div class="trade-pnl" [class.pos]="h.netUnrealizedNTD >= 0" [class.neg]="h.netUnrealizedNTD < 0">
@@ -181,7 +197,7 @@ interface ClosedPosition {
 
           @if (expanded() === h.code) {
             <tr class="portfolio-detail-row">
-              <td colspan="7" style="padding:0">
+              <td colspan="8" style="padding:0">
                 <div class="portfolio-detail">
                   <div class="portfolio-detail-header">
                     <span style="font-size:13px;font-weight:700;color:var(--text-muted)">交易紀錄</span>
@@ -466,6 +482,36 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
 
   resultFor(fifo: ReturnType<typeof calcFIFO>, id: string) {
     return fifo.results.find(r => r.id === id) ?? null;
+  }
+
+  exportCsv() {
+    const fx = this.state.usdTwdRate();
+    const headers = ['代碼', '名稱', '市場', '持股數', '均成本', '現價', '市值(原幣)', 'USD/TWD匯率', '市值(NTD)', '未實現損益(NTD)', '報酬率(%)'];
+    const rows = this.holdings().map(h => [
+      h.code,
+      h.name,
+      h.market === 'us' ? '美股' : '台股',
+      h.holdingShares,
+      h.avgCost.toFixed(h.market === 'us' ? 2 : 0),
+      h.currentPrice != null ? h.currentPrice.toFixed(2) : '',
+      h.currentPrice != null ? (h.currentPrice * h.holdingShares).toFixed(h.market === 'us' ? 2 : 0) : '',
+      h.market === 'us' ? fx.toFixed(2) : '1',
+      h.mvNTD != null ? Math.round(h.mvNTD) : '',
+      h.netUnrealizedNTD != null ? Math.round(h.netUnrealizedNTD) : '',
+      h.unrealizedPct != null ? h.unrealizedPct.toFixed(2) : '',
+    ]);
+
+    const csv = [headers, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   fmtPrice(n: number, market: string) {
