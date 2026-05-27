@@ -305,7 +305,8 @@ def check_stop_loss_alerts():
             "SELECT ts.code, ts.stop_loss, COALESCE(tm.market, 'tw') AS market "
             "FROM tracked_stocks ts "
             "LEFT JOIN trade_markets tm ON ts.code = tm.code "
-            "WHERE ts.stop_loss IS NOT NULL AND ts.stop_loss != ''"
+            "WHERE ts.stop_loss IS NOT NULL AND ts.stop_loss != '' "
+            "AND ts.status = 'holding'"
         ).fetchall()
 
     targets = []
