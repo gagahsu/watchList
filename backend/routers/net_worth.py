@@ -2,7 +2,7 @@ import logging
 import uuid
 import time
 from fastapi import APIRouter, HTTPException
-from database import get_db
+from database import get_db, get_setting
 from models import NetWorthSnapshotIn
 
 router = APIRouter()
@@ -25,6 +25,10 @@ def _calc_totals(conn) -> tuple[float, float]:
     # Cash: sum of account balances
     cash = conn.execute("SELECT COALESCE(SUM(balance),0) AS s FROM accounts").fetchone()["s"]
 
+    # USD/TWD rate for US stock conversion
+    cached = get_setting("usdtwd_rate")
+    fx = float(cached) if cached else 31.5
+
     # Stocks: net held shares × last close price
     trades = conn.execute(
         "SELECT code, type, shares FROM trades"
@@ -34,6 +38,10 @@ def _calc_totals(conn) -> tuple[float, float]:
         holdings[t["code"]] = holdings.get(t["code"], 0) + (
             t["shares"] if t["type"] == "buy" else -t["shares"]
         )
+    markets = {
+        r["code"]: r["market"]
+        for r in conn.execute("SELECT code, market FROM trade_markets").fetchall()
+    }
     stock_mv = 0.0
     for code, shares in holdings.items():
         if shares <= 0:
@@ -42,7 +50,8 @@ def _calc_totals(conn) -> tuple[float, float]:
             "SELECT close FROM stocks WHERE code=%s AND close IS NOT NULL", (code,)
         ).fetchone()
         if row:
-            stock_mv += shares * row["close"]
+            to_ntd = fx if markets.get(code) == "us" else 1
+            stock_mv += shares * row["close"] * to_ntd
 
     # Funds: sum of market_value
     funds = conn.execute("SELECT COALESCE(SUM(market_value),0) AS s FROM funds").fetchone()["s"]
