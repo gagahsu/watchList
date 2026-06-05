@@ -295,11 +295,20 @@ def _fuzzy_match(rows, name: str, key: str = "name") -> dict | None:
     return None
 
 
-def _calc_fee(shares: float, price: float, trade_type: str, broker: dict) -> float:
+def _calc_fee(shares: float, price: float, trade_type: str, broker: dict, code: str = "") -> float:
     fns = {"floor": math.floor, "round": round, "ceil": math.ceil}
     round_fn = fns.get(broker["rounding"], math.floor)
     brokerage = max(broker["min_fee"], round_fn(shares * price * 0.001425 * broker["discount"]))
-    tax = math.floor(shares * price * 0.003) if trade_type == "sell" else 0
+    if trade_type == "sell":
+        # US stocks (alphabetic codes) have no Taiwan transaction tax
+        if code and code.replace(".", "").isalpha():
+            tax = 0
+        elif code.startswith("00"):
+            tax = math.floor(shares * price * 0.001)   # ETF: 0.1%
+        else:
+            tax = math.floor(shares * price * 0.003)   # 一般股票: 0.3%
+    else:
+        tax = 0
     return brokerage + tax
 
 
@@ -365,7 +374,7 @@ def _process_command(text: str) -> str | None:
                 return f"找不到券商「{parts[4]}」，請先在系統中建立，或傳「券商」查看列表。"
             broker_name = broker["name"]
 
-        fee = _calc_fee(shares, price, trade_type, broker) if broker else 0.0
+        fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
         today = date.today().isoformat()
         trade_id = str(uuid.uuid4())
         settled = trade_type == "sell"
