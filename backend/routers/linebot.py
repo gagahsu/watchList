@@ -535,14 +535,18 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     "傳「幫助」查看可用指令。",
                 )
             elif msg_text:
-                try:
-                    reply = _process_command(msg_text)
-                except Exception as e:
-                    logger.error("LINE command error: %s", e)
-                    reply = f"處理指令時發生錯誤，請確認格式後再試。\n傳「幫助」查看可用指令。"
-                if reply is None:
-                    reply = "無法識別指令。\n傳「幫助」查看可用指令。"
-                await _reply_async(reply_token, reply)
+                lines = [l.strip() for l in msg_text.splitlines() if l.strip()]
+                replies: list[str] = []
+                for line in lines:
+                    try:
+                        r = _process_command(line)
+                    except Exception as e:
+                        logger.error("LINE command error (%s): %s", line, e)
+                        r = f"「{line}」處理失敗，請確認格式後再試。"
+                    if r is None:
+                        r = f"「{line}」無法識別指令。\n傳「幫助」查看可用指令。"
+                    replies.append(r)
+                await _reply_async(reply_token, "\n\n─────────────────\n\n".join(replies))
 
     return {"status": "ok"}
 
