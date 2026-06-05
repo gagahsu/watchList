@@ -14,7 +14,9 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import os
+import uuid
 from datetime import date, timedelta
 
 import httpx
@@ -247,6 +249,245 @@ def check_and_push_alerts():
         logger.debug("LINE alert check: no alerts today")
 
 
+# ── Command handling ─────────────────────────────────────────────────────────
+
+_HELP_TEXT = (
+    "📋 可用指令：\n\n"
+    "🔹 股票交易\n"
+    "買 代碼 股數 價格 [券商]\n"
+    "例：買 2330 1000 580 元大\n\n"
+    "賣 代碼 股數 價格 [券商]\n"
+    "例：賣 2330 1000 600 元大\n\n"
+    "🔹 帳戶金流\n"
+    "存入 金額 帳戶名稱\n"
+    "例：存入 50000 玉山\n\n"
+    "提出 金額 帳戶名稱\n"
+    "例：提出 30000 玉山\n\n"
+    "轉帳 金額 來源帳戶 目標帳戶\n"
+    "例：轉帳 10000 玉山 富邦\n\n"
+    "🔹 查詢\n"
+    "餘額 – 所有帳戶餘額\n"
+    "帳戶 – 帳戶列表\n"
+    "券商 – 券商列表\n"
+    "幫助 – 顯示此說明"
+)
+
+_TRADE_CMDS = {"買": "buy", "買入": "buy", "買進": "buy", "賣": "sell", "賣出": "sell", "賣掉": "sell"}
+_DEPOSIT_CMDS = {"存入", "存款", "入帳"}
+_WITHDRAW_CMDS = {"提出", "提款", "出帳"}
+_TRANSFER_CMDS = {"轉帳", "轉出"}
+
+
+def _parse_number(s: str) -> float | None:
+    s = s.replace(",", "").replace("，", "").rstrip("元股張")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _fuzzy_match(rows, name: str, key: str = "name") -> dict | None:
+    for r in rows:
+        if r[key] == name:
+            return dict(r)
+    for r in rows:
+        if name in r[key] or r[key] in name:
+            return dict(r)
+    return None
+
+
+def _calc_fee(shares: float, price: float, trade_type: str, broker: dict) -> float:
+    fns = {"floor": math.floor, "round": round, "ceil": math.ceil}
+    round_fn = fns.get(broker["rounding"], math.floor)
+    brokerage = max(broker["min_fee"], round_fn(shares * price * 0.001425 * broker["discount"]))
+    tax = math.floor(shares * price * 0.003) if trade_type == "sell" else 0
+    return brokerage + tax
+
+
+def _process_command(text: str) -> str | None:
+    """Parse a LINE text message and execute the command. Returns reply string or None."""
+    parts = text.strip().split()
+    if not parts:
+        return None
+    cmd = parts[0]
+
+    # ── Help ────────────────────────────────────────────────────────────────
+    if cmd in ("幫助", "help", "Help", "?", "說明"):
+        return _HELP_TEXT
+
+    # ── Balance query ────────────────────────────────────────────────────────
+    if cmd == "餘額":
+        with get_db() as conn:
+            rows = conn.execute("SELECT name, balance FROM accounts ORDER BY sort_order").fetchall()
+        if not rows:
+            return "目前沒有帳戶資料。"
+        lines = "\n".join(f"  {r['name']}：NT${r['balance']:,.0f}" for r in rows)
+        total = sum(r["balance"] for r in rows)
+        return f"💰 帳戶餘額\n\n{lines}\n\n總計：NT${total:,.0f}"
+
+    # ── Account list ─────────────────────────────────────────────────────────
+    if cmd == "帳戶":
+        with get_db() as conn:
+            rows = conn.execute("SELECT name FROM accounts ORDER BY sort_order").fetchall()
+        if not rows:
+            return "目前沒有帳戶資料。"
+        return "🏦 帳戶列表\n\n" + "\n".join(f"  • {r['name']}" for r in rows)
+
+    # ── Broker list ──────────────────────────────────────────────────────────
+    if cmd == "券商":
+        with get_db() as conn:
+            rows = conn.execute("SELECT name, discount, min_fee FROM brokers ORDER BY name").fetchall()
+        if not rows:
+            return "目前沒有券商資料。"
+        lines = "\n".join(
+            f"  • {r['name']}　折扣 {r['discount']*100:.0f}%　最低 NT${r['min_fee']}"
+            for r in rows
+        )
+        return f"🏢 券商列表\n\n{lines}"
+
+    # ── Trade commands ───────────────────────────────────────────────────────
+    if cmd in _TRADE_CMDS:
+        trade_type = _TRADE_CMDS[cmd]
+        if len(parts) < 4:
+            return f"格式錯誤。範例：{cmd} 2330 1000 580 [券商名稱]"
+        code = parts[1].upper()
+        shares = _parse_number(parts[2])
+        price = _parse_number(parts[3])
+        if shares is None or price is None or shares <= 0 or price <= 0:
+            return "股數或價格格式錯誤。"
+
+        broker = None
+        broker_name = None
+        if len(parts) >= 5:
+            with get_db() as conn:
+                brokers = conn.execute("SELECT * FROM brokers").fetchall()
+            broker = _fuzzy_match(brokers, parts[4])
+            if broker is None:
+                return f"找不到券商「{parts[4]}」，請先在系統中建立，或傳「券商」查看列表。"
+            broker_name = broker["name"]
+
+        fee = _calc_fee(shares, price, trade_type, broker) if broker else 0.0
+        today = date.today().isoformat()
+        trade_id = str(uuid.uuid4())
+        settled = trade_type == "sell"
+
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (trade_id, code, today, trade_type, shares, price, fee, "", None, settled),
+            )
+
+        type_str = "買入" if trade_type == "buy" else "賣出"
+        amount = shares * price
+        reply = (
+            f"✅ {type_str}交易已記錄\n\n"
+            f"股票：{code}\n"
+            f"股數：{int(shares):,} 股\n"
+            f"價格：NT${price:,.2f}\n"
+            f"成交金額：NT${amount:,.0f}\n"
+            f"手續費：NT${fee:,.0f}"
+        )
+        if broker_name:
+            reply += f"\n券商：{broker_name}"
+        if trade_type == "buy":
+            reply += f"\n交割日：{_settlement_date(today).isoformat()}"
+        return reply
+
+    # ── Deposit ──────────────────────────────────────────────────────────────
+    if cmd in _DEPOSIT_CMDS:
+        if len(parts) < 3:
+            return "格式錯誤。範例：存入 50000 帳戶名稱"
+        amount = _parse_number(parts[1])
+        if amount is None or amount <= 0:
+            return "金額格式錯誤。"
+        with get_db() as conn:
+            accts = conn.execute("SELECT * FROM accounts").fetchall()
+            acct = _fuzzy_match(accts, parts[2])
+            if not acct:
+                return f"找不到帳戶「{parts[2]}」，請傳「帳戶」查看列表。"
+            txn_id = str(uuid.uuid4())
+            today = date.today().isoformat()
+            conn.execute(
+                "INSERT INTO account_transactions(id,date,type,amount,account_id,to_account_id,note)"
+                " VALUES(%s,%s,'deposit',%s,%s,NULL,'')",
+                (txn_id, today, amount, acct["id"]),
+            )
+            conn.execute("UPDATE accounts SET balance=balance+%s WHERE id=%s", (amount, acct["id"]))
+            new_bal = conn.execute("SELECT balance FROM accounts WHERE id=%s", (acct["id"],)).fetchone()["balance"]
+        return (
+            f"✅ 存款已記錄\n\n"
+            f"帳戶：{acct['name']}\n"
+            f"存入：NT${amount:,.0f}\n"
+            f"更新後餘額：NT${new_bal:,.0f}"
+        )
+
+    # ── Withdrawal ───────────────────────────────────────────────────────────
+    if cmd in _WITHDRAW_CMDS:
+        if len(parts) < 3:
+            return "格式錯誤。範例：提出 30000 帳戶名稱"
+        amount = _parse_number(parts[1])
+        if amount is None or amount <= 0:
+            return "金額格式錯誤。"
+        with get_db() as conn:
+            accts = conn.execute("SELECT * FROM accounts").fetchall()
+            acct = _fuzzy_match(accts, parts[2])
+            if not acct:
+                return f"找不到帳戶「{parts[2]}」，請傳「帳戶」查看列表。"
+            txn_id = str(uuid.uuid4())
+            today = date.today().isoformat()
+            conn.execute(
+                "INSERT INTO account_transactions(id,date,type,amount,account_id,to_account_id,note)"
+                " VALUES(%s,%s,'withdrawal',%s,%s,NULL,'')",
+                (txn_id, today, amount, acct["id"]),
+            )
+            conn.execute("UPDATE accounts SET balance=balance-%s WHERE id=%s", (amount, acct["id"]))
+            new_bal = conn.execute("SELECT balance FROM accounts WHERE id=%s", (acct["id"],)).fetchone()["balance"]
+        return (
+            f"✅ 提款已記錄\n\n"
+            f"帳戶：{acct['name']}\n"
+            f"提出：NT${amount:,.0f}\n"
+            f"更新後餘額：NT${new_bal:,.0f}"
+        )
+
+    # ── Transfer ─────────────────────────────────────────────────────────────
+    if cmd in _TRANSFER_CMDS:
+        if len(parts) < 4:
+            return "格式錯誤。範例：轉帳 10000 來源帳戶 目標帳戶"
+        amount = _parse_number(parts[1])
+        if amount is None or amount <= 0:
+            return "金額格式錯誤。"
+        with get_db() as conn:
+            accts = conn.execute("SELECT * FROM accounts").fetchall()
+            src = _fuzzy_match(accts, parts[2])
+            dst = _fuzzy_match(accts, parts[3])
+            if not src:
+                return f"找不到來源帳戶「{parts[2]}」。"
+            if not dst:
+                return f"找不到目標帳戶「{parts[3]}」。"
+            if src["id"] == dst["id"]:
+                return "來源帳戶與目標帳戶相同。"
+            txn_id = str(uuid.uuid4())
+            today = date.today().isoformat()
+            conn.execute(
+                "INSERT INTO account_transactions(id,date,type,amount,account_id,to_account_id,note)"
+                " VALUES(%s,%s,'transfer',%s,%s,%s,'')",
+                (txn_id, today, amount, src["id"], dst["id"]),
+            )
+            conn.execute("UPDATE accounts SET balance=balance-%s WHERE id=%s", (amount, src["id"]))
+            conn.execute("UPDATE accounts SET balance=balance+%s WHERE id=%s", (amount, dst["id"]))
+            src_bal = conn.execute("SELECT balance FROM accounts WHERE id=%s", (src["id"],)).fetchone()["balance"]
+            dst_bal = conn.execute("SELECT balance FROM accounts WHERE id=%s", (dst["id"],)).fetchone()["balance"]
+        return (
+            f"✅ 轉帳已記錄\n\n"
+            f"來源：{src['name']}（餘額 NT${src_bal:,.0f}）\n"
+            f"目標：{dst['name']}（餘額 NT${dst_bal:,.0f}）\n"
+            f"金額：NT${amount:,.0f}"
+        )
+
+    return None
+
+
 # ── Webhook endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/webhook")
@@ -270,6 +511,7 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
             _add_subscriber(user_id)
 
         if event_type == "message" and reply_token:
+            msg_text = event.get("message", {}).get("text", "")
             if is_new:
                 await _reply_async(
                     reply_token,
@@ -281,10 +523,18 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     "• 💵 股息除息日\n"
                     "• 📅 股票交割日（T+2）\n"
                     "• ⚠️ 明日帳戶餘額不足預警\n\n"
-                    "通知時間：每日早上 08:00",
+                    "通知時間：每日早上 08:00\n\n"
+                    "傳「幫助」查看可用指令。",
                 )
-            else:
-                await _reply_async(reply_token, "您已在訂閱名單中，有提醒時會主動通知。")
+            elif msg_text:
+                try:
+                    reply = _process_command(msg_text)
+                except Exception as e:
+                    logger.error("LINE command error: %s", e)
+                    reply = f"處理指令時發生錯誤，請確認格式後再試。\n傳「幫助」查看可用指令。"
+                if reply is None:
+                    reply = "無法識別指令。\n傳「幫助」查看可用指令。"
+                await _reply_async(reply_token, reply)
 
     return {"status": "ok"}
 
