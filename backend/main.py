@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
     )
     scheduler.add_job(
         _scheduled_line_alerts,
-        CronTrigger(hour=8, minute=0, timezone="Asia/Taipei"),
+        CronTrigger(hour=17, minute=0, timezone="Asia/Taipei"),
         id="line_alerts_daily",
         replace_existing=True,
     )
