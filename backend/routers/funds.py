@@ -1,6 +1,13 @@
+import calendar
+import logging
+import uuid
+from datetime import date as _date
+
 from fastapi import APIRouter, HTTPException
 from database import get_db
 from models import FundIn, FundPatch, FundScheduleIn
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -114,3 +121,68 @@ def delete_schedule(fund_id: str, schedule_id: str):
             raise HTTPException(404, "Schedule not found")
         conn.execute("DELETE FROM fund_schedules WHERE id=%s", (schedule_id,))
     return {"ok": True}
+
+
+# ── Auto cost increase on deduction day (called by scheduler) ─────────────────
+
+def process_fund_deductions():
+    """On a fund's scheduled deduction day, add the deduction amount to its cost basis."""
+    today = _date.today()
+    today_ym = today.strftime("%Y-%m")   # idempotency key: one run per month
+    last_day = calendar.monthrange(today.year, today.month)[1]
+
+    try:
+        with get_db() as conn:
+            due = conn.execute("""
+                SELECT fs.id AS schedule_id, fs.fund_id, fs.day_of_month, fs.amount,
+                       f.name AS fund_name, f.cost, f.account_id
+                FROM fund_schedules fs
+                JOIN funds f ON f.id = fs.fund_id
+                WHERE (fs.last_deduction_date IS NULL OR fs.last_deduction_date != %s)
+            """, (today_ym,)).fetchall()
+    except Exception as exc:
+        logger.error("基金扣款查詢失敗: %s", exc)
+        return
+
+    for r in due:
+        if min(r["day_of_month"], last_day) == today.day:
+            _apply_one(r, today.isoformat(), today_ym)
+
+
+def _apply_one(r, today_iso: str, today_ym: str):
+    amount    = r["amount"]
+    acct_id   = r["account_id"]
+    fund_id   = r["fund_id"]
+    sched_id  = r["schedule_id"]
+
+    try:
+        with get_db() as conn:
+            new_cost = r["cost"] + amount
+            conn.execute("UPDATE funds SET cost=%s WHERE id=%s", (new_cost, fund_id))
+
+            if acct_id:
+                acct = conn.execute("SELECT balance FROM accounts WHERE id=%s", (acct_id,)).fetchone()
+                if acct:
+                    new_balance = acct["balance"] - amount
+                    txn_id = uuid.uuid4().hex[:12]
+                    conn.execute(
+                        "INSERT INTO account_transactions"
+                        " (id, date, type, amount, account_id, to_account_id, note)"
+                        " VALUES (%s,%s,'withdrawal',%s,%s,NULL,%s)",
+                        (txn_id, today_iso, amount, acct_id, f"基金扣款：{r['fund_name']}"),
+                    )
+                    conn.execute("UPDATE accounts SET balance=%s WHERE id=%s", (new_balance, acct_id))
+                else:
+                    logger.warning("基金扣款：帳戶不存在 %s，跳過扣款帳戶異動「%s」", acct_id, r["fund_name"])
+
+            conn.execute(
+                "UPDATE fund_schedules SET last_deduction_date=%s WHERE id=%s",
+                (today_ym, sched_id),
+            )
+
+        logger.info(
+            "基金扣款成功：%s NT$%.0f，投入成本 %.0f → %.0f",
+            r["fund_name"], amount, r["cost"], new_cost,
+        )
+    except Exception as exc:
+        logger.error("基金扣款失敗「%s」: %s", r["fund_name"], exc)

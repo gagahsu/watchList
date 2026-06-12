@@ -46,6 +46,15 @@ def _scheduled_process_due_payments():
     process_due_payments()
 
 
+def _scheduled_process_fund_deductions():
+    """Daily job: increase fund cost basis by the deduction amount on the fund's deduction day."""
+    try:
+        from routers.funds import process_fund_deductions
+        process_fund_deductions()
+    except Exception as e:
+        logger.error("排程：基金扣款處理失敗: %s", e)
+
+
 def _scheduled_process_due_settlements():
     """Daily job: auto-deduct T+2 stock settlement payments on settlement day."""
     try:
@@ -96,6 +105,12 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
+        _scheduled_process_fund_deductions,
+        CronTrigger(hour=9, minute=0, timezone="Asia/Taipei"),
+        id="process_fund_deductions_daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
         _scheduled_process_due_settlements,
         CronTrigger(hour=9, minute=5, timezone="Asia/Taipei"),
         id="process_due_settlements_daily",
@@ -108,7 +123,7 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、股票交割 09:05、淨資產快照 23:58、停損檢查 13:00 平日）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、基金扣款 09:00、股票交割 09:05、淨資產快照 23:58、停損檢查 13:00 平日）")
     yield
     scheduler.shutdown(wait=False)
 

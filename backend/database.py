@@ -270,6 +270,8 @@ DDL = [
     """,
     # migrate: add deduction account to funds
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    # migrate: track when a fund schedule's auto cost-increase was last run (YYYY-MM prevents same-month double run)
+    "ALTER TABLE fund_schedules ADD COLUMN IF NOT EXISTS last_deduction_date TEXT",
 ]
 
 
