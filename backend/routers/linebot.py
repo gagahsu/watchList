@@ -57,6 +57,50 @@ def _add_subscriber(user_id: str):
         logger.info("LINE subscriber added: %s", user_id)
 
 
+def _remove_subscriber(user_id: str):
+    subs = _get_subscribers()
+    if user_id in subs:
+        subs.remove(user_id)
+        set_setting("line_subscribers", json.dumps(subs))
+
+
+# ── Authorization whitelist ──────────────────────────────────────────────────
+# Stored in settings under "line_allowed_users" as a JSON array of LINE user IDs.
+# Bootstrap: on first read, existing subscribers are grandfathered in; if there
+# are none, the first user to interact becomes the owner.
+
+def _get_allowed() -> list[str]:
+    raw = get_setting("line_allowed_users")
+    if raw is not None:
+        return json.loads(raw)
+    subs = _get_subscribers()
+    if subs:
+        set_setting("line_allowed_users", json.dumps(subs))
+        logger.info("LINE whitelist initialized from %d existing subscriber(s)", len(subs))
+    return subs
+
+
+def _is_allowed(user_id: str) -> bool:
+    allowed = _get_allowed()
+    return not allowed or user_id in allowed
+
+
+def _add_allowed(user_id: str):
+    allowed = _get_allowed()
+    if user_id not in allowed:
+        allowed.append(user_id)
+        set_setting("line_allowed_users", json.dumps(allowed))
+        logger.info("LINE user authorized: %s", user_id)
+
+
+def _remove_allowed(user_id: str):
+    allowed = _get_allowed()
+    if user_id in allowed:
+        allowed.remove(user_id)
+        set_setting("line_allowed_users", json.dumps(allowed))
+        logger.info("LINE user deauthorized: %s", user_id)
+
+
 def _auth_headers() -> dict:
     return {"Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"}
 
@@ -268,7 +312,10 @@ _HELP_TEXT = (
     "餘額 – 所有帳戶餘額\n"
     "帳戶 – 帳戶列表\n"
     "券商 – 券商列表\n"
-    "幫助 / 指令 / 選單 – 顯示此說明"
+    "幫助 / 指令 / 選單 – 顯示此說明\n\n"
+    "🔹 管理\n"
+    "授權 LINE-ID – 允許他人使用\n"
+    "取消授權 LINE-ID – 移除使用權"
 )
 
 _TRADE_CMDS = {"買": "buy", "買入": "buy", "買進": "buy", "賣": "sell", "賣出": "sell", "賣掉": "sell"}
@@ -322,6 +369,23 @@ def _process_command(text: str) -> str | None:
     # ── Help ────────────────────────────────────────────────────────────────
     if cmd in ("幫助", "help", "Help", "?", "說明", "指令", "指令列表", "選單"):
         return _HELP_TEXT
+
+    # ── Authorization management ─────────────────────────────────────────────
+    if cmd == "授權":
+        if len(parts) < 2 or not parts[1].startswith("U"):
+            return "格式錯誤。範例：授權 Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        _add_allowed(parts[1])
+        return f"✅ 已授權：\n{parts[1]}\n\n對方重新傳訊即可開始使用。"
+
+    if cmd == "取消授權":
+        if len(parts) < 2 or not parts[1].startswith("U"):
+            return "格式錯誤。範例：取消授權 Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        allowed = _get_allowed()
+        if parts[1] in allowed and len(allowed) <= 1:
+            return "無法移除最後一位使用者（白名單清空後任何人都能使用）。"
+        _remove_allowed(parts[1])
+        _remove_subscriber(parts[1])
+        return f"✅ 已取消授權並停止推播：\n{parts[1]}"
 
     # ── Balance query ────────────────────────────────────────────────────────
     if cmd == "餘額":
@@ -514,8 +578,23 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
         if not user_id:
             continue
 
+        # Whitelist gate: unauthorized users are never subscribed and cannot
+        # run commands; they only get a rejection with their own ID so the
+        # owner can authorize them.
+        if not _is_allowed(user_id):
+            if event_type == "message" and reply_token:
+                await _reply_async(
+                    reply_token,
+                    "此 Bot 為私人財務助理，未開放使用。\n\n"
+                    f"您的 LINE ID：\n{user_id}\n\n"
+                    f"如需使用，請由管理者傳送：\n授權 {user_id}",
+                )
+            logger.warning("LINE unauthorized access attempt: %s", user_id)
+            continue
+
         is_new = user_id not in _get_subscribers()
         if event_type in ("follow", "message"):
+            _add_allowed(user_id)   # persist bootstrap owner on first contact
             _add_subscriber(user_id)
 
         if event_type == "message" and reply_token:
@@ -531,7 +610,7 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     "• 💵 股息除息日\n"
                     "• 📅 股票交割日（T+2）\n"
                     "• ⚠️ 明日帳戶餘額不足預警\n\n"
-                    "通知時間：每日早上 08:00\n\n"
+                    "通知時間：每日 17:00（停損警示為平日 13:00）\n\n"
                     "傳「幫助」查看可用指令。",
                 )
             elif msg_text:

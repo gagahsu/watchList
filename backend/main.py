@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.start()
-    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 08:00、自動扣款 09:00、基金扣款 09:00、股票交割 09:05、淨資產快照 23:58、停損檢查 13:00 平日）")
+    logger.info("排程器已啟動（股票清單 18:30、LINE 提醒 17:00、自動扣款 09:00、基金扣款 09:00、股票交割 09:05、淨資產快照 23:58、停損檢查 13:00 平日）")
     yield
     scheduler.shutdown(wait=False)
 
