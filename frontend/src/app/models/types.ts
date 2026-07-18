@@ -3,7 +3,7 @@ export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities' | 'risk';
 
 export interface OhlcBar {
   date: string;
@@ -221,4 +221,8 @@ export interface FifoResult {
   holdingShares: number;
   avgCost: number;
   results: { id: string; realized: number | null; tax: number }[];
+  /** buy lots still (partially) held, in FIFO order */
+  openLots: { id: string; shares: number; unitCost: number }[];
+  /** FIFO buy→sell pairings: pnl/cost of each consumed lot portion */
+  allocations: { buyId: string; sellId: string; shares: number; pnl: number; cost: number }[];
 }

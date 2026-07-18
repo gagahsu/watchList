@@ -32,6 +32,20 @@ export const SIG_STATUS_CLASS: Record<string, string> = {
 
 export const DEFAULT_SOURCES = ['口袋證券', '股癌', '方格子', 'XQ全球贏家', '理財達人秀', '其他'];
 
+// ── Asset classes ─────────────────────────────────────────────────────────────
+export const ASSET_CLASSES = ['台股個股', '市場型ETF', '高股息ETF', '債券ETF', '美股', '其他'];
+
+/** Auto-detect asset class from market / code / name; user override takes precedence. */
+export function detectAssetClass(code: string, name: string, market: string): string {
+  if (market === 'us') return '美股';
+  if (code.startsWith('00')) {
+    if (name.includes('債')) return '債券ETF';
+    if (name.includes('高股息') || name.includes('股利') || name.includes('高息')) return '高股息ETF';
+    return '市場型ETF';
+  }
+  return '台股個股';
+}
+
 export function fmtMoney(n: number, market: string): string {
   const abs = Math.abs(n);
   const sign = n >= 0 ? '+' : '-';
@@ -72,9 +86,10 @@ export function calcFIFO(trades: Trade[], market: string): FifoResult {
     if (a.type !== 'buy' && b.type === 'buy') return 1;
     return 0;
   });
-  const buyQueue: { shares: number; unitCost: number }[] = [];
+  const buyQueue: { id: string; shares: number; unitCost: number }[] = [];
   let realizedPnL = 0;
   const results: FifoResult['results'] = [];
+  const allocations: FifoResult['allocations'] = [];
 
   for (const t of sorted) {
     const fee = t.fee || 0;
@@ -83,18 +98,24 @@ export function calcFIFO(trades: Trade[], market: string): FifoResult {
 
     if (t.type === 'buy') {
       const unitCost = (shares * price + fee) / shares;
-      buyQueue.push({ shares, unitCost });
+      buyQueue.push({ id: t.id, shares, unitCost });
       results.push({ id: t.id, realized: null, tax: 0 });
     } else {
       const sellAmount = shares * price;
       const tax = market === 'tw' ? Math.floor(sellAmount * 0.003) : 0;
       const proceeds = sellAmount - fee - tax;
+      const netUnit = shares > 0 ? proceeds / shares : 0;
       let remaining = shares;
       let costBasis = 0;
       while (remaining > 0 && buyQueue.length > 0) {
         const lot = buyQueue[0];
         const used = Math.min(remaining, lot.shares);
         costBasis += used * lot.unitCost;
+        allocations.push({
+          buyId: lot.id, sellId: t.id, shares: used,
+          pnl: used * (netUnit - lot.unitCost),
+          cost: used * lot.unitCost,
+        });
         lot.shares -= used;
         remaining -= used;
         if (lot.shares <= 0) buyQueue.shift();
@@ -108,7 +129,7 @@ export function calcFIFO(trades: Trade[], market: string): FifoResult {
   const holdingShares = buyQueue.reduce((s, l) => s + l.shares, 0);
   const holdingCost = buyQueue.reduce((s, l) => s + l.shares * l.unitCost, 0);
   const avgCost = holdingShares > 0 ? holdingCost / holdingShares : 0;
-  return { realizedPnL, holdingShares, avgCost, results };
+  return { realizedPnL, holdingShares, avgCost, results, openLots: buyQueue, allocations };
 }
 
 export function parseCSV(

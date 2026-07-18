@@ -23,6 +23,7 @@ import { FundHoldingsViewComponent } from './components/fund-holdings-view/fund-
 import { CashFlowViewComponent } from './components/cash-flow-view/cash-flow-view.component';
 import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
 import { LiabilitiesViewComponent } from './components/liabilities-view/liabilities-view.component';
+import { RiskViewComponent } from './components/risk-view/risk-view.component';
 
 @Component({
   selector: 'app-root',
@@ -33,7 +34,7 @@ import { LiabilitiesViewComponent } from './components/liabilities-view/liabilit
     BrokerSettingsModalComponent, CreditCardSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
     DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent, CalendarViewComponent,
-    LiabilitiesViewComponent,
+    LiabilitiesViewComponent, RiskViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -46,7 +47,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots, assetClasses] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -63,6 +64,7 @@ export class App implements OnInit {
       this.state.funds.set(funds);
       this.state.creditCards.set(creditCards);
       this.state.netWorthSnapshots.set(netWorthSnapshots);
+      this.state.assetClasses.set(assetClasses);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -104,6 +106,7 @@ export class App implements OnInit {
       'cash-flow': '每月現金流',
       'calendar':  '財務行事曆',
       'liabilities': '負債管理',
+      'risk': '風險暴露',
     };
     return titles[this.state.view()] ?? '理債富';
   }

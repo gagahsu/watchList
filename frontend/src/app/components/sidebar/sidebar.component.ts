@@ -70,6 +70,9 @@ import { pendingSettlements, settlementDate } from '../../utils';
       <button class="sidebar-nav-item" [class.active]="isActive('portfolio')" (click)="navigate('portfolio')">
         <span class="nav-icon">💼</span> 投資組合
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('risk')" (click)="navigate('risk')">
+        <span class="nav-icon">🛡️</span> 風險暴露
+      </button>
       <button class="sidebar-nav-item" [class.active]="isActive('dividends')" (click)="navigate('dividends')">
         <span class="nav-icon">💵</span> 股息追蹤
       </button>
@@ -166,7 +169,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities' | 'risk') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }

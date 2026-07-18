@@ -19,6 +19,7 @@ export class AppStateService {
   liabilities  = signal<Liability[]>([]);
   transactions = signal<AccountTransaction[]>([]);
   dividends    = signal<DividendRecord[]>([]);
+  assetClasses = signal<Record<string, string>>({});
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
@@ -182,6 +183,16 @@ export class AppStateService {
 
   setMarket(code: string, market: Market) {
     this.tradeMarkets.update(mm => ({ ...mm, [code]: market }));
+  }
+
+  setAssetClass(code: string, assetClass: string) {
+    this.assetClasses.update(m => {
+      if (!assetClass) {
+        const { [code]: _, ...rest } = m;
+        return rest;
+      }
+      return { ...m, [code]: assetClass };
+    });
   }
 
   // ── Source mutations ──────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import init_db
-from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts, liabilities, ohlc, chips, linebot, account_transactions, dividends, funds, credit_cards, net_worth
+from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts, liabilities, ohlc, chips, linebot, account_transactions, dividends, funds, credit_cards, net_worth, asset_classes
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ app.include_router(linebot.router,             prefix="/api")
 app.include_router(funds.router,               prefix="/api")
 app.include_router(credit_cards.router,        prefix="/api")
 app.include_router(net_worth.router,           prefix="/api")
+app.include_router(asset_classes.router,       prefix="/api")
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "browser")
 INDEX_HTML  = os.path.join(STATIC_DIR, "index.html")

@@ -272,6 +272,13 @@ DDL = [
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
     # migrate: track when a fund schedule's auto cost-increase was last run (YYYY-MM prevents same-month double run)
     "ALTER TABLE fund_schedules ADD COLUMN IF NOT EXISTS last_deduction_date TEXT",
+    # user-assigned asset class per stock code (e.g. 債券ETF / 市場型ETF), overrides auto-detection
+    """
+    CREATE TABLE IF NOT EXISTS asset_classes (
+        code        TEXT PRIMARY KEY,
+        asset_class TEXT NOT NULL
+    )
+    """,
 ]
 
 

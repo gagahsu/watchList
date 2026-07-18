@@ -212,6 +212,11 @@ class MarketIn(BaseModel):
     market: str
 
 
+# ── Asset Classes ────────────────────────────────────
+class AssetClassIn(BaseModel):
+    assetClass: str
+
+
 # ── Liabilities ──────────────────────────────────────
 class LiabilityIn(BaseModel):
     id: str

@@ -48,6 +48,7 @@ export class ApiService {
       this.get<FundHolding[]>('/funds'),
       this.get<CreditCard[]>('/credit-cards'),
       this.get<NetWorthSnapshot[]>('/net-worth-snapshots'),
+      this.get<Record<string, string>>('/asset-classes'),
     ]);
   }
 
@@ -92,6 +93,12 @@ export class ApiService {
   deleteTrade(tradeId: string) { return this.delete<{ok:boolean}>(`/trades/${tradeId}`); }
   setMarket(code: string, market: Market) {
     return this.put(`/trade-markets/${code}`, { market });
+  }
+
+  // ── Asset Classes ─────────────────────────────────────────────────────────
+  getAssetClasses() { return this.get<Record<string, string>>('/asset-classes'); }
+  setAssetClass(code: string, assetClass: string) {
+    return this.put(`/asset-classes/${code}`, { assetClass });
   }
 
   // ── Tracked Stocks ────────────────────────────────────────────────────────
