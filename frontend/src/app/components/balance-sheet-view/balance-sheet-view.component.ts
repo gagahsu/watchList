@@ -475,16 +475,18 @@ export class BalanceSheetViewComponent {
     }).reverse();
 
     // 點多時：只標 ~6 個日期、不畫圓點，避免擁擠
+    // 標籤格式依「實際資料跨度」決定：超過 ~半年才用年月，否則用月日
     const n = snaps.length;
     const labelStep = Math.max(1, Math.ceil(n / 6));
-    const longSpan = this.nwRange() === '1y' || this.nwRange() === 'all';
-    const xLabels = snaps
-      .map((s, i) => ({ i, s }))
-      .filter(({ i }) => i % labelStep === 0 || i === n - 1)
-      .map(({ i, s }) => ({
-        x: xOf(i),
-        label: longSpan ? s.date.slice(0, 7) : s.date.slice(5),  // "YYYY-MM" or "MM-DD"
-      }));
+    const spanDays = (new Date(snaps[n - 1].date).getTime() - new Date(snaps[0].date).getTime()) / 86_400_000;
+    const longSpan = spanDays > 180;
+    const xLabels: { x: number; label: string }[] = [];
+    for (let i = 0; i < n; i++) {
+      if (i % labelStep !== 0 && i !== n - 1) continue;
+      const label = longSpan ? snaps[i].date.slice(0, 7) : snaps[i].date.slice(5);  // "YYYY-MM" or "MM-DD"
+      if (xLabels.length > 0 && xLabels[xLabels.length - 1].label === label) continue;  // 去重
+      xLabels.push({ x: xOf(i), label });
+    }
 
     return {
       w: CHART_W, h: CHART_H, pad: PAD, count: n,
