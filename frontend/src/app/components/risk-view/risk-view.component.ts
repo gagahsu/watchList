@@ -4,6 +4,7 @@ import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { TrancheItem, TranchePlan } from '../../models/types';
 import { calcFIFO } from '../../utils';
+import { PieChartComponent, PieSlice } from '../pie-chart/pie-chart.component';
 
 interface RiskRow {
   code: string;
@@ -25,6 +26,7 @@ interface RiskRow {
 
 @Component({
   selector: 'app-risk-view',
+  imports: [PieChartComponent],
   template: `
 @let rows = riskRows();
 @let dd = drawdown();
@@ -140,18 +142,11 @@ interface RiskRow {
   </div>
 
   <!-- 產業集中度 -->
-  @if (industryRows().length > 0) {
+  @if (industrySlices().length > 0) {
     <div class="risk-section-title" style="margin-top:24px">產業集中度</div>
-    <div class="risk-bars">
-      @for (g of industryRows(); track g.industry) {
-        <div class="risk-bar-row">
-          <span class="risk-bar-label">{{ g.industry }}</span>
-          <div class="risk-bar-track">
-            <div class="risk-bar-fill" [class.risk-bar-high]="g.pct > 50" [style.width.%]="Math.min(g.pct, 100)"></div>
-          </div>
-          <span class="risk-bar-pct">{{ g.pct.toFixed(1) }}%</span>
-        </div>
-      }
+    <div class="risk-hint">單一產業超過 50% 以紅色標示。</div>
+    <div class="risk-pie-wrap">
+      <app-pie-chart [slices]="industrySlices()" />
     </div>
   }
 }
@@ -259,6 +254,7 @@ interface RiskRow {
     .risk-bar-pct { font-size:12px; font-family:'JetBrains Mono',monospace; text-align:right; }
     .neg { color:var(--red,#e74c3c); }
     @media (max-width:600px) { .risk-bar-row { grid-template-columns:110px 1fr 52px; } }
+    .risk-pie-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:18px 20px; }
     /* tranche plans */
     .tp-form { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
     .tp-form-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
@@ -434,7 +430,7 @@ export class RiskViewComponent {
       .sort((a, b) => b.pct - a.pct),
   );
 
-  industryRows = computed(() => {
+  industrySlices = computed((): PieSlice[] => {
     const map = new Map<string, number>();
     let total = 0;
     for (const r of this.riskRows()) {
@@ -443,9 +439,14 @@ export class RiskViewComponent {
       total += r.mvNTD;
     }
     if (total <= 0) return [];
+    const palette = ['#d4a017', '#3498db', '#8e7cc3', '#27ae60', '#e67e22', '#16a085', '#c0392b', '#7f8c8d'];
     return Array.from(map.entries())
-      .map(([industry, mv]) => ({ industry, pct: (mv / total) * 100 }))
-      .sort((a, b) => b.pct - a.pct);
+      .sort((a, b) => b[1] - a[1])
+      .map(([industry, mv], i) => ({
+        label: industry, value: mv,
+        // 單一產業 > 50% 視為過度集中 → 紅色警示
+        color: mv / total > 0.5 ? '#e74c3c' : palette[i % palette.length],
+      }));
   });
 
   /** 淨資產快照的最大回撤與目前回撤 */

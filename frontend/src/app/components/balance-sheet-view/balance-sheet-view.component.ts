@@ -1,8 +1,11 @@
-import { Component, computed } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
 import { ASSET_CLASSES, calcFIFO, detectAssetClass } from '../../utils';
+import { PieChartComponent, PieSlice } from '../pie-chart/pie-chart.component';
+
+type NwRange = '1w' | '1m' | '3m' | 'ytd' | '1y' | 'all';
 
 const CHART_W = 560;
 const CHART_H = 180;
@@ -11,13 +14,14 @@ const IW = CHART_W - PAD.l - PAD.r;
 const IH = CHART_H - PAD.t - PAD.b;
 
 function fmtK(n: number) {
-  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
   if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
   return String(Math.round(n));
 }
 
 @Component({
   selector: 'app-balance-sheet-view',
+  imports: [PieChartComponent],
   template: `
 @let totalAssets = assetTotal();
 @let totalLiab   = liabilityTotal();
@@ -105,16 +109,8 @@ function fmtK(n: number) {
   <div class="bs-group-title" style="margin-top:28px">資產配置</div>
   <div class="bs-chart-hint">依資產類別彙總，佔總資產比例。個股分類可於下方調整。</div>
   <div class="bs-alloc-wrap">
-    @for (g of allocationGroups(); track g.label) {
-      <div class="bs-alloc-row">
-        <span class="bs-alloc-label">{{ g.icon }} {{ g.label }}</span>
-        <div class="bs-alloc-track">
-          <div class="bs-alloc-fill" [style.width.%]="Math.min(g.pct, 100)" [style.background]="g.color"></div>
-        </div>
-        <span class="bs-alloc-amt">{{ fmtNT(g.total) }}</span>
-        <span class="bs-alloc-pct">{{ g.pct.toFixed(1) }}%</span>
-      </div>
-    }
+    <app-pie-chart [slices]="allocationSlices()"
+      centerTitle="總資產" [centerValue]="fmtNT(totalAssets)" />
   </div>
 
   @if (classedHoldings().length > 0) {
@@ -150,8 +146,20 @@ function fmtK(n: number) {
 }
 
 <!-- ── Net Worth History Chart ──────────────────────── -->
-<div class="bs-group-title" style="margin-top:28px">資產負債歷史</div>
-<div class="bs-chart-hint">每日 23:58 自動擷取快照</div>
+<div class="bs-nw-head">
+  <div>
+    <div class="bs-group-title" style="margin-bottom:2px">資產負債歷史</div>
+    <div class="bs-chart-hint" style="margin-bottom:0">每日 23:58 自動擷取快照</div>
+  </div>
+  @if (state.netWorthSnapshots().length >= 2) {
+    <div class="bs-range-group">
+      @for (r of nwRanges; track r.key) {
+        <button class="bs-range-btn" [class.active]="nwRange() === r.key"
+          (click)="nwRange.set(r.key)">{{ r.label }}</button>
+      }
+    </div>
+  }
+</div>
 
 @if (state.netWorthSnapshots().length < 2) {
   <div class="bs-chart-placeholder">
@@ -181,29 +189,35 @@ function fmtK(n: number) {
       </svg>
       <div class="bs-chart-legend">
         <span><span class="bs-legend-dot" style="background:#d4a017"></span>淨資產</span>
+        <span style="margin-left:auto">{{ chart.count }} 筆快照</span>
       </div>
-      <table class="bs-snap-table">
-        <thead><tr>
-          <th>日期</th>
-          <th style="text-align:right">資產</th>
-          <th style="text-align:right">負債</th>
-          <th style="text-align:right">淨資產</th>
-          <th></th>
-        </tr></thead>
-        <tbody>
-          @for (s of state.netWorthSnapshots(); track s.id) {
-            <tr>
-              <td>{{ s.date }}</td>
-              <td style="text-align:right" class="pos">{{ fmtNT(s.assets) }}</td>
-              <td style="text-align:right" class="neg">{{ fmtNT(s.liabilities) }}</td>
-              <td style="text-align:right" [class.pos]="s.assets-s.liabilities>=0" [class.neg]="s.assets-s.liabilities<0">{{ fmtNT(s.assets - s.liabilities) }}</td>
-              <td><button class="bs-del-btn" (click)="deleteSnapshot(s.id)" title="刪除">✕</button></td>
-            </tr>
-          }
-        </tbody>
-      </table>
     </div>
+  } @else {
+    <div class="bs-chart-placeholder">此區間快照不足，請選擇較長的時間週期</div>
   }
+  <details class="bs-alloc-details" style="margin-top:-6px">
+    <summary>快照明細（{{ state.netWorthSnapshots().length }} 筆）</summary>
+    <table class="bs-snap-table">
+      <thead><tr>
+        <th>日期</th>
+        <th style="text-align:right">資產</th>
+        <th style="text-align:right">負債</th>
+        <th style="text-align:right">淨資產</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        @for (s of state.netWorthSnapshots(); track s.id) {
+          <tr>
+            <td>{{ s.date }}</td>
+            <td style="text-align:right" class="pos">{{ fmtNT(s.assets) }}</td>
+            <td style="text-align:right" class="neg">{{ fmtNT(s.liabilities) }}</td>
+            <td style="text-align:right" [class.pos]="s.assets-s.liabilities>=0" [class.neg]="s.assets-s.liabilities<0">{{ fmtNT(s.assets - s.liabilities) }}</td>
+            <td><button class="bs-del-btn" (click)="deleteSnapshot(s.id)" title="刪除">✕</button></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </details>
 }
   `,
   styles: [`
@@ -242,20 +256,16 @@ function fmtK(n: number) {
     .bs-text-link { background:none; border:none; color:var(--gold); cursor:pointer; font-size:14px; text-decoration:underline; padding:0; }
     .bs-chart-hint { font-size:11px; color:var(--text-muted); margin-bottom:10px; }
     /* asset allocation */
-    .bs-alloc-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
-    .bs-alloc-row { display:grid; grid-template-columns:130px 1fr 110px 56px; align-items:center; gap:10px; }
-    .bs-alloc-label { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .bs-alloc-track { height:14px; background:rgba(127,140,141,.12); border-radius:7px; overflow:hidden; }
-    .bs-alloc-fill { height:100%; border-radius:7px; transition:width .3s; }
-    .bs-alloc-amt { font-size:12px; font-family:'JetBrains Mono',monospace; text-align:right; }
-    .bs-alloc-pct { font-size:12px; font-family:'JetBrains Mono',monospace; text-align:right; font-weight:700; }
+    .bs-alloc-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:18px 20px; margin-bottom:10px; }
     .bs-alloc-details { margin-bottom:16px; }
     .bs-alloc-details summary { font-size:12px; color:var(--text-muted); cursor:pointer; user-select:none; }
     .bs-alloc-select { font-size:12px; padding:2px 6px; border:1px solid var(--border); border-radius:6px; background:var(--panel-bg); color:var(--text); }
-    @media (max-width:600px) {
-      .bs-alloc-row { grid-template-columns:96px 1fr 52px; }
-      .bs-alloc-amt { display:none; }
-    }
+    /* net worth history header + range selector */
+    .bs-nw-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-top:28px; margin-bottom:10px; flex-wrap:wrap; }
+    .bs-range-group { display:flex; gap:2px; background:rgba(127,140,141,.1); border:1px solid var(--border); border-radius:8px; padding:2px; }
+    .bs-range-btn { font-size:12px; padding:3px 10px; border:none; background:none; color:var(--text-muted); border-radius:6px; cursor:pointer; font-weight:600; white-space:nowrap; }
+    .bs-range-btn:hover { color:var(--text); }
+    .bs-range-btn.active { background:var(--panel-bg); color:var(--gold); box-shadow:0 1px 3px rgba(0,0,0,.15); }
     /* chart */
     .bs-chart-placeholder { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:32px 16px; text-align:center; color:var(--text-muted); font-size:13px; margin-bottom:16px; }
     .bs-chart-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
@@ -360,6 +370,10 @@ export class BalanceSheetViewComponent {
     return groups.sort((a, b) => b.total - a.total);
   });
 
+  allocationSlices = computed((): PieSlice[] =>
+    this.allocationGroups().map(g => ({ label: g.label, value: g.total, color: g.color, icon: g.icon })),
+  );
+
   async onClassChange(code: string, e: Event) {
     const assetClass = (e.target as HTMLSelectElement).value;
     await this.api.setAssetClass(code, assetClass);
@@ -406,8 +420,38 @@ export class BalanceSheetViewComponent {
     this.state.removeNetWorthSnapshot(id);
   }
 
+  // ── Net worth history range selection ──────────────────────────────────────
+  nwRange = signal<NwRange>('3m');
+  nwRanges: { key: NwRange; label: string }[] = [
+    { key: '1w',  label: '1週' },
+    { key: '1m',  label: '1月' },
+    { key: '3m',  label: '3月' },
+    { key: 'ytd', label: '今年' },
+    { key: '1y',  label: '1年' },
+    { key: 'all', label: '最長' },
+  ];
+
+  private rangeCutoff(range: NwRange): string | null {
+    const d = new Date();
+    switch (range) {
+      case '1w':  d.setDate(d.getDate() - 7); break;
+      case '1m':  d.setMonth(d.getMonth() - 1); break;
+      case '3m':  d.setMonth(d.getMonth() - 3); break;
+      case 'ytd': return `${d.getFullYear()}-01-01`;
+      case '1y':  d.setFullYear(d.getFullYear() - 1); break;
+      case 'all': return null;
+    }
+    return d.toISOString().slice(0, 10);
+  }
+
+  filteredSnaps = computed(() => {
+    const sorted = [...this.state.netWorthSnapshots()].sort((a, b) => a.date.localeCompare(b.date));
+    const cutoff = this.rangeCutoff(this.nwRange());
+    return cutoff ? sorted.filter(s => s.date >= cutoff) : sorted;
+  });
+
   chartData = computed(() => {
-    const snaps = this.state.netWorthSnapshots().slice(-12);
+    const snaps = this.filteredSnaps();
     if (snaps.length < 2) return null;
 
     const netVals = snaps.map(s => s.assets - s.liabilities);
@@ -430,17 +474,25 @@ export class BalanceSheetViewComponent {
       return { y: yOf(val), val, label: fmtK(val) };
     }).reverse();
 
+    // 點多時：只標 ~6 個日期、不畫圓點，避免擁擠
+    const n = snaps.length;
+    const labelStep = Math.max(1, Math.ceil(n / 6));
+    const longSpan = this.nwRange() === '1y' || this.nwRange() === 'all';
+    const xLabels = snaps
+      .map((s, i) => ({ i, s }))
+      .filter(({ i }) => i % labelStep === 0 || i === n - 1)
+      .map(({ i, s }) => ({
+        x: xOf(i),
+        label: longSpan ? s.date.slice(0, 7) : s.date.slice(5),  // "YYYY-MM" or "MM-DD"
+      }));
+
     return {
-      w: CHART_W, h: CHART_H, pad: PAD,
+      w: CHART_W, h: CHART_H, pad: PAD, count: n,
       netPoints: toPoints(netVals),
-      dots: snaps.map((s, i) => ({
-        x: xOf(i),
-        netY: yOf(s.assets - s.liabilities),
-      })),
-      xLabels: snaps.map((s, i) => ({
-        x: xOf(i),
-        label: s.date.slice(5),  // "MM-DD"
-      })),
+      dots: n <= 24
+        ? snaps.map((s, i) => ({ x: xOf(i), netY: yOf(s.assets - s.liabilities) }))
+        : [],
+      xLabels,
       yAxis,
     };
   });
