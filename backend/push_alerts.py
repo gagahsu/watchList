@@ -344,6 +344,139 @@ def check_chip_alerts():
         logger.info("Chip alert pushed: %d line(s)", len(lines))
 
 
+# ── 5b. Market-wide chip scan: 外資+投信同步連3買 (19:30 平日) ────────────────
+
+_SCAN_DAYS = 5          # 抓最近 5 個交易日，可顯示連 3～5 買
+_SCAN_TOP_N = 15        # 推播最多列出檔數
+_SCAN_EXCLUDE_CAT = {"ETF", "ETN", "Index", "大盤", "受益證券", "存託憑證"}
+
+
+def _scan_universe() -> dict[str, str]:
+    """{stock_id: name} for ordinary listed stocks (4-digit code, non-ETF)."""
+    from finmind import fetch_stock_info
+    universe: dict[str, str] = {}
+    for r in fetch_stock_info():
+        sid = r.get("stock_id", "")
+        if len(sid) != 4 or not sid.isdigit():
+            continue
+        if r.get("industry_category") in _SCAN_EXCLUDE_CAT:
+            continue
+        universe[sid] = r.get("stock_name", "")
+    return universe
+
+
+def _scan_fetch_days() -> list[tuple[str, dict[str, tuple[float, float]]]]:
+    """Last _SCAN_DAYS trading days of whole-market data, newest first.
+    Returns [(date, {stock_id: (foreign_net, trust_net)}), ...] (shares)."""
+    from finmind import fetch_institutional_for_date
+    days: list[tuple[str, dict[str, tuple[float, float]]]] = []
+    d = date.today()
+    for _ in range(12):                     # 往回最多 12 個日曆日
+        if len(days) >= _SCAN_DAYS:
+            break
+        if d.weekday() < 5:                 # 跳過週末，省 API 呼叫
+            rows = fetch_institutional_for_date(d.isoformat())
+            per: dict[str, list[float]] = {}
+            for r in rows:
+                sid = r.get("stock_id", "")
+                net = (r.get("buy", 0) or 0) - (r.get("sell", 0) or 0)
+                kind = (r.get("name") or "").lower()
+                if sid not in per:
+                    per[sid] = [0.0, 0.0]
+                if kind in ("foreign_investor", "foreign_dealer_self"):
+                    per[sid][0] += net
+                elif kind == "investment_trust":
+                    per[sid][1] += net
+            if per:                          # 空 = 非交易日（國定假日）
+                days.append((d.isoformat(), {k: (v[0], v[1]) for k, v in per.items()}))
+        d -= timedelta(days=1)
+    return days
+
+
+def _min_scan_lots() -> float:
+    """外資/投信各自 3 日合計買超門檻（張），過濾冷門小量雜訊。"""
+    try:
+        return float(get_setting("market_scan_min_lots") or 300)
+    except (TypeError, ValueError):
+        return 300
+
+
+def scan_market_chips():
+    """全市場掃描：外資連3買 + 投信連3買同時成立的個股。"""
+    if date.today().weekday() >= 5 or not _get_subscribers():
+        return
+    if not _once_per_day("market_scan_last_sent"):
+        return
+
+    try:
+        days = _scan_fetch_days()
+    except Exception as e:
+        logger.error("Market scan fetch failed: %s", e)
+        return
+    if len(days) < 3:
+        logger.warning("Market scan: only %d trading day(s) fetched, skip", len(days))
+        return
+
+    try:
+        universe = _scan_universe()
+    except Exception as e:
+        logger.warning("Market scan: stock info fetch failed (%s), fallback to DB names", e)
+        universe = None                      # 拿不到清單就不過濾類別，只用 DB 名稱
+
+    min_lots = _min_scan_lots()
+    latest_date = days[0][0]
+    codes = set(days[0][1].keys())
+    if universe is not None:
+        codes &= set(universe.keys())
+
+    hits = []
+    for sid in codes:
+        f_streak = t_streak = 0
+        f_broken = t_broken = False
+        for _, per in days:                  # newest → oldest
+            f, t = per.get(sid, (0.0, 0.0))
+            if not f_broken and f > 0:
+                f_streak += 1
+            else:
+                f_broken = True
+            if not t_broken and t > 0:
+                t_streak += 1
+            else:
+                t_broken = True
+            if f_broken and t_broken:
+                break
+        both = min(f_streak, t_streak)
+        if both < 3:
+            continue
+        f_sum3 = sum(days[i][1].get(sid, (0, 0))[0] for i in range(3)) / 1000
+        t_sum3 = sum(days[i][1].get(sid, (0, 0))[1] for i in range(3)) / 1000
+        if f_sum3 < min_lots or t_sum3 < min_lots:
+            continue
+        hits.append({"code": sid, "streak": both, "f3": f_sum3, "t3": t_sum3})
+
+    if not hits:
+        logger.info("Market scan: no stock matched (min_lots=%.0f)", min_lots)
+        return
+
+    hits.sort(key=lambda h: h["f3"] + h["t3"], reverse=True)
+    names = universe if universe is not None else _stock_names()
+    max_streak = len(days)
+    lines = []
+    for i, h in enumerate(hits[:_SCAN_TOP_N], 1):
+        streak_txt = f"連{h['streak']}買" if h["streak"] < max_streak else f"連{h['streak']}+買"
+        lines.append(
+            f"{i}. {h['code']} {names.get(h['code'], '')}（{streak_txt}）\n"
+            f"　 外資 +{h['f3']:,.0f} 張｜投信 +{h['t3']:,.0f} 張"
+        )
+    more = f"\n\n共 {len(hits)} 檔符合，列出前 {_SCAN_TOP_N} 檔" if len(hits) > _SCAN_TOP_N else \
+           f"\n\n共 {len(hits)} 檔符合"
+    _push_all([
+        f"🔍 全市場籌碼掃描\n📅 {latest_date}　外資＋投信同步連3買\n"
+        f"（3日合計均 ≥ {min_lots:,.0f} 張）\n\n" + "\n".join(lines) + more
+    ])
+    logger.info("Market scan pushed: %d hit(s)", len(hits))
+
+
 # ── 6/7/8. Weekly report incl. overdue-signal review (週日 20:00) ────────────
 
 def send_weekly_report():

@@ -97,6 +97,15 @@ def _scheduled_chip_alerts():
         logger.error("排程：籌碼警示推播失敗: %s", e)
 
 
+def _scheduled_market_scan():
+    """Weekday 19:30 job: whole-market scan for foreign+trust 3-day buy streaks."""
+    try:
+        from push_alerts import scan_market_chips
+        scan_market_chips()
+    except Exception as e:
+        logger.error("排程：全市場籌碼掃描失敗: %s", e)
+
+
 def _scheduled_no_sl_reminder():
     """Monday 09:00 job: remind about holdings without a stop-loss."""
     try:
@@ -183,6 +192,12 @@ async def lifespan(app: FastAPI):
         _scheduled_chip_alerts,
         CronTrigger(hour=19, minute=0, day_of_week="mon-fri", timezone="Asia/Taipei"),
         id="chip_alerts_daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _scheduled_market_scan,
+        CronTrigger(hour=19, minute=30, day_of_week="mon-fri", timezone="Asia/Taipei"),
+        id="market_scan_daily",
         replace_existing=True,
     )
     scheduler.add_job(

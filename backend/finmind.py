@@ -117,6 +117,17 @@ def find_latest_prices_bulk() -> tuple[dict, str, str]:
     return {}, "", last_err
 
 
+def fetch_institutional_for_date(trading_date: str) -> list[dict]:
+    """Whole-market institutional buy/sell for one trading date (no data_id)."""
+    data = _get({
+        "dataset":    "TaiwanStockInstitutionalInvestorsBuySell",
+        "start_date": trading_date,
+        "end_date":   trading_date,
+        "token":      TOKEN,
+    })
+    return data.get("data", [])
+
+
 def fetch_institutional(code: str, start_date: str) -> list[dict]:
     data = _get({
         "dataset":    "TaiwanStockInstitutionalInvestorsBuySell",

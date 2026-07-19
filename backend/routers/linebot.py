@@ -636,6 +636,7 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     "• 🚨 停損／🎯 停利／📉 加碼到價（平日 13:00）\n"
                     "• 📉 持股單日重挫（平日 14:30）\n"
                     "• 📊 籌碼異動（平日 19:00）\n"
+                    "• 🔍 全市場外資+投信連3買掃描（平日 19:30）\n"
                     "• 🎉 淨資產新高與回撤警示\n"
                     "• 📊 週報（週日 20:00）、月結（每月 1 日）\n\n"
                     "每日彙整通知時間：17:00\n\n"
@@ -759,17 +760,18 @@ async def push_test():
 @router.post("/push-test-features/{name}")
 async def push_test_features(name: str):
     """Manually trigger one of the scheduled push jobs (for testing).
-    name: price | drop | networth | nosl | chips | weekly | monthly"""
+    name: price | drop | networth | nosl | chips | marketscan | weekly | monthly"""
     import asyncio
     import push_alerts as pa
     jobs = {
-        "price":    pa.check_price_alerts,
-        "drop":     pa.check_daily_drop_alerts,
-        "networth": pa.check_net_worth_alerts,
-        "nosl":     pa.check_no_stop_loss_reminder,
-        "chips":    pa.check_chip_alerts,
-        "weekly":   pa.send_weekly_report,
-        "monthly":  pa.send_monthly_report,
+        "price":      pa.check_price_alerts,
+        "drop":       pa.check_daily_drop_alerts,
+        "networth":   pa.check_net_worth_alerts,
+        "nosl":       pa.check_no_stop_loss_reminder,
+        "chips":      pa.check_chip_alerts,
+        "marketscan": pa.scan_market_chips,
+        "weekly":     pa.send_weekly_report,
+        "monthly":    pa.send_monthly_report,
     }
     if name not in jobs:
         raise HTTPException(404, f"unknown job, choose from: {', '.join(jobs)}")
