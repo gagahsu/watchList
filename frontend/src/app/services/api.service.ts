@@ -5,6 +5,7 @@ import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
   AccountTransaction, CreditCard, DividendRecord, FundHolding, FundSchedule, NetWorthSnapshot,
+  TrancheItem, TranchePlan,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -48,6 +49,7 @@ export class ApiService {
       this.get<FundHolding[]>('/funds'),
       this.get<CreditCard[]>('/credit-cards'),
       this.get<NetWorthSnapshot[]>('/net-worth-snapshots'),
+      this.get<Record<string, string>>('/asset-classes'),
     ]);
   }
 
@@ -92,6 +94,20 @@ export class ApiService {
   deleteTrade(tradeId: string) { return this.delete<{ok:boolean}>(`/trades/${tradeId}`); }
   setMarket(code: string, market: Market) {
     return this.put(`/trade-markets/${code}`, { market });
+  }
+
+  // ── Asset Classes ─────────────────────────────────────────────────────────
+  getAssetClasses() { return this.get<Record<string, string>>('/asset-classes'); }
+  setAssetClass(code: string, assetClass: string) {
+    return this.put(`/asset-classes/${code}`, { assetClass });
+  }
+
+  // ── Tranche Plans (543 加碼計畫) ──────────────────────────────────────────
+  getTranchePlans() { return this.get<TranchePlan[]>('/tranche-plans'); }
+  createTranchePlan(plan: TranchePlan) { return this.post<TranchePlan>('/tranche-plans', plan); }
+  deleteTranchePlan(id: string) { return this.delete<{ok:boolean}>(`/tranche-plans/${id}`); }
+  patchTrancheItem(id: string, status: 'pending' | 'filled') {
+    return this.patch<TrancheItem>(`/tranche-items/${id}`, { status });
   }
 
   // ── Tracked Stocks ────────────────────────────────────────────────────────

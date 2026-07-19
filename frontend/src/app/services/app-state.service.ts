@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
   Account, AccountTransaction, Broker, CreditCard, DividendRecord, EditTarget, Entry, FundHolding, FundSchedule, Liability, MainView, Market, NetWorthSnapshot, Note,
-  Row, Signal, Trade, TrackedStock,
+  Row, Signal, Trade, TrackedStock, TrancheItem, TranchePlan,
 } from '../models/types';
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
@@ -19,6 +19,7 @@ export class AppStateService {
   liabilities  = signal<Liability[]>([]);
   transactions = signal<AccountTransaction[]>([]);
   dividends    = signal<DividendRecord[]>([]);
+  assetClasses = signal<Record<string, string>>({});
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);
@@ -182,6 +183,27 @@ export class AppStateService {
 
   setMarket(code: string, market: Market) {
     this.tradeMarkets.update(mm => ({ ...mm, [code]: market }));
+  }
+
+  // ── Tranche plans (543 加碼計畫) ──────────────────────────────────────────
+  tranchePlans = signal<TranchePlan[]>([]);
+  tranchePlansLoaded = signal(false);
+  addTranchePlan(p: TranchePlan) { this.tranchePlans.update(ps => [p, ...ps]); }
+  removeTranchePlan(id: string) { this.tranchePlans.update(ps => ps.filter(p => p.id !== id)); }
+  updateTrancheItem(planId: string, item: TrancheItem) {
+    this.tranchePlans.update(ps => ps.map(p =>
+      p.id === planId ? { ...p, items: p.items.map(i => i.id === item.id ? item : i) } : p
+    ));
+  }
+
+  setAssetClass(code: string, assetClass: string) {
+    this.assetClasses.update(m => {
+      if (!assetClass) {
+        const { [code]: _, ...rest } = m;
+        return rest;
+      }
+      return { ...m, [code]: assetClass };
+    });
   }
 
   // ── Source mutations ──────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import { Component, computed } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
 import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
-import { calcFIFO } from '../../utils';
+import { ASSET_CLASSES, calcFIFO, detectAssetClass } from '../../utils';
 
 const CHART_W = 560;
 const CHART_H = 180;
@@ -100,6 +100,55 @@ function fmtK(n: number) {
   </div>
 </div>
 
+<!-- ── Asset Allocation ─────────────────────────────── -->
+@if (totalAssets > 0) {
+  <div class="bs-group-title" style="margin-top:28px">資產配置</div>
+  <div class="bs-chart-hint">依資產類別彙總，佔總資產比例。個股分類可於下方調整。</div>
+  <div class="bs-alloc-wrap">
+    @for (g of allocationGroups(); track g.label) {
+      <div class="bs-alloc-row">
+        <span class="bs-alloc-label">{{ g.icon }} {{ g.label }}</span>
+        <div class="bs-alloc-track">
+          <div class="bs-alloc-fill" [style.width.%]="Math.min(g.pct, 100)" [style.background]="g.color"></div>
+        </div>
+        <span class="bs-alloc-amt">{{ fmtNT(g.total) }}</span>
+        <span class="bs-alloc-pct">{{ g.pct.toFixed(1) }}%</span>
+      </div>
+    }
+  </div>
+
+  @if (classedHoldings().length > 0) {
+    <details class="bs-alloc-details">
+      <summary>個股分類明細（{{ classedHoldings().length }} 檔）</summary>
+      <table class="bs-snap-table" style="margin-top:8px">
+        <thead><tr>
+          <th>代碼</th><th>名稱</th>
+          <th style="text-align:right">市值（NTD）</th>
+          <th style="text-align:right">佔總資產</th>
+          <th>分類</th>
+        </tr></thead>
+        <tbody>
+          @for (h of classedHoldings(); track h.code) {
+            <tr>
+              <td style="color:var(--gold);font-weight:600">{{ h.code }}</td>
+              <td>{{ h.name }}</td>
+              <td style="text-align:right">{{ h.mv != null ? fmtNT(h.mv) : '—' }}</td>
+              <td style="text-align:right">{{ h.mv != null && totalAssets > 0 ? (h.mv / totalAssets * 100).toFixed(1) + '%' : '—' }}</td>
+              <td>
+                <select class="bs-alloc-select" (change)="onClassChange(h.code, $event)">
+                  @for (c of assetClassOptions; track c) {
+                    <option [value]="c" [selected]="c === h.assetClass">{{ c }}</option>
+                  }
+                </select>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </details>
+  }
+}
+
 <!-- ── Net Worth History Chart ──────────────────────── -->
 <div class="bs-group-title" style="margin-top:28px">資產負債歷史</div>
 <div class="bs-chart-hint">每日 23:58 自動擷取快照</div>
@@ -192,6 +241,21 @@ function fmtK(n: number) {
     .bs-empty { text-align:center; color:var(--text-muted); font-size:14px; padding:20px 0; }
     .bs-text-link { background:none; border:none; color:var(--gold); cursor:pointer; font-size:14px; text-decoration:underline; padding:0; }
     .bs-chart-hint { font-size:11px; color:var(--text-muted); margin-bottom:10px; }
+    /* asset allocation */
+    .bs-alloc-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+    .bs-alloc-row { display:grid; grid-template-columns:130px 1fr 110px 56px; align-items:center; gap:10px; }
+    .bs-alloc-label { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .bs-alloc-track { height:14px; background:rgba(127,140,141,.12); border-radius:7px; overflow:hidden; }
+    .bs-alloc-fill { height:100%; border-radius:7px; transition:width .3s; }
+    .bs-alloc-amt { font-size:12px; font-family:'JetBrains Mono',monospace; text-align:right; }
+    .bs-alloc-pct { font-size:12px; font-family:'JetBrains Mono',monospace; text-align:right; font-weight:700; }
+    .bs-alloc-details { margin-bottom:16px; }
+    .bs-alloc-details summary { font-size:12px; color:var(--text-muted); cursor:pointer; user-select:none; }
+    .bs-alloc-select { font-size:12px; padding:2px 6px; border:1px solid var(--border); border-radius:6px; background:var(--panel-bg); color:var(--text); }
+    @media (max-width:600px) {
+      .bs-alloc-row { grid-template-columns:96px 1fr 52px; }
+      .bs-alloc-amt { display:none; }
+    }
     /* chart */
     .bs-chart-placeholder { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:32px 16px; text-align:center; color:var(--text-muted); font-size:13px; margin-bottom:16px; }
     .bs-chart-wrap { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
@@ -242,10 +306,65 @@ export class BalanceSheetViewComponent {
         const price = closeMap[code]?.close ?? null;
         const toNTD = mkt === 'us' ? fx : 1;
         const mv = price !== null ? price * fifo.holdingShares * toNTD : null;
-        return { code, name: nameMap[code] ?? '', shares: fifo.holdingShares, price, mv };
+        return { code, name: nameMap[code] ?? '', shares: fifo.holdingShares, price, mv, market: mkt };
       })
       .filter((h): h is NonNullable<typeof h> => h !== null);
   });
+
+  assetClassOptions = ASSET_CLASSES;
+  Math = Math;
+
+  /** 持股 + 使用者覆寫/自動判斷的資產分類 */
+  classedHoldings = computed(() => {
+    const overrides = this.state.assetClasses();
+    return this.holdingRows()
+      .map(h => ({
+        ...h,
+        assetClass: overrides[h.code] ?? detectAssetClass(h.code, h.name, h.market),
+      }))
+      .sort((a, b) => (b.mv ?? 0) - (a.mv ?? 0));
+  });
+
+  /** 資產配置彙總：現金 + 各股票分類 + 基金 */
+  allocationGroups = computed(() => {
+    const total = this.assetTotal();
+    if (total <= 0) return [];
+    const groups: { label: string; icon: string; total: number; pct: number; color: string }[] = [];
+    const colors: Record<string, string> = {
+      '現金': '#3498db', '台股個股': '#d4a017', '市場型ETF': '#8e7cc3',
+      '高股息ETF': '#e67e22', '債券ETF': '#27ae60', '美股': '#c0392b',
+      '基金': '#16a085', '其他': '#7f8c8d',
+    };
+    const icons: Record<string, string> = {
+      '現金': '💰', '台股個股': '📈', '市場型ETF': '📊',
+      '高股息ETF': '💵', '債券ETF': '🏛️', '美股': '🇺🇸',
+      '基金': '🏦', '其他': '📦',
+    };
+    const push = (label: string, amount: number) => {
+      if (amount <= 0) return;
+      groups.push({
+        label, total: amount, pct: (amount / total) * 100,
+        icon: icons[label] ?? '📦', color: colors[label] ?? '#7f8c8d',
+      });
+    };
+
+    push('現金', this.cashTotal());
+    const byClass = new Map<string, number>();
+    for (const h of this.classedHoldings()) {
+      if (h.mv == null) continue;
+      byClass.set(h.assetClass, (byClass.get(h.assetClass) ?? 0) + h.mv);
+    }
+    for (const [cls, amt] of byClass.entries()) push(cls, amt);
+    push('基金', this.fundTotal());
+
+    return groups.sort((a, b) => b.total - a.total);
+  });
+
+  async onClassChange(code: string, e: Event) {
+    const assetClass = (e.target as HTMLSelectElement).value;
+    await this.api.setAssetClass(code, assetClass);
+    this.state.setAssetClass(code, assetClass);
+  }
 
   cashTotal      = computed(() => this.state.accounts().reduce((s, a) => s + a.balance, 0));
   stockTotal     = computed(() => this.holdingRows().reduce((s, h) => s + (h.mv ?? 0), 0));
