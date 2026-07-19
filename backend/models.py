@@ -217,6 +217,27 @@ class AssetClassIn(BaseModel):
     assetClass: str
 
 
+# ── Tranche Plans (543 加碼計畫) ─────────────────────
+class TrancheItemIn(BaseModel):
+    id: str
+    seq: int
+    triggerPrice: float
+    amount: float
+    status: str = "pending"
+
+
+class TranchePlanIn(BaseModel):
+    id: str
+    code: str
+    note: str = ""
+    createdAt: int
+    items: list[TrancheItemIn] = []
+
+
+class TrancheItemPatch(BaseModel):
+    status: str  # 'pending' | 'filled'
+
+
 # ── Liabilities ──────────────────────────────────────
 class LiabilityIn(BaseModel):
     id: str

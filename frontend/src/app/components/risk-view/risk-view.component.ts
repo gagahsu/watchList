@@ -1,6 +1,8 @@
-import { Component, computed } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { AppStateService } from '../../services/app-state.service';
+import { ApiService } from '../../services/api.service';
 import { StockService } from '../../services/stock.service';
+import { TrancheItem, TranchePlan } from '../../models/types';
 import { calcFIFO } from '../../utils';
 
 interface RiskRow {
@@ -153,6 +155,90 @@ interface RiskRow {
     </div>
   }
 }
+
+<!-- ── 分批加碼計畫（543） ─────────────────────────── -->
+<div style="display:flex;align-items:center;gap:12px;margin-top:28px;margin-bottom:4px">
+  <div class="risk-section-title" style="margin:0">分批加碼計畫（543）</div>
+  <button class="idx-add-btn" style="padding:4px 12px;font-size:13px;margin-left:auto"
+    (click)="showPlanForm.set(!showPlanForm())">
+    {{ showPlanForm() ? '取消' : '＋ 新計畫' }}
+  </button>
+</div>
+<div class="risk-hint">資金分筆，跌到觸發價由 LINE 通知加碼（平日 13:00 檢查）。</div>
+
+@if (showPlanForm()) {
+  <div class="tp-form">
+    <div class="tp-form-grid">
+      <label>代碼
+        <input [value]="fCode()" (input)="fCode.set(asStr($event))" placeholder="0050" />
+      </label>
+      <label>總金額
+        <input type="number" [value]="fTotal()" (input)="fTotal.set(asStr($event))" placeholder="300000" />
+      </label>
+      <label>筆數
+        <input type="number" [value]="fCount()" (input)="fCount.set(asStr($event))" />
+      </label>
+      <label>首筆價
+        <input type="number" [value]="fFirst()" (input)="fFirst.set(asStr($event))"
+          [placeholder]="currentClose(fCode()) != null ? '現價 ' + currentClose(fCode()) : '首筆觸發價'" />
+      </label>
+      <label>間隔 %
+        <input type="number" [value]="fStep()" (input)="fStep.set(asStr($event))" />
+      </label>
+    </div>
+    @let preview = previewItems();
+    @if (preview.length > 0) {
+      <div class="tp-preview">
+        @for (p of preview; track p.seq) {
+          <span class="tp-preview-chip">第{{ p.seq }}筆 {{ p.triggerPrice.toFixed(2) }}｜NT\${{ Math.round(p.amount).toLocaleString() }}</span>
+        }
+      </div>
+    }
+    <button class="idx-add-btn" style="padding:6px 16px;font-size:13px;margin-top:10px"
+      [disabled]="preview.length === 0" (click)="createPlan()">建立計畫</button>
+  </div>
+}
+
+@if (state.tranchePlans().length === 0 && !showPlanForm()) {
+  <div class="tp-empty">尚無加碼計畫。點「＋ 新計畫」把 543 的等待價位交給系統盯。</div>
+}
+
+@for (plan of state.tranchePlans(); track plan.id) {
+  @let filled = filledCount(plan);
+  <div class="tp-plan">
+    <div class="tp-plan-head">
+      <span class="risk-code" style="font-size:15px">{{ plan.code }}</span>
+      <span style="font-weight:600">{{ stockName(plan.code) }}</span>
+      <span class="tp-progress">已投入 {{ filled }}/{{ plan.items.length }} 筆</span>
+      @if (currentClose(plan.code) != null) {
+        <span style="font-size:12px;color:var(--text-muted)">現價 {{ currentClose(plan.code) }}</span>
+      }
+      <button class="tp-del" (click)="deletePlan(plan)" title="刪除計畫">✕</button>
+    </div>
+    <div class="tp-items">
+      @for (it of plan.items; track it.id) {
+        @let hit = isHit(plan.code, it);
+        <div class="tp-item" [class.tp-item-filled]="it.status === 'filled'" [class.tp-item-hit]="hit">
+          <span class="tp-item-seq">第 {{ it.seq }} 筆</span>
+          <span class="tp-item-price">{{ it.triggerPrice.toFixed(2) }}</span>
+          <span class="tp-item-amt">NT\${{ Math.round(it.amount).toLocaleString() }}</span>
+          <span class="tp-item-status">
+            @if (it.status === 'filled') {
+              ✓ 已買進 {{ it.filledDate }}
+            } @else if (hit) {
+              <span style="color:var(--red,#e74c3c);font-weight:700">▼ 已到價</span>
+            } @else {
+              等待中
+            }
+          </span>
+          <button class="tp-item-btn" (click)="toggleItem(plan, it)">
+            {{ it.status === 'filled' ? '撤銷' : '已買進' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}
   `,
   styles: [`
     .risk-section-title { font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
@@ -173,12 +259,114 @@ interface RiskRow {
     .risk-bar-pct { font-size:12px; font-family:'JetBrains Mono',monospace; text-align:right; }
     .neg { color:var(--red,#e74c3c); }
     @media (max-width:600px) { .risk-bar-row { grid-template-columns:110px 1fr 52px; } }
+    /* tranche plans */
+    .tp-form { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+    .tp-form-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+    .tp-form-grid label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--text-muted); font-weight:600; }
+    .tp-form-grid input { padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg,transparent); color:var(--text); font-size:14px; font-family:'JetBrains Mono',monospace; }
+    .tp-preview { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .tp-preview-chip { font-size:12px; font-family:'JetBrains Mono',monospace; border:1px solid var(--border); border-radius:8px; padding:3px 8px; color:var(--text-muted); }
+    .tp-empty { color:var(--text-muted); font-size:13px; padding:14px 0; }
+    .tp-plan { background:var(--panel-bg); border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+    .tp-plan-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .tp-progress { font-size:12px; color:var(--gold); font-weight:700; }
+    .tp-del { margin-left:auto; background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; opacity:.5; }
+    .tp-del:hover { opacity:1; color:var(--red,#e74c3c); }
+    .tp-items { display:flex; flex-direction:column; gap:4px; }
+    .tp-item { display:grid; grid-template-columns:64px 90px 120px 1fr 72px; align-items:center; gap:10px; padding:5px 8px; border-radius:6px; font-size:13px; }
+    .tp-item-hit { background:rgba(231,76,60,.07); }
+    .tp-item-filled { opacity:.55; }
+    .tp-item-seq { font-weight:600; }
+    .tp-item-price, .tp-item-amt { font-family:'JetBrains Mono',monospace; text-align:right; }
+    .tp-item-status { font-size:12px; color:var(--text-muted); }
+    .tp-item-btn { font-size:12px; padding:3px 10px; border:1px solid var(--border); border-radius:6px; background:none; color:var(--text); cursor:pointer; }
+    .tp-item-btn:hover { border-color:var(--gold); color:var(--gold); }
+    @media (max-width:600px) {
+      .tp-form-grid { grid-template-columns:1fr 1fr; }
+      .tp-item { grid-template-columns:52px 76px 1fr 64px; }
+      .tp-item-status { display:none; }
+    }
   `],
 })
 export class RiskViewComponent {
   Math = Math;
 
-  constructor(public state: AppStateService, private stock: StockService) {}
+  showPlanForm = signal(false);
+  fCode  = signal('');
+  fTotal = signal('');
+  fCount = signal('5');
+  fFirst = signal('');
+  fStep  = signal('3.5');
+
+  constructor(public state: AppStateService, private stock: StockService, private api: ApiService) {
+    if (!this.state.tranchePlansLoaded()) {
+      this.api.getTranchePlans().then(plans => {
+        this.state.tranchePlans.set(plans);
+        this.state.tranchePlansLoaded.set(true);
+      }).catch(() => {});
+    }
+  }
+
+  asStr(e: Event) { return (e.target as HTMLInputElement).value; }
+  stockName(code: string) { return this.stock.codeToName()[code] || ''; }
+  currentClose(code: string): number | null { return this.stock.closeMap()[code]?.close ?? null; }
+  filledCount(plan: TranchePlan) { return plan.items.filter(i => i.status === 'filled').length; }
+
+  isHit(code: string, it: TrancheItem): boolean {
+    if (it.status === 'filled') return false;
+    const c = this.currentClose(code);
+    return c != null && c <= it.triggerPrice;
+  }
+
+  previewItems = computed(() => {
+    const total = parseFloat(this.fTotal());
+    const count = parseInt(this.fCount(), 10);
+    const step = parseFloat(this.fStep());
+    let first = parseFloat(this.fFirst());
+    if (isNaN(first)) first = this.currentClose(this.fCode().trim().toUpperCase()) ?? NaN;
+    if ([total, count, step, first].some(isNaN) || total <= 0 || count < 2 || count > 10 || step <= 0 || first <= 0) {
+      return [];
+    }
+    const amount = total / count;
+    return Array.from({ length: count }, (_, i) => ({
+      seq: i + 1,
+      triggerPrice: first * (1 - (step / 100) * i),
+      amount,
+    }));
+  });
+
+  async createPlan() {
+    const items = this.previewItems();
+    const code = this.fCode().trim().toUpperCase();
+    if (!items.length || !code) return;
+    const plan: TranchePlan = {
+      id: this.state.uid(),
+      code,
+      note: '',
+      createdAt: Date.now(),
+      items: items.map(p => ({
+        id: this.state.uid(), seq: p.seq, triggerPrice: p.triggerPrice,
+        amount: p.amount, status: 'pending' as const, filledDate: null, alertedAt: null,
+      })),
+    };
+    const saved = await this.api.createTranchePlan(plan);
+    this.state.addTranchePlan(saved);
+    this.showPlanForm.set(false);
+    this.fCode.set(''); this.fTotal.set(''); this.fFirst.set('');
+    this.fCount.set('5'); this.fStep.set('3.5');
+  }
+
+  async deletePlan(plan: TranchePlan) {
+    if (!confirm(`刪除 ${plan.code} 的加碼計畫？`)) return;
+    await this.api.deleteTranchePlan(plan.id);
+    this.state.removeTranchePlan(plan.id);
+  }
+
+  async toggleItem(plan: TranchePlan, it: TrancheItem) {
+    const next = it.status === 'filled' ? 'pending' : 'filled';
+    const updated = await this.api.patchTrancheItem(it.id, next);
+    this.state.updateTrancheItem(plan.id, updated);
+  }
 
   /** 總資產 = 現金 + 持股市值 + 基金（與資產負債頁同口徑） */
   totalAssets = computed(() => {

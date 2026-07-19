@@ -219,6 +219,29 @@ def check_and_push_alerts():
             div_lines = "\n".join(f"  • {d['code']}　每股 NT${d['cash_div']}" for d in dividends)
             messages.append(f"💵 明日股息除息\n\n{div_lines}")
 
+        # ── 4b. Dividend pay-date reminders (今日股息入帳) ────────────────
+        pay_today = conn.execute(
+            "SELECT code, cash_div FROM dividend_records WHERE pay_date = %s AND cash_div > 0",
+            (today.isoformat(),)
+        ).fetchall()
+        if pay_today:
+            shares_map: dict[str, float] = {}
+            for t in conn.execute("SELECT code, type, shares FROM trades").fetchall():
+                delta = t["shares"] if t["type"] == "buy" else -t["shares"]
+                shares_map[t["code"]] = shares_map.get(t["code"], 0) + delta
+            pay_lines = []
+            for d in pay_today:
+                held = shares_map.get(d["code"], 0)
+                if held > 0:
+                    est = d["cash_div"] * held
+                    pay_lines.append(f"  • {d['code']}　每股 NT${d['cash_div']}　約 NT${est:,.0f}")
+                else:
+                    pay_lines.append(f"  • {d['code']}　每股 NT${d['cash_div']}")
+            messages.append(
+                f"💵 今日股息入帳\n\n{chr(10).join(pay_lines)}\n\n"
+                f"金額以現持股估算，請以券商對帳單為準。"
+            )
+
         # ── 5. Stock settlement reminders (明日 T+2 交割) ────────────────
         all_buy_trades = conn.execute(
             "SELECT code, date, shares, price, fee, account_id FROM trades "
@@ -609,8 +632,13 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     "• 🏦 基金扣款日\n"
                     "• 💵 股息除息日\n"
                     "• 📅 股票交割日（T+2）\n"
-                    "• ⚠️ 明日帳戶餘額不足預警\n\n"
-                    "通知時間：每日 17:00（停損警示為平日 13:00）\n\n"
+                    "• ⚠️ 明日帳戶餘額不足預警\n"
+                    "• 🚨 停損／🎯 停利／📉 加碼到價（平日 13:00）\n"
+                    "• 📉 持股單日重挫（平日 14:30）\n"
+                    "• 📊 籌碼異動（平日 19:00）\n"
+                    "• 🎉 淨資產新高與回撤警示\n"
+                    "• 📊 週報（週日 20:00）、月結（每月 1 日）\n\n"
+                    "每日彙整通知時間：17:00\n\n"
                     "傳「幫助」查看可用指令。",
                 )
             elif msg_text:
@@ -726,6 +754,27 @@ async def push_test():
     import asyncio
     await asyncio.to_thread(check_and_push_alerts)
     return {"status": "ok", "subscribers": len(_get_subscribers())}
+
+
+@router.post("/push-test-features/{name}")
+async def push_test_features(name: str):
+    """Manually trigger one of the scheduled push jobs (for testing).
+    name: price | drop | networth | nosl | chips | weekly | monthly"""
+    import asyncio
+    import push_alerts as pa
+    jobs = {
+        "price":    pa.check_price_alerts,
+        "drop":     pa.check_daily_drop_alerts,
+        "networth": pa.check_net_worth_alerts,
+        "nosl":     pa.check_no_stop_loss_reminder,
+        "chips":    pa.check_chip_alerts,
+        "weekly":   pa.send_weekly_report,
+        "monthly":  pa.send_monthly_report,
+    }
+    if name not in jobs:
+        raise HTTPException(404, f"unknown job, choose from: {', '.join(jobs)}")
+    await asyncio.to_thread(jobs[name])
+    return {"status": "ok", "job": name}
 
 
 @router.post("/push-test-sl")

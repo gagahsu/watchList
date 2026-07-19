@@ -216,6 +216,24 @@ export interface CreditCard {
   note: string;
 }
 
+export interface TrancheItem {
+  id: string;
+  seq: number;
+  triggerPrice: number;
+  amount: number;
+  status: 'pending' | 'filled';
+  filledDate: string | null;
+  alertedAt: string | null;
+}
+
+export interface TranchePlan {
+  id: string;
+  code: string;
+  note: string;
+  createdAt: number;
+  items: TrancheItem[];
+}
+
 export interface FifoResult {
   realizedPnL: number;
   holdingShares: number;

@@ -279,6 +279,28 @@ DDL = [
         asset_class TEXT NOT NULL
     )
     """,
+    # 543-style tranche buy plans: alert via LINE when price hits the next tranche
+    """
+    CREATE TABLE IF NOT EXISTS tranche_plans (
+        id         TEXT PRIMARY KEY,
+        code       TEXT NOT NULL,
+        note       TEXT NOT NULL DEFAULT '',
+        created_at BIGINT NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tranche_items (
+        id            TEXT PRIMARY KEY,
+        plan_id       TEXT NOT NULL REFERENCES tranche_plans(id) ON DELETE CASCADE,
+        seq           INTEGER NOT NULL,
+        trigger_price DOUBLE PRECISION NOT NULL,
+        amount        DOUBLE PRECISION NOT NULL,
+        status        TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','filled')),
+        filled_date   TEXT,
+        alerted_at    TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_tranche_items_plan ON tranche_items(plan_id)",
 ]
 
 
