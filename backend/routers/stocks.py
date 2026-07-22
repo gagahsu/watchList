@@ -1,15 +1,52 @@
-from datetime import date
+import logging
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import get_db, get_setting, set_setting
 import finmind as fm
 from routers.chips import sync_chips_for_codes
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+_FINMIND_NOTIFY_COOLDOWN = timedelta(hours=12)
 
 
 class SyncRequest(BaseModel):
     force: bool = False
+
+
+# ── FinMind failure notification ─────────────────────────────────────────────
+# FinMind's free-tier token has a rolling per-hour call quota (not a hard
+# expiry), so failures show up as 400/401/403 responses or empty data. When
+# that happens we push a LINE alert so it doesn't go unnoticed — debounced so
+# a persistently-broken cron doesn't spam every run.
+
+def _notify_finmind_issue(reason: str) -> None:
+    last = get_setting("finmind_issue_notified_at")
+    now = datetime.now(timezone.utc)
+    if last:
+        try:
+            if now - datetime.fromisoformat(last) < _FINMIND_NOTIFY_COOLDOWN:
+                return
+        except ValueError:
+            pass
+    set_setting("finmind_issue_notified_at", now.isoformat())
+    try:
+        from routers.linebot import _get_subscribers, _push_sync
+        subs = _get_subscribers()
+        if not subs:
+            return
+        msg = (
+            f"⚠️ FinMind 資料源異常\n\n{reason}\n\n"
+            f"股票清單／收盤價可能無法自動更新，請檢查 FinMind token 或當日呼叫額度。"
+        )
+        for uid in subs:
+            _push_sync(uid, msg)
+        logger.warning("FinMind 異常已透過 LINE 通知: %s", reason)
+    except Exception as e:
+        logger.error("FinMind 異常通知失敗: %s", e)
 
 
 # ── stock list (names + industries) ──────────────────────────────────────────
@@ -20,9 +57,17 @@ def _sync_stock_list() -> list[dict]:
     Returns list of dicts with keys stock_id, stock_name, industry_category.
     Records today's date in settings so subsequent calls can skip the fetch.
     """
-    stock_info = fm.fetch_stock_info()
+    try:
+        stock_info = fm.fetch_stock_info()
+    except fm.FinMindError as e:
+        _notify_finmind_issue(f"股票清單取得失敗：{e}")
+        raise
     if not stock_info:
+        _notify_finmind_issue("股票清單回傳為空，可能是 token 失效或當日額度已用盡。")
         raise fm.FinMindError("FinMind 回傳空白股票清單")
+
+    # Recovered — clear the debounce so the next distinct outage notifies promptly.
+    set_setting("finmind_issue_notified_at", "")
 
     seen: dict[str, dict] = {}
     for s in stock_info:
@@ -121,6 +166,7 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
                 if bulk_err and any(c in bulk_err for c in ("400", "401", "403")):
                     set_setting("bulk_price_unsupported", "1")
                     log.append("批量價格不支援（免費帳號限制，已記錄，往後自動跳過）")
+                    _notify_finmind_issue(f"批量收盤價功能被拒絕（{bulk_err}），已自動改用逐檔查詢。")
                 else:
                     log.append("批量價格: 無資料（非交易日或資料尚未更新）")
         else:
@@ -132,6 +178,11 @@ def sync_stocks(body: SyncRequest = SyncRequest()):
             log.append(f"逐檔結果: {len(price_map)} 筆成功")
             if errors:
                 log.append("部分失敗: " + "; ".join(errors[:5]))
+            if not price_map and errors:
+                _notify_finmind_issue(
+                    f"逐檔查詢收盤價全部失敗（共 {len(errors)} 支），可能是 token 失效或當日額度已用盡。\n"
+                    f"範例錯誤：{errors[0]}"
+                )
     elif not all_codes:
         log.append("尚無追蹤個股，請先將股票加入 Watchlist 後再同步")
     else:
