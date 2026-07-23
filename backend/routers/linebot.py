@@ -16,6 +16,7 @@ import json
 import logging
 import math
 import os
+import re
 import uuid
 from datetime import date, timedelta
 
@@ -331,6 +332,9 @@ _HELP_TEXT = (
     "例：提出 30000 玉山\n\n"
     "轉帳 金額 來源帳戶 目標帳戶\n"
     "例：轉帳 10000 玉山 富邦\n\n"
+    "🔹 成交回報匯入\n"
+    "直接貼上國泰證券成交回報表格（含「成交時間 委託單號 股號…」表頭），\n"
+    "會自動依每筆成交明細記錄買賣交易。\n\n"
     "🔹 查詢\n"
     "餘額 – 所有帳戶餘額\n"
     "帳戶 – 帳戶列表\n"
@@ -583,6 +587,105 @@ def _process_command(text: str) -> str | None:
     return None
 
 
+# ── Broker trade-confirmation table import ──────────────────────────────────
+# Recognizes trade-confirmation tables pasted straight from brokerage emails
+# (currently 國泰證券 成交回報), on top of the plain-text 買/賣 commands above.
+# Expected columns (tab or 2+ space separated), header row required:
+#   成交時間  委託單號  股號  股票名稱  類別  股數  單價  價金  來源別
+
+_TABLE_HEADER_COLS = ["成交時間", "股號", "股票名稱", "類別", "股數", "單價"]
+
+
+def _split_table_row(line: str) -> list[str]:
+    cols = re.split(r"\t+", line.strip())
+    if len(cols) < 6:
+        cols = re.split(r" {2,}", line.strip())
+    return [c.strip() for c in cols if c.strip() != ""]
+
+
+def _looks_like_trade_table(text: str) -> bool:
+    lines = [l for l in text.splitlines() if l.strip()]
+    if len(lines) < 2:
+        return False
+    return all(col in lines[0] for col in _TABLE_HEADER_COLS)
+
+
+def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
+    """Parse a pasted brokerage trade-confirmation table and record each fill as
+    a trade. Columns: 成交時間 委託單號 股號 股票名稱 類別 股數 單價 [價金 來源別]."""
+    lines = [l for l in text.splitlines() if l.strip()]
+    rows = lines[1:]
+
+    with get_db() as conn:
+        broker = _fuzzy_match(conn.execute("SELECT * FROM brokers").fetchall(), broker_hint)
+
+    today = date.today().isoformat()
+    settle_date = _settlement_date(today).isoformat()
+    inserted: list[dict] = []
+    skipped = 0
+
+    with get_db() as conn:
+        for line in rows:
+            cols = _split_table_row(line)
+            if len(cols) < 7:
+                skipped += 1
+                continue
+            _time, order_no, code, name, cls, shares_s, price_s = cols[:7]
+            if "買" in cls:
+                trade_type = "buy"
+            elif "賣" in cls:
+                trade_type = "sell"
+            else:
+                skipped += 1
+                continue
+
+            code = code.strip().upper()
+            shares = _parse_number(shares_s)
+            price = _parse_number(price_s)
+            if not code or (shares is None or price is None or shares <= 0 or price <= 0):
+                skipped += 1
+                continue
+
+            fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
+            trade_id = str(uuid.uuid4())
+            conn.execute(
+                "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (trade_id, code, today, trade_type, shares, price, fee,
+                 f"國泰成交回報 {order_no}".strip(), None, trade_type == "sell"),
+            )
+            inserted.append({"code": code, "name": name, "type": trade_type, "shares": shares,
+                              "price": price, "fee": fee})
+
+    if not inserted:
+        return "⚠️ 偵測到成交回報表格，但沒有可辨識的成交明細。"
+
+    by_key: dict[tuple, dict] = {}
+    for t in inserted:
+        key = (t["code"], t["type"])
+        agg = by_key.setdefault(key, {"name": t["name"], "shares": 0.0, "amount": 0.0, "fee": 0.0})
+        agg["shares"] += t["shares"]
+        agg["amount"] += t["shares"] * t["price"]
+        agg["fee"] += t["fee"]
+
+    detail_lines = []
+    for (code, trade_type), agg in by_key.items():
+        type_str = "買入" if trade_type == "buy" else "賣出"
+        avg_price = agg["amount"] / agg["shares"] if agg["shares"] else 0
+        detail_lines.append(
+            f"  • {code} {agg['name']}　{type_str}\n"
+            f"    股數：{int(agg['shares']):,}　均價：{avg_price:,.2f}\n"
+            f"    金額：NT${agg['amount']:,.0f}　手續費：NT${agg['fee']:,.0f}"
+        )
+
+    reply = f"✅ 已匯入國泰成交回報 {len(inserted)} 筆\n\n" + "\n".join(detail_lines) + f"\n\n交割日：{settle_date}"
+    if broker is None:
+        reply += "\n\n⚠️ 找不到「國泰」券商設定，手續費以 0 計算，請先在系統中建立券商後補記。"
+    if skipped:
+        reply += f"\n\n（{skipped} 行無法辨識已略過）"
+    return reply
+
+
 # ── Webhook endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/webhook")
@@ -642,6 +745,13 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     "每日彙整通知時間：17:00\n\n"
                     "傳「幫助」查看可用指令。",
                 )
+            elif msg_text and _looks_like_trade_table(msg_text):
+                try:
+                    r = _process_trade_table(msg_text)
+                except Exception as e:
+                    logger.error("LINE trade table import error: %s", e)
+                    r = "成交回報表格處理失敗，請確認格式後再試。"
+                await _reply_async(reply_token, r)
             elif msg_text:
                 lines = [l.strip() for l in msg_text.splitlines() if l.strip()]
                 replies: list[str] = []
