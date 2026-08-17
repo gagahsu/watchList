@@ -428,21 +428,28 @@ def _fuzzy_match(rows, name: str, key: str = "name") -> dict | None:
     return None
 
 
-def _calc_fee(shares: float, price: float, trade_type: str, broker: dict, code: str = "") -> float:
+def _calc_fee(shares: float, price: float, broker: dict) -> float:
+    """Brokerage commission only — the `fee` column holds no transaction tax.
+
+    Everything downstream (recalcFee() in the web form, calcFIFO() in utils.ts,
+    fifo.py) derives 證交稅 from the trade itself, so folding it in here would
+    double-count it against realized P&L.
+    """
     fns = {"floor": math.floor, "round": round, "ceil": math.ceil}
     round_fn = fns.get(broker["rounding"], math.floor)
-    brokerage = max(broker["min_fee"], round_fn(shares * price * 0.001425 * broker["discount"]))
-    if trade_type == "sell":
-        # US stocks (alphabetic codes) have no Taiwan transaction tax
-        if code and code.replace(".", "").isalpha():
-            tax = 0
-        elif code.startswith("00"):
-            tax = math.floor(shares * price * 0.001)   # ETF: 0.1%
-        else:
-            tax = math.floor(shares * price * 0.003)   # 一般股票: 0.3%
-    else:
-        tax = 0
-    return brokerage + tax
+    return max(broker["min_fee"], round_fn(shares * price * 0.001425 * broker["discount"]))
+
+
+def _calc_tax(shares: float, price: float, trade_type: str, code: str = "") -> float:
+    """證交稅, for display only — never stored on the trade."""
+    if trade_type != "sell":
+        return 0
+    # US stocks (alphabetic codes) have no Taiwan transaction tax
+    if code and code.replace(".", "").isalpha():
+        return 0
+    if code.startswith("00"):
+        return math.floor(shares * price * 0.001)   # ETF: 0.1%
+    return math.floor(shares * price * 0.003)       # 一般股票: 0.3%
 
 
 def _process_command(text: str) -> str | None:
@@ -535,7 +542,8 @@ def _process_command(text: str) -> str | None:
                 return f"找不到券商「{broker_token}」，請先在系統中建立，或傳「券商」查看列表。"
             broker_name = broker["name"]
 
-        fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
+        fee = _calc_fee(shares, price, broker) if broker else 0.0
+        tax = _calc_tax(shares, price, trade_type, code)
         trade_date = trade_date or date.today().isoformat()
         trade_id = str(uuid.uuid4())
 
@@ -558,6 +566,10 @@ def _process_command(text: str) -> str | None:
             f"成交金額：NT${amount:,.0f}\n"
             f"手續費：NT${fee:,.0f}"
         )
+        if trade_type == "sell":
+            reply += f"\n證交稅：NT${tax:,.0f}\n實收：NT${amount - fee - tax:,.0f}"
+        else:
+            reply += f"\n應付：NT${amount + fee:,.0f}"
         if broker_name:
             reply += f"\n券商：{broker_name}"
         if trade_type == "buy":
@@ -755,7 +767,7 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
                 skipped += 1
                 continue
 
-            fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
+            fee = _calc_fee(shares, price, broker) if broker else 0.0
             trade_id = str(uuid.uuid4())
             conn.execute(
                 "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
@@ -764,7 +776,8 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
                  f"國泰成交回報 {order_no}".strip(), None, _is_settled(trade_type, trade_date)),
             )
             inserted.append({"code": code, "name": name, "type": trade_type, "shares": shares,
-                              "price": price, "fee": fee, "date": trade_date})
+                              "price": price, "fee": fee, "date": trade_date,
+                              "tax": _calc_tax(shares, price, trade_type, code)})
 
     if not inserted:
         return "⚠️ 偵測到成交回報表格，但沒有可辨識的成交明細。"
@@ -772,10 +785,12 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
     by_key: dict[tuple, dict] = {}
     for t in inserted:
         key = (t["date"], t["code"], t["type"])
-        agg = by_key.setdefault(key, {"name": t["name"], "shares": 0.0, "amount": 0.0, "fee": 0.0})
+        agg = by_key.setdefault(key, {"name": t["name"], "shares": 0.0, "amount": 0.0,
+                                      "fee": 0.0, "tax": 0.0})
         agg["shares"] += t["shares"]
         agg["amount"] += t["shares"] * t["price"]
         agg["fee"] += t["fee"]
+        agg["tax"] += t["tax"]
 
     sections: list[str] = []
     for trade_date in sorted({k[0] for k in by_key}):
@@ -785,11 +800,14 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
                 continue
             type_str = "買入" if trade_type == "buy" else "賣出"
             avg_price = agg["amount"] / agg["shares"] if agg["shares"] else 0
-            detail_lines.append(
+            line = (
                 f"  • {code} {agg['name']}　{type_str}\n"
                 f"    股數：{int(agg['shares']):,}　均價：{avg_price:,.2f}\n"
                 f"    金額：NT${agg['amount']:,.0f}　手續費：NT${agg['fee']:,.0f}"
             )
+            if trade_type == "sell":
+                line += f"　證交稅：NT${agg['tax']:,.0f}"
+            detail_lines.append(line)
         header = f"📅 成交日：{trade_date}"
         if any(k[2] == "buy" for k in by_key if k[0] == trade_date):
             header += f"（交割日 {_settlement_date(trade_date).isoformat()}）"
