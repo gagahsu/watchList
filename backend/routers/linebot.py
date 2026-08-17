@@ -141,6 +141,58 @@ def _settlement_date(date_str: str) -> date:
     return d
 
 
+def _is_settled(trade_type: str, trade_date: str) -> bool:
+    """Sells never need settlement tracking; a back-dated buy whose T+2 date has
+    already passed is settled too (otherwise it would stay pending forever, since
+    process_due_settlements() only matches trades settling exactly today)."""
+    if trade_type == "sell":
+        return True
+    return _settlement_date(trade_date) < date.today()
+
+
+# ── Trade-date parsing ──────────────────────────────────────────────────────
+# Accepted user input: YYYY-MM-DD (or YYYY/MM/DD) and MMDD.
+
+_DATE_TOKEN_RE = re.compile(r"^\d{4}(?:[-/]\d{1,2}[-/]\d{1,2})?$")
+_DATE_FULL_RE  = re.compile(r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$")
+_DATE_MMDD_RE  = re.compile(r"^(\d{2})(\d{2})$")
+
+
+def _looks_like_date_token(s: str) -> bool:
+    """True for tokens shaped like a date, valid or not — lets the caller report
+    a date error instead of silently treating '1350' as a broker name."""
+    return bool(_DATE_TOKEN_RE.match(s))
+
+
+def _parse_trade_date(s: str) -> str | None:
+    """Parse a trade date token into an ISO date string, or None if invalid.
+
+    MMDD has its year inferred as the most recent occurrence: trades are always
+    already executed, so a date that would land in the future rolls back a year
+    (e.g. '1230' typed in January means last December).
+    """
+    s = s.strip()
+    full = _DATE_FULL_RE.match(s)
+    if full:
+        year, month, day = (int(g) for g in full.groups())
+    else:
+        mmdd = _DATE_MMDD_RE.match(s)
+        if not mmdd:
+            return None
+        month, day = (int(g) for g in mmdd.groups())
+        year = date.today().year
+    try:
+        d = date(year, month, day)
+    except ValueError:
+        return None
+    if not full and d > date.today():
+        try:
+            d = date(year - 1, month, day)
+        except ValueError:          # 02-29 in a non-leap previous year
+            return None
+    return d.isoformat()
+
+
 # ── Alert logic ─────────────────────────────────────────────────────────────
 
 def check_and_push_alerts():
@@ -321,10 +373,13 @@ def check_and_push_alerts():
 _HELP_TEXT = (
     "📋 可用指令：\n\n"
     "🔹 股票交易\n"
-    "買 代碼 股數 價格 [券商]\n"
-    "例：買 2330 1000 580 元大\n\n"
-    "賣 代碼 股數 價格 [券商]\n"
-    "例：賣 2330 1000 600 元大\n\n"
+    "買 代碼 股數 價格 [券商] [日期]\n"
+    "例：買 2330 1000 580 元大\n"
+    "例：買 2330 1000 580 元大 0815\n\n"
+    "賣 代碼 股數 價格 [券商] [日期]\n"
+    "例：賣 2330 1000 600 元大 2026-08-15\n\n"
+    "日期可省略（預設今天），格式 2026-08-15 或 0815，\n"
+    "只寫 MMDD 時自動取最近一次（不會是未來）。\n\n"
     "🔹 帳戶金流\n"
     "存入 金額 帳戶名稱\n"
     "例：存入 50000 玉山\n\n"
@@ -334,7 +389,11 @@ _HELP_TEXT = (
     "例：轉帳 10000 玉山 富邦\n\n"
     "🔹 成交回報匯入\n"
     "直接貼上國泰證券成交回報表格（含「成交時間 委託單號 股號…」表頭），\n"
-    "會自動依每筆成交明細記錄買賣交易。\n\n"
+    "會自動依每筆成交明細記錄買賣交易。\n"
+    "補記舊回報時，在表格前面加一行日期即可：\n"
+    "0815\n"
+    "成交時間 委託單號 股號 …\n"
+    "（成交時間欄本身含日期時會自動採用）\n\n"
     "🔹 查詢\n"
     "餘額 – 所有帳戶餘額\n"
     "帳戶 – 帳戶列表\n"
@@ -455,26 +514,37 @@ def _process_command(text: str) -> str | None:
         if shares is None or price is None or shares <= 0 or price <= 0:
             return "股數或價格格式錯誤。"
 
+        # Trailing args are the broker name and/or the trade date, in any order.
+        trade_date = None
+        broker_token = None
+        for token in parts[4:]:
+            if _looks_like_date_token(token):
+                trade_date = _parse_trade_date(token)
+                if trade_date is None:
+                    return f"日期「{token}」無效。格式：2026-08-15 或 0815。"
+            elif broker_token is None:
+                broker_token = token
+
         broker = None
         broker_name = None
-        if len(parts) >= 5:
+        if broker_token:
             with get_db() as conn:
                 brokers = conn.execute("SELECT * FROM brokers").fetchall()
-            broker = _fuzzy_match(brokers, parts[4])
+            broker = _fuzzy_match(brokers, broker_token)
             if broker is None:
-                return f"找不到券商「{parts[4]}」，請先在系統中建立，或傳「券商」查看列表。"
+                return f"找不到券商「{broker_token}」，請先在系統中建立，或傳「券商」查看列表。"
             broker_name = broker["name"]
 
         fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
-        today = date.today().isoformat()
+        trade_date = trade_date or date.today().isoformat()
         trade_id = str(uuid.uuid4())
-        settled = trade_type == "sell"
 
         with get_db() as conn:
             conn.execute(
                 "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (trade_id, code, today, trade_type, shares, price, fee, "", None, settled),
+                (trade_id, code, trade_date, trade_type, shares, price, fee, "", None,
+                 _is_settled(trade_type, trade_date)),
             )
 
         type_str = "買入" if trade_type == "buy" else "賣出"
@@ -482,6 +552,7 @@ def _process_command(text: str) -> str | None:
         reply = (
             f"✅ {type_str}交易已記錄\n\n"
             f"股票：{code}\n"
+            f"成交日：{trade_date}\n"
             f"股數：{int(shares):,} 股\n"
             f"價格：NT${price:,.2f}\n"
             f"成交金額：NT${amount:,.0f}\n"
@@ -490,7 +561,7 @@ def _process_command(text: str) -> str | None:
         if broker_name:
             reply += f"\n券商：{broker_name}"
         if trade_type == "buy":
-            reply += f"\n交割日：{_settlement_date(today).isoformat()}"
+            reply += f"\n交割日：{_settlement_date(trade_date).isoformat()}"
         return reply
 
     # ── Deposit ──────────────────────────────────────────────────────────────
@@ -592,8 +663,14 @@ def _process_command(text: str) -> str | None:
 # (currently 國泰證券 成交回報), on top of the plain-text 買/賣 commands above.
 # Expected columns (tab or 2+ space separated), header row required:
 #   成交時間  委託單號  股號  股票名稱  類別  股數  單價  價金  來源別
+# The header may be preceded by free-form lines; a date there (e.g. "0815" or
+# "日期：2026-08-15") sets the trade date for every row, which is how older
+# reports get imported — 成交時間 normally holds a time only.
 
 _TABLE_HEADER_COLS = ["成交時間", "股號", "股票名稱", "類別", "股數", "單價"]
+
+# A 成交時間 cell is usually just "09:03:25", but some exports prefix the date.
+_CELL_DATE_RE = re.compile(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})")
 
 
 def _split_table_row(line: str) -> list[str]:
@@ -603,24 +680,55 @@ def _split_table_row(line: str) -> list[str]:
     return [c.strip() for c in cols if c.strip() != ""]
 
 
+def _header_index(lines: list[str]) -> int:
+    """Index of the table header among non-empty lines, or -1 if there is none."""
+    for i, line in enumerate(lines):
+        if all(col in line for col in _TABLE_HEADER_COLS):
+            return i
+    return -1
+
+
 def _looks_like_trade_table(text: str) -> bool:
     lines = [l for l in text.splitlines() if l.strip()]
-    if len(lines) < 2:
-        return False
-    return all(col in lines[0] for col in _TABLE_HEADER_COLS)
+    idx = _header_index(lines)
+    return idx >= 0 and len(lines) > idx + 1
+
+
+def _preamble_date(lines: list[str]) -> str | None:
+    """Trade date given on its own line above the table, e.g. '0815' or '日期 0815'."""
+    for line in lines:
+        for token in line.replace("：", " ").replace(":", " ").split():
+            if _looks_like_date_token(token):
+                parsed = _parse_trade_date(token)
+                if parsed:
+                    return parsed
+    return None
+
+
+def _row_date(cell: str) -> str | None:
+    """Date embedded in a 成交時間 cell, when the export includes one."""
+    m = _CELL_DATE_RE.search(cell)
+    if not m:
+        return None
+    try:
+        return date(*(int(g) for g in m.groups())).isoformat()
+    except ValueError:
+        return None
 
 
 def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
     """Parse a pasted brokerage trade-confirmation table and record each fill as
     a trade. Columns: 成交時間 委託單號 股號 股票名稱 類別 股數 單價 [價金 來源別]."""
     lines = [l for l in text.splitlines() if l.strip()]
-    rows = lines[1:]
+    header_idx = _header_index(lines)
+    rows = lines[header_idx + 1:]
 
     with get_db() as conn:
         broker = _fuzzy_match(conn.execute("SELECT * FROM brokers").fetchall(), broker_hint)
 
+    # An explicit date above the table wins over whatever the rows carry.
+    override_date = _preamble_date(lines[:header_idx])
     today = date.today().isoformat()
-    settle_date = _settlement_date(today).isoformat()
     inserted: list[dict] = []
     skipped = 0
 
@@ -630,7 +738,8 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
             if len(cols) < 7:
                 skipped += 1
                 continue
-            _time, order_no, code, name, cls, shares_s, price_s = cols[:7]
+            time_s, order_no, code, name, cls, shares_s, price_s = cols[:7]
+            trade_date = override_date or _row_date(time_s) or today
             if "買" in cls:
                 trade_type = "buy"
             elif "賣" in cls:
@@ -651,34 +760,42 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
             conn.execute(
                 "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (trade_id, code, today, trade_type, shares, price, fee,
-                 f"國泰成交回報 {order_no}".strip(), None, trade_type == "sell"),
+                (trade_id, code, trade_date, trade_type, shares, price, fee,
+                 f"國泰成交回報 {order_no}".strip(), None, _is_settled(trade_type, trade_date)),
             )
             inserted.append({"code": code, "name": name, "type": trade_type, "shares": shares,
-                              "price": price, "fee": fee})
+                              "price": price, "fee": fee, "date": trade_date})
 
     if not inserted:
         return "⚠️ 偵測到成交回報表格，但沒有可辨識的成交明細。"
 
     by_key: dict[tuple, dict] = {}
     for t in inserted:
-        key = (t["code"], t["type"])
+        key = (t["date"], t["code"], t["type"])
         agg = by_key.setdefault(key, {"name": t["name"], "shares": 0.0, "amount": 0.0, "fee": 0.0})
         agg["shares"] += t["shares"]
         agg["amount"] += t["shares"] * t["price"]
         agg["fee"] += t["fee"]
 
-    detail_lines = []
-    for (code, trade_type), agg in by_key.items():
-        type_str = "買入" if trade_type == "buy" else "賣出"
-        avg_price = agg["amount"] / agg["shares"] if agg["shares"] else 0
-        detail_lines.append(
-            f"  • {code} {agg['name']}　{type_str}\n"
-            f"    股數：{int(agg['shares']):,}　均價：{avg_price:,.2f}\n"
-            f"    金額：NT${agg['amount']:,.0f}　手續費：NT${agg['fee']:,.0f}"
-        )
+    sections: list[str] = []
+    for trade_date in sorted({k[0] for k in by_key}):
+        detail_lines = []
+        for (d, code, trade_type), agg in by_key.items():
+            if d != trade_date:
+                continue
+            type_str = "買入" if trade_type == "buy" else "賣出"
+            avg_price = agg["amount"] / agg["shares"] if agg["shares"] else 0
+            detail_lines.append(
+                f"  • {code} {agg['name']}　{type_str}\n"
+                f"    股數：{int(agg['shares']):,}　均價：{avg_price:,.2f}\n"
+                f"    金額：NT${agg['amount']:,.0f}　手續費：NT${agg['fee']:,.0f}"
+            )
+        header = f"📅 成交日：{trade_date}"
+        if any(k[2] == "buy" for k in by_key if k[0] == trade_date):
+            header += f"（交割日 {_settlement_date(trade_date).isoformat()}）"
+        sections.append(header + "\n" + "\n".join(detail_lines))
 
-    reply = f"✅ 已匯入國泰成交回報 {len(inserted)} 筆\n\n" + "\n".join(detail_lines) + f"\n\n交割日：{settle_date}"
+    reply = f"✅ 已匯入國泰成交回報 {len(inserted)} 筆\n\n" + "\n\n".join(sections)
     if broker is None:
         reply += "\n\n⚠️ 找不到「國泰」券商設定，手續費以 0 計算，請先在系統中建立券商後補記。"
     if skipped:
