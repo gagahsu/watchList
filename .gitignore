@@ -38,3 +38,6 @@ frontend/node_modules/
 frontend/dist/
 backend/.env
 log/
+
+# Claude Code 本機設定（每台機器各自保留）
+.claude/settings.local.json
