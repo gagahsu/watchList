@@ -1,0 +1,312 @@
+"""API for the ATR grid advisory feature.
+
+The decision engine lives in backend/grid/ (ported from a standalone tool,
+see grid/adapter.py's module docstring for the migration notes). This router
+is thin: it wires watchList's own quote sources (routers/ohlc.py,
+routers/quotes.py — Yahoo with a FinMind fallback, see finmind.py) into
+grid.adapter.evaluate_all()/commit_fill(), and translates the results to/from
+JSON.
+
+Fee/tax note on `record_grid_fill`: we store only the broker fee on the
+`trades` row, not the ETF/bond transaction tax grid/fees.py correctly
+computes (0.1% for equity ETFs, 0% for bond ETFs). That's because
+`fifo.py::calc_fifo` recomputes its own tax from `asset_classes` (0% bond /
+0.1% ETF / 0.3% stock, matching grid/fees.py — see fifo.py's docstring),
+so folding grid's tax into `fee` would just get double-subtracted. grid's
+own advice numbers (est_tax, est_realized_pnl) are unaffected either way —
+they're computed independently via grid/fees.py and only ever touch
+grid_positions, never fifo.py.
+"""
+from __future__ import annotations
+
+import json
+import time
+import uuid
+from datetime import date
+
+from fastapi import APIRouter, HTTPException
+
+from database import get_db, get_setting
+from fifo import calc_fifo
+from grid.adapter import AdapterError, build_settings, commit_fill, evaluate_all, position_from_row
+from grid.config import ConfigError, GridParams, VALID_CLASSES
+from grid.engine import BUY, SELL, Decision, lot_size, next_grid_levels
+from grid.indicators import Bar
+from models import GridParamsIn, GridPositionIn, GridPositionPatch, GridRecordIn, TradeIn
+from routers.ohlc import get_ohlc
+from routers.quotes import _price_tw
+from routers.trades import create_trade
+
+router = APIRouter()
+
+
+def _bars_fn(code: str) -> list[Bar]:
+    today = date.today().isoformat()
+    raw = get_ohlc(code, days=150)
+    bars = []
+    for r in raw:
+        if r["date"] >= today:  # never let today's (still-forming) bar leak into ATR
+            continue
+        bars.append(Bar(
+            date=r["date"], open=r["open"], high=r["high"], low=r["low"],
+            close=r["close"], volume=r.get("volume", 0),
+        ))
+    return bars
+
+
+def _price_fn(code: str) -> float | None:
+    return _price_tw(code)
+
+
+def _decision_to_dict(d: Decision) -> dict:
+    return {
+        "ticker": d.ticker, "name": d.name, "assetClass": d.asset_class,
+        "action": d.action, "shares": d.shares, "rungs": d.rungs, "lotShares": d.lot_shares,
+        "price": round(d.price, 2),
+        "anchorBefore": round(d.anchor_before, 4), "anchorAfter": round(d.anchor_after, 4),
+        "step": round(d.step, 4), "stepPct": round(d.step_pct, 2),
+        "atr": round(d.atr, 4) if d.atr is not None else None,
+        "atrPct": round(d.atr_pct, 2) if d.atr_pct is not None else None,
+        "rungBefore": d.rung_before, "rungAfter": d.rung_after,
+        "positionShares": d.position_shares,
+        "estGross": round(d.est_gross, 0), "estFee": d.est_fee, "estTax": d.est_tax,
+        "estCashFlow": round(d.est_cash_flow, 2),
+        "estRealizedPnl": round(d.est_realized_pnl, 2) if d.est_realized_pnl is not None else None,
+        "signalRungs": d.signal_rungs,
+        "reasons": d.reasons, "blocks": d.blocks, "notes": d.notes,
+    }
+
+
+def build_grid_alert_message() -> str | None:
+    """Today's actionable grid decisions as a LINE-ready message block, or
+    None if there's nothing to report. Used by push_alerts.py to fold into
+    the existing weekday-13:00 price-alert push (same decision time as the
+    grid itself) instead of sending a second, separate notification."""
+    try:
+        decisions = evaluate_all(_bars_fn, _price_fn)
+    except AdapterError:
+        return None
+    actionable = sorted(
+        (d for d in decisions if d.shares > 0 and d.action in (BUY, SELL)),
+        key=lambda d: d.ticker,
+    )
+    if not actionable:
+        return None
+    lines = []
+    for d in actionable:
+        verb = "買進" if d.action == BUY else "賣出"
+        lines.append(f"  • {d.ticker} {d.name}　{verb} {d.rungs}×{d.lot_shares}={d.shares} 股　@{d.price:.2f}")
+    return "🕸️ ATR 網格今日建議\n\n" + "\n".join(lines) + "\n\n請至網站「ATR 網格」確認並回填成交。"
+
+
+@router.get("/grid/advice")
+def get_grid_advice():
+    """Today's decision for every enabled grid position. Read-only except
+    for the anchor/ex-dividend/drift persistence evaluate_all() always does
+    (see grid/adapter.py docstring) — never places or records an order."""
+    today = date.today().isoformat()
+    try:
+        decisions = evaluate_all(_bars_fn, _price_fn, today=today)
+    except AdapterError as exc:
+        raise HTTPException(400, str(exc))
+
+    actionable = [d for d in decisions if d.shares > 0]
+    return {
+        "asOf": today,
+        "decisions": [_decision_to_dict(d) for d in decisions],
+        "summary": {
+            "orders": sum(d.rungs for d in actionable),
+            "tickers": len(actionable),
+            "netCashFlow": round(sum(d.est_cash_flow for d in actionable), 2),
+            "cost": sum(d.est_fee + d.est_tax for d in actionable),
+        },
+    }
+
+
+@router.get("/grid/asset-classes")
+def get_grid_asset_classes():
+    """{code: assetClass} for every grid position (enabled or not) — a
+    lightweight lookup the frontend loads at startup so calcFIFO() can pick
+    the right TW sell-tax rate for realized-P&L display. Deliberately not
+    the same endpoint/shape as the shared /api/asset-classes (Chinese
+    balance-sheet labels) — see grid_positions.asset_class's DDL comment."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT code, asset_class FROM grid_positions WHERE asset_class IS NOT NULL").fetchall()
+    return {r["code"]: r["asset_class"] for r in rows}
+
+
+@router.get("/grid/positions")
+def get_grid_positions():
+    """Status of every grid position, enabled or not — anchor, rung, lot
+    size, and the next few buy/sell trigger prices."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM grid_positions ORDER BY code").fetchall()
+        codes = [r["code"] for r in rows]
+        names = {}
+        by_code: dict[str, list] = {c: [] for c in codes}
+        markets: dict[str, str] = {}
+        if codes:
+            names = {
+                r["code"]: r["name"]
+                for r in conn.execute("SELECT code, name FROM stocks WHERE code = ANY(%s)", (codes,)).fetchall()
+            }
+            for r in conn.execute("SELECT * FROM trades WHERE code = ANY(%s) ORDER BY date ASC", (codes,)).fetchall():
+                by_code[r["code"]].append(dict(r))
+            markets = {
+                r["code"]: r["market"]
+                for r in conn.execute("SELECT code, market FROM trade_markets WHERE code = ANY(%s)", (codes,)).fetchall()
+            }
+        try:
+            settings = build_settings(conn)
+        except AdapterError:
+            settings = None
+
+    result = []
+    for row in rows:
+        code = row["code"]
+        asset_class = row["asset_class"]
+        fifo_result = calc_fifo(by_code.get(code, []), markets.get(code, "tw"), asset_class)
+        entry = {
+            "code": code,
+            "name": names.get(code, code),
+            "assetClass": asset_class,
+            "enabled": row["enabled"],
+            "shares": int(fifo_result["holdingShares"]),
+            "avgCost": round(fifo_result["avgCost"], 4),
+            "anchor": round(row["anchor"], 3),
+            "rung": row["rung"],
+            "baselineShares": row["baseline_shares"],
+        }
+        if settings is not None and asset_class in settings.defaults and row["anchor"] > 0:
+            params = settings.params_for(asset_class).merged(row["grid_overrides"] or {})
+            position = position_from_row(code, dict(row), fifo_result)
+            step_guess = row["anchor"] * params.min_step_pct / 100
+            buys, sells = next_grid_levels(position, step_guess, 3)
+            entry.update({
+                "lotShares": lot_size(row["anchor"], settings),
+                "maxBuyRungs": params.max_buy_rungs,
+                "maxSellRungs": params.max_sell_rungs,
+                "nextBuy": [round(p, 2) for p in buys],
+                "nextSell": [round(p, 2) for p in sells],
+            })
+        result.append(entry)
+    return result
+
+
+@router.post("/grid/positions", status_code=201)
+def add_grid_position(body: GridPositionIn):
+    """Add a new symbol to the grid. Anchor is set to the current live
+    price (fetched server-side, same as atrgrid's own `init`/`add-holding`
+    behavior: the grid starts from "right now", it doesn't retroactively
+    grid past price history) and baseline_shares from the symbol's current
+    real holding (via FIFO over `trades` — 0 if watchList has no trades for
+    it yet, which is fine, the grid will just start from a flat position)."""
+    code = body.code.strip()
+    if not code:
+        raise HTTPException(400, "code 不可為空")
+    if body.assetClass not in VALID_CLASSES:
+        raise HTTPException(400, f"assetClass 必須是 {sorted(VALID_CLASSES)} 之一")
+
+    with get_db() as conn:
+        existing = conn.execute("SELECT code FROM grid_positions WHERE code=%s", (code,)).fetchone()
+        if existing:
+            raise HTTPException(409, f"{code} 已經是網格標的")
+
+        price = _price_fn(code)
+        if price is None or price <= 0:
+            raise HTTPException(400, f"取不到 {code} 的即時報價，請稍後再試")
+
+        trade_rows = conn.execute(
+            "SELECT id, date, type, shares, price, fee FROM trades WHERE code=%s ORDER BY date ASC", (code,)
+        ).fetchall()
+        baseline_shares = int(calc_fifo([dict(r) for r in trade_rows], asset_class=body.assetClass)["holdingShares"])
+
+        conn.execute(
+            """
+            INSERT INTO grid_positions
+                (code, enabled, anchor, rung, baseline_shares, last_drift_date,
+                 applied_ex_dividends, grid_overrides, created_at, asset_class)
+            VALUES (%s, TRUE, %s, 0, %s, NULL, '[]', %s, %s, %s)
+            """,
+            (code, price, baseline_shares, json.dumps(body.gridOverrides), int(time.time() * 1000), body.assetClass),
+        )
+    return {"code": code, "assetClass": body.assetClass, "anchor": round(price, 3), "baselineShares": baseline_shares}
+
+
+@router.put("/grid/positions/{code}")
+def patch_grid_position(code: str, body: GridPositionPatch):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM grid_positions WHERE code=%s", (code,)).fetchone()
+        if not row:
+            raise HTTPException(404, f"{code} 不是網格標的")
+        enabled = row["enabled"] if body.enabled is None else body.enabled
+        anchor = row["anchor"] if body.anchor is None else body.anchor
+        overrides = row["grid_overrides"] if body.gridOverrides is None else body.gridOverrides
+        conn.execute(
+            "UPDATE grid_positions SET enabled=%s, anchor=%s, grid_overrides=%s WHERE code=%s",
+            (enabled, anchor, json.dumps(overrides), code),
+        )
+    return {"ok": True}
+
+
+@router.post("/grid/record")
+def record_grid_fill(body: GridRecordIn):
+    """Apply an actual fill: mutate the grid's own anchor/rung (via
+    grid.adapter.commit_fill) and insert the trade into watchList's own
+    `trades` table so it flows through the existing FIFO/settlement/report
+    pipeline like any other trade."""
+    action = body.action.upper()
+    try:
+        decision = commit_fill(body.code, action, body.shares, body.price, body.rungs, body.step, trade_date=body.date)
+    except AdapterError as exc:
+        raise HTTPException(400, str(exc))
+
+    trade_date = body.date or date.today().isoformat()
+    account_id = body.accountId or get_setting("grid_cash_account_id")
+    trade = TradeIn(
+        id=str(uuid.uuid4()),
+        date=trade_date,
+        type="buy" if action == "BUY" else "sell",
+        shares=body.shares,
+        price=body.price,
+        fee=decision.est_fee,
+        sigRef="grid",
+        note=f"ATR 網格 {decision.rungs} 份",
+        accountId=account_id,
+        settled=False,
+    )
+    create_trade(body.code, trade)
+
+    return {
+        "ok": True,
+        "code": body.code,
+        "anchor": round(decision.anchor_after, 3),
+        "rung": decision.rung_after,
+        "fee": decision.est_fee,
+        "tax": decision.est_tax,
+        "realizedPnl": decision.est_realized_pnl,
+    }
+
+
+@router.get("/grid/params")
+def get_grid_params():
+    with get_db() as conn:
+        rows = conn.execute("SELECT asset_class, params FROM grid_params ORDER BY asset_class").fetchall()
+    return {r["asset_class"]: r["params"] for r in rows}
+
+
+@router.put("/grid/params/{asset_class}")
+def put_grid_params(asset_class: str, body: GridParamsIn):
+    if asset_class not in VALID_CLASSES:
+        raise HTTPException(400, f"asset_class 必須是 {sorted(VALID_CLASSES)} 之一")
+    try:
+        GridParams(**body.params).validate(asset_class)
+    except (TypeError, ConfigError) as exc:
+        raise HTTPException(400, str(exc))
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO grid_params(asset_class, params) VALUES (%s,%s)"
+            " ON CONFLICT(asset_class) DO UPDATE SET params=EXCLUDED.params",
+            (asset_class, json.dumps(body.params)),
+        )
+    return {"ok": True}

@@ -425,7 +425,7 @@ export class DividendViewComponent {
   sharesOnDate(code: string): number {
     const trades = this.state.trades()[code] ?? [];
     const mkt    = this.state.tradeMarkets()[code] ?? 'tw';
-    return calcFIFO(trades, mkt).holdingShares;
+    return calcFIFO(trades, mkt, this.state.gridAssetClasses()[code]).holdingShares;
   }
 
   holdingSummary = computed(() => {
@@ -441,7 +441,7 @@ export class DividendViewComponent {
     return Object.entries(trades)
       .map(([code, ts]) => {
         const mkt    = markets[code] ?? 'tw';
-        const shares = calcFIFO(ts, mkt).holdingShares;
+        const shares = calcFIFO(ts, mkt, this.state.gridAssetClasses()[code]).holdingShares;
         if (shares <= 0) return null;
         const recent     = divs.filter(d => d.code === code && d.exDate >= cutoff);
         const annualDiv  = recent.reduce((s, d) => s + d.cashDiv, 0);
@@ -468,7 +468,7 @@ export class DividendViewComponent {
   async syncHoldings() {
     const markets = this.state.tradeMarkets();
     const codes = Object.entries(this.state.trades())
-      .filter(([code, ts]) => calcFIFO(ts, markets[code] ?? 'tw').holdingShares > 0)
+      .filter(([code, ts]) => calcFIFO(ts, markets[code] ?? 'tw', this.state.gridAssetClasses()[code]).holdingShares > 0)
       .map(([code]) => code);
     this.state.tracked().filter(t => t.status === 'holding').forEach(t => {
       if (!codes.includes(t.code)) codes.push(t.code);

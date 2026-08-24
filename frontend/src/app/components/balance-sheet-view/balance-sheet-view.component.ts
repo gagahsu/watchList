@@ -311,7 +311,7 @@ export class BalanceSheetViewComponent {
     return Object.entries(trades)
       .map(([code, ts]) => {
         const mkt = markets[code] ?? 'tw';
-        const fifo = calcFIFO(ts, mkt);
+        const fifo = calcFIFO(ts, mkt, this.state.gridAssetClasses()[code]);
         if (fifo.holdingShares <= 0) return null;
         const price = closeMap[code]?.close ?? null;
         const toNTD = mkt === 'us' ? fx : 1;

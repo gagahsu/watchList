@@ -3,7 +3,79 @@ export type SignalDirection = 'enter' | 'exit' | 'watch';
 export type SignalStatus = 'active' | 'triggered' | 'invalid' | 'expired';
 export type TradeType = 'buy' | 'sell';
 export type Market = 'tw' | 'us';
-export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities' | 'risk';
+export type MainView = 'notes' | 'notes-list' | 'index' | 'signals' | 'portfolio' | 'balance-sheet' | 'watch' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities' | 'risk' | 'grid';
+
+// ── ATR Grid (backend/grid/) ────────────────────────────────────────────────
+export type GridAction = 'BUY' | 'SELL' | 'HOLD' | 'REVIEW' | 'SKIP';
+
+export interface GridDecision {
+  ticker: string;
+  name: string;
+  assetClass: string;
+  action: GridAction;
+  shares: number;
+  rungs: number;
+  lotShares: number;
+  price: number;
+  anchorBefore: number;
+  anchorAfter: number;
+  step: number;
+  stepPct: number;
+  atr: number | null;
+  atrPct: number | null;
+  rungBefore: number;
+  rungAfter: number;
+  positionShares: number;
+  estGross: number;
+  estFee: number;
+  estTax: number;
+  estCashFlow: number;
+  estRealizedPnl: number | null;
+  signalRungs: number;
+  reasons: string[];
+  blocks: string[];
+  notes: string[];
+}
+
+export interface GridAdvice {
+  asOf: string;
+  decisions: GridDecision[];
+  summary: { orders: number; tickers: number; netCashFlow: number; cost: number };
+}
+
+export interface GridPosition {
+  code: string;
+  name: string;
+  assetClass: string | null;
+  enabled: boolean;
+  shares: number;
+  avgCost: number;
+  anchor: number;
+  rung: number;
+  baselineShares: number;
+  lotShares?: number;
+  maxBuyRungs?: number;
+  maxSellRungs?: number;
+  nextBuy?: number[];
+  nextSell?: number[];
+}
+
+export interface GridPositionAddRequest {
+  code: string;
+  assetClass: 'equity' | 'bond' | 'leveraged' | 'stock';
+  gridOverrides?: Record<string, unknown>;
+}
+
+export interface GridRecordRequest {
+  code: string;
+  action: 'BUY' | 'SELL';
+  shares: number;
+  price: number;
+  rungs: number;
+  step: number;
+  date?: string;
+  accountId?: string;
+}
 
 export interface OhlcBar {
   date: string;

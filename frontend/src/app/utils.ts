@@ -78,7 +78,21 @@ export function pendingSettlements(accountId: string, allTrades: Record<string, 
   return total;
 }
 
-export function calcFIFO(trades: Trade[], market: string): FifoResult {
+/**
+ * TW sell tax rate, floored — mirrors backend/grid/fees.py::transaction_tax().
+ * `assetClass` here is the grid's own vocabulary ('equity'|'bond'|'leveraged'|'stock',
+ * from GET /api/grid/asset-classes — NOT the Chinese balance-sheet allocation
+ * labels in state.assetClasses(), which is a separate, unrelated classification).
+ * Falls back to the flat 0.3% individual-stock rate when assetClass is unknown
+ * (i.e. not a grid-tracked code) — same behavior as before this existed.
+ */
+function twSellTax(amount: number, assetClass: string | undefined): number {
+  if (assetClass === 'bond') return 0;
+  if (assetClass === undefined || assetClass === 'stock') return Math.floor(amount * 0.003);
+  return Math.floor(amount * 0.001); // equity / leveraged ETF
+}
+
+export function calcFIFO(trades: Trade[], market: string, assetClass?: string): FifoResult {
   const sorted = [...trades].sort((a, b) => {
     const d = new Date(a.date).getTime() - new Date(b.date).getTime();
     if (d !== 0) return d;
@@ -102,7 +116,7 @@ export function calcFIFO(trades: Trade[], market: string): FifoResult {
       results.push({ id: t.id, realized: null, tax: 0 });
     } else {
       const sellAmount = shares * price;
-      const tax = market === 'tw' ? Math.floor(sellAmount * 0.003) : 0;
+      const tax = market === 'tw' ? twSellTax(sellAmount, assetClass) : 0;
       const proceeds = sellAmount - fee - tax;
       const netUnit = shares > 0 ? proceeds / shares : 0;
       let remaining = shares;

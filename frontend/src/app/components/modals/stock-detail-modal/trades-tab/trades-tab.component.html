@@ -1,7 +1,7 @@
 @let code = entry().code;
 @let mkt = state.tradeMarkets()[code] ?? 'tw';
 @let trades = state.trades()[code] ?? [];
-@let fifo = calcFIFO(trades, mkt);
+@let fifo = calcFIFO(trades, mkt, state.gridAssetClasses()[code]);
 @let curr = mkt === 'tw' ? 'NT$' : '$';
 
 <div class="market-toggle">

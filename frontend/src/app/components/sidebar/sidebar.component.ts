@@ -88,6 +88,9 @@ import { pendingSettlements, settlementDate } from '../../utils';
           <span class="sidebar-nav-badge">{{ watchCount() }}</span>
         }
       </button>
+      <button class="sidebar-nav-item" [class.active]="isActive('grid')" (click)="navigate('grid')">
+        <span class="nav-icon">🕸️</span> ATR 網格
+      </button>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -169,7 +172,7 @@ export class SidebarComponent {
     return this.state.view() === view;
   }
 
-  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities' | 'risk') {
+  navigate(view: 'notes-list' | 'index' | 'signals' | 'portfolio' | 'watch' | 'balance-sheet' | 'accounts' | 'transactions' | 'dividends' | 'funds' | 'cash-flow' | 'calendar' | 'liabilities' | 'risk' | 'grid') {
     this.state.view.set(view);
     this.state.sidebarOpen.set(false);
   }

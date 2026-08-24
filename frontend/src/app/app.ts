@@ -24,6 +24,7 @@ import { CashFlowViewComponent } from './components/cash-flow-view/cash-flow-vie
 import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
 import { LiabilitiesViewComponent } from './components/liabilities-view/liabilities-view.component';
 import { RiskViewComponent } from './components/risk-view/risk-view.component';
+import { GridViewComponent } from './components/grid-view/grid-view.component';
 
 @Component({
   selector: 'app-root',
@@ -34,7 +35,7 @@ import { RiskViewComponent } from './components/risk-view/risk-view.component';
     BrokerSettingsModalComponent, CreditCardSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
     DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent, CalendarViewComponent,
-    LiabilitiesViewComponent, RiskViewComponent,
+    LiabilitiesViewComponent, RiskViewComponent, GridViewComponent,
   ],
   templateUrl: './app.html',
 })
@@ -47,7 +48,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots, assetClasses] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots, assetClasses, gridAssetClasses] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -65,6 +66,7 @@ export class App implements OnInit {
       this.state.creditCards.set(creditCards);
       this.state.netWorthSnapshots.set(netWorthSnapshots);
       this.state.assetClasses.set(assetClasses);
+      this.state.gridAssetClasses.set(gridAssetClasses);
       this.state.activeNoteId.set(notes[0]?.id ?? null);
       this.state.loading.set(false);
     } catch (e: any) {
@@ -107,6 +109,7 @@ export class App implements OnInit {
       'calendar':  '財務行事曆',
       'liabilities': '負債管理',
       'risk': '風險暴露',
+      'grid': 'ATR 網格',
     };
     return titles[this.state.view()] ?? '理債富';
   }

@@ -217,6 +217,34 @@ class AssetClassIn(BaseModel):
     assetClass: str
 
 
+# ── ATR Grid ──────────────────────────────────────────
+class GridPositionIn(BaseModel):
+    code: str
+    assetClass: str
+    gridOverrides: dict = {}
+
+
+class GridRecordIn(BaseModel):
+    code: str
+    action: str  # BUY / SELL
+    shares: int
+    price: float
+    rungs: int
+    step: float
+    date: str | None = None
+    accountId: str | None = None
+
+
+class GridPositionPatch(BaseModel):
+    enabled: bool | None = None
+    anchor: float | None = None
+    gridOverrides: dict | None = None
+
+
+class GridParamsIn(BaseModel):
+    params: dict
+
+
 # ── Tranche Plans (543 加碼計畫) ─────────────────────
 class TrancheItemIn(BaseModel):
     id: str

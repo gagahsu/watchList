@@ -12,12 +12,33 @@ def _safe(v) -> float | None:
         return None
 
 
+def _finmind_ohlc(code: str, days: int) -> list[dict]:
+    """Fallback for when Yahoo is unreachable. FinMind has no suffix
+    ambiguity (no .TW/.TWO) since it's queried by plain code."""
+    from finmind import fetch_daily_bars
+    records = fetch_daily_bars(code)
+    result = []
+    for r in records:
+        o, h, l, c = _safe(r.get("open")), _safe(r.get("max")), _safe(r.get("min")), _safe(r.get("close"))
+        if None in (o, h, l, c):
+            continue
+        result.append({
+            "date":   r["date"],
+            "open":   round(o, 2),
+            "high":   round(h, 2),
+            "low":    round(l, 2),
+            "close":  round(c, 2),
+            "volume": int(r.get("Trading_Volume") or 0),
+        })
+    return result[-days:]
+
+
 @router.get("/ohlc/{code}")
 def get_ohlc(code: str, days: int = 120):
     """Return up to `days` OHLC bars (use 120 so front-end can compute MA60 across 60 display bars)."""
-    import yfinance as yf
     for suffix in (".TW", ".TWO", ""):
         try:
+            import yfinance as yf
             hist = yf.Ticker(code + suffix).history(period="6mo")
             if len(hist) == 0:
                 continue
@@ -42,4 +63,11 @@ def get_ohlc(code: str, days: int = 120):
                 return result
         except Exception:
             continue
+
+    try:
+        result = _finmind_ohlc(code, days)
+        if result:
+            return result
+    except Exception:
+        pass
     return []

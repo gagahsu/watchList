@@ -5,7 +5,7 @@ import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
   AccountTransaction, CreditCard, DividendRecord, FundHolding, FundSchedule, NetWorthSnapshot,
-  TrancheItem, TranchePlan,
+  TrancheItem, TranchePlan, GridAdvice, GridPosition, GridPositionAddRequest, GridRecordRequest,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -50,6 +50,7 @@ export class ApiService {
       this.get<CreditCard[]>('/credit-cards'),
       this.get<NetWorthSnapshot[]>('/net-worth-snapshots'),
       this.get<Record<string, string>>('/asset-classes'),
+      this.get<Record<string, string>>('/grid/asset-classes'),
     ]);
   }
 
@@ -205,4 +206,18 @@ export class ApiService {
   // ── Net Worth Snapshots ───────────────────────────────────────────────────
   getNetWorthSnapshots() { return this.get<NetWorthSnapshot[]>('/net-worth-snapshots'); }
   deleteNetWorthSnapshot(id: string) { return this.delete<{ok:boolean}>(`/net-worth-snapshots/${id}`); }
+
+  // ── ATR Grid ──────────────────────────────────────────────────────────────
+  getGridAdvice() { return this.get<GridAdvice>('/grid/advice'); }
+  getGridPositions() { return this.get<GridPosition[]>('/grid/positions'); }
+  getGridAssetClasses() { return this.get<Record<string, string>>('/grid/asset-classes'); }
+  addGridPosition(body: GridPositionAddRequest) {
+    return this.post<{code:string; assetClass:string; anchor:number; baselineShares:number}>('/grid/positions', body);
+  }
+  patchGridPosition(code: string, body: { enabled?: boolean; anchor?: number; gridOverrides?: Record<string, unknown> }) {
+    return this.put<{ok:boolean}>(`/grid/positions/${code}`, body);
+  }
+  recordGridFill(body: GridRecordRequest) {
+    return this.post<{ok:boolean; code:string; anchor:number; rung:number; fee:number; tax:number; realizedPnl:number|null}>('/grid/record', body);
+  }
 }

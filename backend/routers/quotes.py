@@ -28,14 +28,24 @@ def _safe_price(p) -> float | None:
 
 
 def _price_tw(code: str) -> float | None:
-    import yfinance as yf
     for suffix in (".TW", ".TWO"):
         try:
+            import yfinance as yf
             p = _safe_price(yf.Ticker(code + suffix).fast_info.last_price)
             if p is not None:
                 return p
         except Exception:
             continue
+
+    # Yahoo unreachable — fall back to FinMind's latest daily close (up to
+    # 14 calendar days back). Not an intraday quote, but better than nothing.
+    try:
+        from finmind import fetch_price_for_stock
+        rec = fetch_price_for_stock(code)
+        if rec and rec.get("close"):
+            return _safe_price(rec["close"])
+    except Exception:
+        pass
     return None
 
 

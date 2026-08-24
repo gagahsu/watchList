@@ -1,0 +1,131 @@
+"""網格狀態的持久化。
+
+狀態是這套系統的記憶：錨點在哪、加減碼到第幾階、每一份的買進成本是多少。
+沒有狀態，網格每天都會從頭開始，也就不是網格了。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass
+class Lot:
+    """一筆買進紀錄，賣出時用來配對計算實現損益。"""
+
+    date: str
+    price: float
+    shares: int
+    #: initial = 建檔時的既有持股；grid = 網格買進
+    source: str = "grid"
+
+    def cost(self) -> float:
+        return self.price * self.shares
+
+
+@dataclass
+class Trade:
+    """已記錄的成交。"""
+
+    date: str
+    ticker: str
+    action: str  # BUY / SELL
+    shares: int
+    price: float
+    fee: int
+    tax: int
+    rungs: int
+    realized_pnl: float = 0.0
+    note: str = ""
+    anchor_before: float | None = None
+    rung_before: int | None = None
+    consumed_lots: list[dict[str, Any]] | None = None
+    cash_flow: float | None = None
+
+
+@dataclass
+class Position:
+    """單一標的的網格狀態。"""
+
+    ticker: str
+    shares: int
+    #: 網格基準價
+    anchor: float
+    #: 相對建檔股數的階數，正數代表已往下加碼
+    rung: int = 0
+    #: 建檔時的股數，作為階數的原點
+    baseline_shares: int = 0
+    lots: list[Lot] = field(default_factory=list)
+    realized_pnl: float = 0.0
+    last_trade_date: str | None = None
+    #: 已套用過的除息日期，避免重複調整錨點
+    applied_ex_dividends: list[str] = field(default_factory=list)
+    #: 最後一次套用錨點漂移的日期，確保一天只漂移一次
+    last_drift_date: str | None = None
+
+    def total_lot_shares(self) -> int:
+        return sum(lot.shares for lot in self.lots)
+
+    def average_cost(self) -> float:
+        total = self.total_lot_shares()
+        if total == 0:
+            return 0.0
+        return sum(lot.cost() for lot in self.lots) / total
+
+    def apply_buy(self, trade_date: str, price: float, shares: int, rungs: int) -> None:
+        self.shares += shares
+        self.lots.append(Lot(date=trade_date, price=price, shares=shares))
+        self.rung += rungs
+        self.last_trade_date = trade_date
+
+    def apply_sell(
+        self, trade_date: str, price: float, shares: int, rungs: int
+    ) -> tuple[float, list[dict[str, Any]]]:
+        """後進先出配對賣出，回傳 (毛實現損益, 消耗的Lot紀錄)。"""
+        remaining = shares
+        proceeds_basis = 0.0
+        consumed_lots: list[dict[str, Any]] = []
+        while remaining > 0 and self.lots:
+            lot = self.lots[-1]
+            take = min(lot.shares, remaining)
+            proceeds_basis += lot.price * take
+            consumed_lots.append({"date": lot.date, "price": lot.price, "shares": take, "source": lot.source})
+            lot.shares -= take
+            remaining -= take
+            if lot.shares == 0:
+                self.lots.pop()
+        if remaining > 0:
+            # 狀態與實際持股不一致時的保險絲：用剩餘部位的均價補齊。
+            fallback = self.average_cost() or price
+            proceeds_basis += fallback * remaining
+            consumed_lots.append({"date": trade_date, "price": fallback, "shares": remaining, "source": "fallback"})
+        gross_pnl = price * shares - proceeds_basis
+        self.shares -= shares
+        self.rung -= rungs
+        self.realized_pnl += gross_pnl
+        self.last_trade_date = trade_date
+        return gross_pnl, consumed_lots
+
+    def peek_sell_basis(self, shares: int) -> float:
+        """試算賣出 ``shares`` 股的成本基礎，不改動狀態。"""
+        remaining = shares
+        basis = 0.0
+        for lot in reversed(self.lots):
+            if remaining <= 0:
+                break
+            take = min(lot.shares, remaining)
+            basis += lot.price * take
+            remaining -= take
+        if remaining > 0:
+            basis += (self.average_cost() or 0.0) * remaining
+        return basis
+
+
+@dataclass
+class State:
+    version: int = 2
+    cash: float = 0.0
+    positions: dict[str, Position] = field(default_factory=dict)
+    trades: list[Trade] = field(default_factory=list)
+    last_run_date: str | None = None

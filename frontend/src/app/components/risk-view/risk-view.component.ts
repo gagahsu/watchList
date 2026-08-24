@@ -381,7 +381,7 @@ export class RiskViewComponent {
 
     for (const [code, trades] of Object.entries(this.state.trades())) {
       const market = this.state.tradeMarkets()[code] ?? 'tw';
-      const fifo = calcFIFO(trades, market);
+      const fifo = calcFIFO(trades, market, this.state.gridAssetClasses()[code]);
       if (fifo.holdingShares <= 0) continue;
       const toNTD = market === 'us' ? fx : 1;
       const price = closeMap[code]?.close ?? null;

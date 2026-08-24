@@ -301,6 +301,34 @@ DDL = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_tranche_items_plan ON tranche_items(plan_id)",
+    # ATR 網格：每檔標的的錨點/階數/除息與漂移紀錄。股數與成本一律從 trades
+    # 表以 FIFO 現算，這裡只存 trades 表推不出來的網格專屬狀態。
+    """
+    CREATE TABLE IF NOT EXISTS grid_positions (
+        code                 TEXT PRIMARY KEY,
+        enabled              BOOLEAN NOT NULL DEFAULT FALSE,
+        anchor               DOUBLE PRECISION NOT NULL,
+        rung                 INTEGER NOT NULL DEFAULT 0,
+        baseline_shares      DOUBLE PRECISION NOT NULL DEFAULT 0,
+        last_drift_date      TEXT,
+        applied_ex_dividends JSONB NOT NULL DEFAULT '[]',
+        grid_overrides       JSONB NOT NULL DEFAULT '{}',
+        created_at           BIGINT NOT NULL DEFAULT 0
+    )
+    """,
+    # asset_class lives here, NOT in the shared `asset_classes` table below —
+    # that table holds the balance-sheet view's own Chinese portfolio-allocation
+    # labels (市場型ETF/債券ETF/...), a different vocabulary from the grid's
+    # (equity/bond/leveraged/stock). Sharing the table caused the two features
+    # to silently overwrite each other's values for the same code.
+    "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS asset_class TEXT",
+    # 四類資產（equity/bond/leveraged/stock）的網格參數，對應 grid/config.py 的 GridParams
+    """
+    CREATE TABLE IF NOT EXISTS grid_params (
+        asset_class TEXT PRIMARY KEY,
+        params      JSONB NOT NULL
+    )
+    """,
 ]
 
 

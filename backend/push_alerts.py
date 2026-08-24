@@ -130,49 +130,58 @@ def check_price_alerts():
         codes[t["code"]] = t["market"]
     for it in tranche_items:
         codes.setdefault(it["code"], "tw")
-    if not codes:
-        return
 
-    prices = _fetch_prices(codes)
-    names = _stock_names()
     messages: list[str] = []
 
-    sl_hits = [(t["code"], prices.get(t["code"]), t["price"]) for t in sl_targets
-               if prices.get(t["code"]) is not None and prices[t["code"]] <= t["price"]]
-    if sl_hits:
-        lines = "\n".join(f"  • {c} {names.get(c, '')}　現價 {p:.2f}（停損 {sl:.2f}）"
-                          for c, p, sl in sl_hits)
-        messages.append(f"🚨 停損提醒\n\n以下股票已觸及停損價格：\n{lines}\n\n請確認是否執行停損。")
+    if codes:
+        prices = _fetch_prices(codes)
+        names = _stock_names()
 
-    tp_hits = [(t["code"], prices.get(t["code"]), t["price"]) for t in tp_targets
-               if prices.get(t["code"]) is not None and prices[t["code"]] >= t["price"]]
-    if tp_hits:
-        lines = "\n".join(f"  • {c} {names.get(c, '')}　現價 {p:.2f}（停利 {tp:.2f}）"
-                          for c, p, tp in tp_hits)
-        messages.append(f"🎯 停利提醒\n\n以下股票已達停利價格：\n{lines}\n\n可考慮分批獲利了結。")
+        sl_hits = [(t["code"], prices.get(t["code"]), t["price"]) for t in sl_targets
+                   if prices.get(t["code"]) is not None and prices[t["code"]] <= t["price"]]
+        if sl_hits:
+            lines = "\n".join(f"  • {c} {names.get(c, '')}　現價 {p:.2f}（停損 {sl:.2f}）"
+                              for c, p, sl in sl_hits)
+            messages.append(f"🚨 停損提醒\n\n以下股票已觸及停損價格：\n{lines}\n\n請確認是否執行停損。")
 
-    tranche_hits = []
-    for it in tranche_items:
-        p = prices.get(it["code"])
-        if p is not None and p <= it["trigger_price"]:
-            tranche_hits.append(it)
-    if tranche_hits:
-        lines = "\n".join(
-            f"  • {it['code']} {names.get(it['code'], '')}　第 {it['seq']} 筆"
-            f"　觸發價 {it['trigger_price']:.2f}　金額 NT${it['amount']:,.0f}"
-            for it in tranche_hits
-        )
-        messages.append(f"📉 分批加碼到價\n\n{lines}\n\n買進後請至網站標記「已買進」。")
-        now = datetime.now().isoformat(timespec="seconds")
-        with get_db() as conn:
-            for it in tranche_hits:
-                conn.execute("UPDATE tranche_items SET alerted_at=%s WHERE id=%s",
-                             (now, it["id"]))
+        tp_hits = [(t["code"], prices.get(t["code"]), t["price"]) for t in tp_targets
+                   if prices.get(t["code"]) is not None and prices[t["code"]] >= t["price"]]
+        if tp_hits:
+            lines = "\n".join(f"  • {c} {names.get(c, '')}　現價 {p:.2f}（停利 {tp:.2f}）"
+                              for c, p, tp in tp_hits)
+            messages.append(f"🎯 停利提醒\n\n以下股票已達停利價格：\n{lines}\n\n可考慮分批獲利了結。")
+
+        tranche_hits = []
+        for it in tranche_items:
+            p = prices.get(it["code"])
+            if p is not None and p <= it["trigger_price"]:
+                tranche_hits.append(it)
+        if tranche_hits:
+            lines = "\n".join(
+                f"  • {it['code']} {names.get(it['code'], '')}　第 {it['seq']} 筆"
+                f"　觸發價 {it['trigger_price']:.2f}　金額 NT${it['amount']:,.0f}"
+                for it in tranche_hits
+            )
+            messages.append(f"📉 分批加碼到價\n\n{lines}\n\n買進後請至網站標記「已買進」。")
+            now = datetime.now().isoformat(timespec="seconds")
+            with get_db() as conn:
+                for it in tranche_hits:
+                    conn.execute("UPDATE tranche_items SET alerted_at=%s WHERE id=%s",
+                                 (now, it["id"]))
+
+        logger.info("Price alerts checked: SL=%d TP=%d tranche=%d",
+                    len(sl_hits), len(tp_hits), len(tranche_hits))
+
+    try:
+        from routers.grid import build_grid_alert_message
+        grid_msg = build_grid_alert_message()
+        if grid_msg:
+            messages.append(grid_msg)
+    except Exception as e:
+        logger.error("網格建議推播失敗: %s", e)
 
     if messages:
         _push_all(messages)
-        logger.info("Price alerts pushed: SL=%d TP=%d tranche=%d",
-                    len(sl_hits), len(tp_hits), len(tranche_hits))
 
 
 # ── 2. Daily drop alert (14:30 平日) ──────────────────────────────────────────
@@ -504,6 +513,8 @@ def send_weekly_report():
             "WHERE ex_date > %s AND ex_date <= %s AND cash_div > 0 ORDER BY ex_date",
             (today.isoformat(), next_week.isoformat()),
         ).fetchall()
+        asset_classes = {r["code"]: r["asset_class"] for r in
+                          conn.execute("SELECT code, asset_class FROM grid_positions").fetchall()}
 
     # Portfolio snapshot + week realized PnL
     total_mv = total_cost = week_realized = 0.0
@@ -511,7 +522,7 @@ def send_weekly_report():
     for code, ts in by_code.items():
         mkt = markets.get(code, "tw")
         to_ntd = fx if mkt == "us" else 1
-        f = calc_fifo(ts, mkt)
+        f = calc_fifo(ts, mkt, asset_classes.get(code))
         for s in f["sells"]:
             if week_ago.isoformat() < s["date"] <= today.isoformat():
                 week_realized += s["realized"] * to_ntd
@@ -575,12 +586,15 @@ def send_monthly_report():
 
     by_code, markets = load_trades_by_code()
     holdings_shares = {h["code"]: h["shares"] for h in current_holdings()}
+    with get_db() as conn:
+        asset_classes = {r["code"]: r["asset_class"] for r in
+                          conn.execute("SELECT code, asset_class FROM grid_positions").fetchall()}
 
     month_realized = 0.0
     for code, ts in by_code.items():
         mkt = markets.get(code, "tw")
         to_ntd = fx if mkt == "us" else 1
-        for s in calc_fifo(ts, mkt)["sells"]:
+        for s in calc_fifo(ts, mkt, asset_classes.get(code))["sells"]:
             if month_start.isoformat() <= s["date"] <= month_end.isoformat():
                 month_realized += s["realized"] * to_ntd
 

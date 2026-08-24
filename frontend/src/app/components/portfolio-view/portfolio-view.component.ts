@@ -205,7 +205,7 @@ interface ClosedPosition {
                       (click)="openModal($event, h.code)">管理</button>
                   </div>
                   @let trades = sortedTrades(h.code);
-                  @let fifo = calcFIFO(trades, h.market);
+                  @let fifo = calcFIFO(trades, h.market, state.gridAssetClasses()[h.code]);
                   @if (trades.length === 0) {
                     <div style="padding:16px;text-align:center;color:var(--text-muted);font-size:14px">尚無交易紀錄</div>
                   } @else {
@@ -302,7 +302,7 @@ interface ClosedPosition {
                       (click)="openModal($event, h.code)">管理</button>
                   </div>
                   @let trades = sortedTrades(h.code);
-                  @let fifo = calcFIFO(trades, h.market);
+                  @let fifo = calcFIFO(trades, h.market, state.gridAssetClasses()[h.code]);
                   <div class="trade-header-row" style="grid-template-columns:90px 52px 80px 90px 80px 1fr">
                     <span>日期</span><span>類型</span><span style="text-align:right">股數</span>
                     <span style="text-align:right">價格</span><span style="text-align:right">手續費</span>
@@ -389,7 +389,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
     for (const code of codes) {
       const trades = this.state.trades()[code] ?? [];
       const market = this.state.tradeMarkets()[code] ?? 'tw';
-      const fifo = calcFIFO(trades, market);
+      const fifo = calcFIFO(trades, market, this.state.gridAssetClasses()[code]);
       if (fifo.holdingShares <= 0) continue;
 
       const name = this.stock.codeToName()[code] || code;
@@ -427,7 +427,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
     for (const [code, trades] of Object.entries(this.state.trades())) {
       if (!trades.length) continue;
       const market = this.state.tradeMarkets()[code] ?? 'tw';
-      const fifo = calcFIFO(trades, market);
+      const fifo = calcFIFO(trades, market, this.state.gridAssetClasses()[code]);
       if (fifo.holdingShares > 0) continue;
 
       const name = this.stock.codeToName()[code] || code;

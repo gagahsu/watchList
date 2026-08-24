@@ -305,7 +305,7 @@ export class SignalsViewComponent {
     const fifoByCode: Record<string, FifoResult> = {};
     const tradesBySig = new Map<string, { code: string; trade: Trade }[]>();
     for (const [code, trades] of Object.entries(this.state.trades())) {
-      fifoByCode[code] = calcFIFO(trades, markets[code] ?? 'tw');
+      fifoByCode[code] = calcFIFO(trades, markets[code] ?? 'tw', this.state.gridAssetClasses()[code]);
       for (const t of trades) {
         if (!t.sigRef) continue;
         const list = tradesBySig.get(t.sigRef) ?? [];

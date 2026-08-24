@@ -68,7 +68,7 @@ export class TradesTabComponent implements OnInit {
       const pct = parseFloat(this.slPct());
       const trades = this.state.trades()[code] ?? [];
       const mkt = this.state.tradeMarkets()[code] ?? 'tw';
-      const fifo = calcFIFO(trades, mkt);
+      const fifo = calcFIFO(trades, mkt, this.state.gridAssetClasses()[code]);
       sl = (!isNaN(pct) && fifo.avgCost > 0)
         ? (fifo.avgCost * (1 - pct / 100)).toFixed(2)
         : '';
@@ -164,7 +164,7 @@ export class TradesTabComponent implements OnInit {
     if (!tracked) return;
     const trades = this.state.trades()[code] ?? [];
     const mkt = this.state.tradeMarkets()[code] ?? 'tw';
-    const fifo = calcFIFO(trades, mkt);
+    const fifo = calcFIFO(trades, mkt, this.state.gridAssetClasses()[code]);
     const target = fifo.holdingShares > 0 ? 'holding' : 'tracking';
     if (tracked.status !== target) {
       const updated = await this.api.patchTracked(code, { status: target });

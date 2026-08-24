@@ -20,6 +20,11 @@ export class AppStateService {
   transactions = signal<AccountTransaction[]>([]);
   dividends    = signal<DividendRecord[]>([]);
   assetClasses = signal<Record<string, string>>({});
+  /** {code: 'equity'|'bond'|'leveraged'|'stock'} from the ATR grid feature —
+   * a different vocabulary from `assetClasses` above (which holds the
+   * balance-sheet view's Chinese portfolio-allocation labels). Used by
+   * calcFIFO() to pick the right TW sell-tax rate for grid-tracked codes. */
+  gridAssetClasses = signal<Record<string, string>>({});
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeNoteId = signal<string | null>(null);

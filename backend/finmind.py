@@ -78,6 +78,23 @@ def fetch_prices_for_date(trading_date: str) -> list[dict]:
     return data.get("data", [])
 
 
+def fetch_daily_bars(stock_id: str, days: int = 200) -> list[dict]:
+    """Daily OHLC range for one stock, oldest first. Used as the ATR-history
+    fallback when yfinance is unreachable (see routers/ohlc.py) — unlike
+    fetch_price_for_stock, this keeps the whole range instead of only the
+    latest record."""
+    start = (date.today() - timedelta(days=days)).isoformat()
+    end = date.today().isoformat()
+    data = _get({
+        "dataset":    "TaiwanStockPrice",
+        "data_id":    stock_id,
+        "start_date": start,
+        "end_date":   end,
+        "token":      TOKEN,
+    })
+    return sorted(data.get("data", []), key=lambda r: r["date"])
+
+
 def fetch_price_for_stock(stock_id: str) -> dict | None:
     """Latest daily price for one stock, looking back up to 14 calendar days."""
     start = (date.today() - timedelta(days=14)).isoformat()

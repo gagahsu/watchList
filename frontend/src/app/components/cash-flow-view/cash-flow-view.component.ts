@@ -266,7 +266,7 @@ export class CashFlowViewComponent {
     return Object.entries(trades)
       .map(([code, ts]) => {
         const mkt    = markets[code] ?? 'tw';
-        const shares = calcFIFO(ts, mkt).holdingShares;
+        const shares = calcFIFO(ts, mkt, this.state.gridAssetClasses()[code]).holdingShares;
         if (shares <= 0) return null;
         const recent    = divs.filter(d => d.code === code && d.exDate >= cutoff);
         const annualDiv = recent.reduce((s, d) => s + d.cashDiv, 0);
