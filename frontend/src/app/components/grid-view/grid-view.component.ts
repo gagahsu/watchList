@@ -19,8 +19,8 @@ const ACTION_CLASS: Record<string, string> = {
 @let positions = positions_();
 
 <div class="grid-toolbar">
-  <button class="portfolio-refresh-btn" [class.spinning]="loadingAdvice()" [disabled]="loadingAdvice()"
-    (click)="refreshAdvice()" title="重新產生今日建議">↻ 重新整理建議</button>
+  <button class="portfolio-refresh-btn" [disabled]="loadingAdvice()"
+    (click)="refreshAdvice()" title="重新產生今日建議"><span [class.spinning]="loadingAdvice()">↻</span> 重新整理建議</button>
   @if (advice) {
     <span style="font-size:12px;color:var(--text-muted)">建議日期 {{ advice.asOf }}</span>
   }
