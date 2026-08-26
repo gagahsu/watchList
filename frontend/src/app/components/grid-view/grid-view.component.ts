@@ -140,6 +140,10 @@ const ACTION_CLASS: Record<string, string> = {
       <option value="leveraged">leveraged（槓桿型）</option>
       <option value="stock">stock（個股）</option>
     </select>
+    <select class="grid-add-select" [(ngModel)]="addMarket">
+      <option value="tw">台股</option>
+      <option value="us">美股</option>
+    </select>
     <button class="btn-cancel" style="padding:6px 14px;font-size:13px" [disabled]="addingPosition()" (click)="submitAddPosition()">＋ 加入網格</button>
     @if (addError()) { <span style="color:var(--red);font-size:12px">{{ addError() }}</span> }
   </div>
@@ -157,6 +161,7 @@ const ACTION_CLASS: Record<string, string> = {
           <th style="width:70px">代碼</th>
           <th>名稱</th>
           <th style="width:70px">類別</th>
+          <th style="width:50px">市場</th>
           <th style="width:90px;text-align:right">持股</th>
           <th style="width:90px;text-align:right">成本</th>
           <th style="width:90px;text-align:right">錨點</th>
@@ -171,6 +176,7 @@ const ACTION_CLASS: Record<string, string> = {
             <td><span class="risk-code">{{ p.code }}</span></td>
             <td style="font-weight:600">{{ p.name }}</td>
             <td style="font-size:12px;color:var(--text-muted)">{{ p.assetClass ?? '—' }}</td>
+            <td style="font-size:12px;color:var(--text-muted)">{{ p.market === 'us' ? '美股' : '台股' }}</td>
             <td class="risk-num">{{ p.shares.toLocaleString() }}</td>
             <td class="risk-num">{{ p.avgCost.toFixed(2) }}</td>
             <td class="risk-num">{{ p.anchor.toFixed(3) }}</td>
@@ -264,6 +270,7 @@ export class GridViewComponent implements OnInit {
 
   addCode = '';
   addAssetClass: 'equity' | 'bond' | 'leveraged' | 'stock' = 'equity';
+  addMarket: 'tw' | 'us' = 'tw';
   addingPosition = signal(false);
   addError = signal('');
 
@@ -276,7 +283,7 @@ export class GridViewComponent implements OnInit {
     this.addError.set('');
     this.addingPosition.set(true);
     try {
-      await this.api.addGridPosition({ code, assetClass: this.addAssetClass });
+      await this.api.addGridPosition({ code, assetClass: this.addAssetClass, market: this.addMarket });
       this.addCode = '';
       await this.loadPositions();
     } catch (e: any) {

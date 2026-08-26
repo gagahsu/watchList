@@ -221,6 +221,7 @@ class AssetClassIn(BaseModel):
 class GridPositionIn(BaseModel):
     code: str
     assetClass: str
+    market: str = "tw"
     gridOverrides: dict = {}
 
 

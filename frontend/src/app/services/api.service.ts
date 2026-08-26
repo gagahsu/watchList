@@ -212,7 +212,7 @@ export class ApiService {
   getGridPositions() { return this.get<GridPosition[]>('/grid/positions'); }
   getGridAssetClasses() { return this.get<Record<string, string>>('/grid/asset-classes'); }
   addGridPosition(body: GridPositionAddRequest) {
-    return this.post<{code:string; assetClass:string; anchor:number; baselineShares:number}>('/grid/positions', body);
+    return this.post<{code:string; assetClass:string; market:string; anchor:number; baselineShares:number}>('/grid/positions', body);
   }
   patchGridPosition(code: string, body: { enabled?: boolean; anchor?: number; gridOverrides?: Record<string, unknown> }) {
     return this.put<{ok:boolean}>(`/grid/positions/${code}`, body);

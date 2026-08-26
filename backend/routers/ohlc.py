@@ -34,9 +34,17 @@ def _finmind_ohlc(code: str, days: int) -> list[dict]:
 
 
 @router.get("/ohlc/{code}")
-def get_ohlc(code: str, days: int = 120):
-    """Return up to `days` OHLC bars (use 120 so front-end can compute MA60 across 60 display bars)."""
-    for suffix in (".TW", ".TWO", ""):
+def get_ohlc(code: str, days: int = 120, market: str = "tw"):
+    """Return up to `days` OHLC bars (use 120 so front-end can compute MA60 across 60 display bars).
+
+    `market` picks the Yahoo suffix strategy: 'tw' tries .TW/.TWO (falling
+    back to bare in case Yahoo already delists the suffix), 'us' tickers
+    are unsuffixed on Yahoo so only the bare code is tried. FinMind (the
+    Yahoo-unreachable fallback) only carries Taiwan data, so it's skipped
+    entirely for 'us'.
+    """
+    suffixes = (".TW", ".TWO", "") if market != "us" else ("",)
+    for suffix in suffixes:
         try:
             import yfinance as yf
             hist = yf.Ticker(code + suffix).history(period="6mo")
@@ -63,6 +71,9 @@ def get_ohlc(code: str, days: int = 120):
                 return result
         except Exception:
             continue
+
+    if market == "us":
+        return []
 
     try:
         result = _finmind_ohlc(code, days)

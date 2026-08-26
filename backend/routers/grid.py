@@ -34,15 +34,24 @@ from grid.engine import BUY, SELL, Decision, lot_size, next_grid_levels
 from grid.indicators import Bar
 from models import GridParamsIn, GridPositionIn, GridPositionPatch, GridRecordIn, TradeIn
 from routers.ohlc import get_ohlc
-from routers.quotes import _price_tw
+from routers.quotes import _price_tw, _price_us
 from routers.trades import create_trade
 
 router = APIRouter()
 
 
+def _market_for(code: str) -> str:
+    """Grid positions can be TW or US tickers — look up the market registered
+    against this code in `trade_markets` (same table trades/portfolio use),
+    defaulting to 'tw' for codes that were never assigned one."""
+    with get_db() as conn:
+        row = conn.execute("SELECT market FROM trade_markets WHERE code=%s", (code,)).fetchone()
+    return row["market"] if row else "tw"
+
+
 def _bars_fn(code: str) -> list[Bar]:
     today = date.today().isoformat()
-    raw = get_ohlc(code, days=150)
+    raw = get_ohlc(code, days=150, market=_market_for(code))
     bars = []
     for r in raw:
         if r["date"] >= today:  # never let today's (still-forming) bar leak into ATR
@@ -55,7 +64,7 @@ def _bars_fn(code: str) -> list[Bar]:
 
 
 def _price_fn(code: str) -> float | None:
-    return _price_tw(code)
+    return _price_us(code) if _market_for(code) == "us" else _price_tw(code)
 
 
 def _decision_to_dict(d: Decision) -> dict:
@@ -170,6 +179,7 @@ def get_grid_positions():
             "code": code,
             "name": names.get(code, code),
             "assetClass": asset_class,
+            "market": markets.get(code, "tw"),
             "enabled": row["enabled"],
             "shares": int(fifo_result["holdingShares"]),
             "avgCost": round(fifo_result["avgCost"], 4),
@@ -206,11 +216,21 @@ def add_grid_position(body: GridPositionIn):
         raise HTTPException(400, "code 不可為空")
     if body.assetClass not in VALID_CLASSES:
         raise HTTPException(400, f"assetClass 必須是 {sorted(VALID_CLASSES)} 之一")
+    if body.market not in ("tw", "us"):
+        raise HTTPException(400, "market 必須是 'tw' 或 'us'")
 
     with get_db() as conn:
         existing = conn.execute("SELECT code FROM grid_positions WHERE code=%s", (code,)).fetchone()
         if existing:
             raise HTTPException(409, f"{code} 已經是網格標的")
+
+        # Register (or confirm) this code's market before pricing it, since
+        # _price_fn/_bars_fn look it up from trade_markets.
+        conn.execute(
+            "INSERT INTO trade_markets(code, market) VALUES (%s,%s)"
+            " ON CONFLICT(code) DO UPDATE SET market=EXCLUDED.market",
+            (code, body.market),
+        )
 
         price = _price_fn(code)
         if price is None or price <= 0:
@@ -219,7 +239,7 @@ def add_grid_position(body: GridPositionIn):
         trade_rows = conn.execute(
             "SELECT id, date, type, shares, price, fee FROM trades WHERE code=%s ORDER BY date ASC", (code,)
         ).fetchall()
-        baseline_shares = int(calc_fifo([dict(r) for r in trade_rows], asset_class=body.assetClass)["holdingShares"])
+        baseline_shares = int(calc_fifo([dict(r) for r in trade_rows], body.market, body.assetClass)["holdingShares"])
 
         conn.execute(
             """
@@ -230,7 +250,10 @@ def add_grid_position(body: GridPositionIn):
             """,
             (code, price, baseline_shares, json.dumps(body.gridOverrides), int(time.time() * 1000), body.assetClass),
         )
-    return {"code": code, "assetClass": body.assetClass, "anchor": round(price, 3), "baselineShares": baseline_shares}
+    return {
+        "code": code, "assetClass": body.assetClass, "market": body.market,
+        "anchor": round(price, 3), "baselineShares": baseline_shares,
+    }
 
 
 @router.put("/grid/positions/{code}")
