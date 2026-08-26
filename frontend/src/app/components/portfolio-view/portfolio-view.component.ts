@@ -18,6 +18,7 @@ interface Holding {
   stopLoss: string;
   takeProfit: string;
   stopLossHit: boolean;
+  atrEnabled: boolean;
   // NTD-converted values for summary (same as original for TW stocks)
   costNTD: number;
   mvNTD: number | null;
@@ -124,6 +125,7 @@ interface ClosedPosition {
           <th style="width:100px;text-align:right">現價</th>
           <th style="width:130px;text-align:right">市值（NTD）</th>
           <th style="width:130px;text-align:right">未實現損益</th>
+          <th style="width:70px;text-align:center">ATR</th>
           <th style="width:50px"></th>
         </tr>
       </thead>
@@ -189,6 +191,11 @@ interface ClosedPosition {
                 <span style="color:var(--border)">—</span>
               }
             </td>
+            <td style="text-align:center" (click)="$event.stopPropagation()">
+              <label class="bs-toggle" style="justify-content:center">
+                <input type="checkbox" [checked]="h.atrEnabled" (change)="toggleAtr(h.code, asChecked($event))" />
+              </label>
+            </td>
             <td style="text-align:center">
               <span style="color:var(--text-muted);font-size:12px;transition:transform 0.2s"
                 [style.transform]="expanded()===h.code ? 'rotate(90deg)' : 'none'">▶</span>
@@ -197,7 +204,7 @@ interface ClosedPosition {
 
           @if (expanded() === h.code) {
             <tr class="portfolio-detail-row">
-              <td colspan="8" style="padding:0">
+              <td colspan="9" style="padding:0">
                 <div class="portfolio-detail">
                   <div class="portfolio-detail-header">
                     <span style="font-size:13px;font-weight:700;color:var(--text-muted)">交易紀錄</span>
@@ -338,6 +345,9 @@ interface ClosedPosition {
   }
 }
   `,
+  styles: [`
+    .bs-toggle input { width:16px; height:16px; cursor:pointer; accent-color:var(--gold); }
+  `],
 })
 export class PortfolioViewComponent implements OnInit, OnDestroy {
   expanded = signal<string | null>(null);
@@ -396,6 +406,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
       const tracked = this.state.tracked().find(t => t.code === code);
       const stopLoss   = tracked?.stopLoss   ?? '';
       const takeProfit = tracked?.takeProfit ?? '';
+      const atrEnabled = tracked?.atrEnabled ?? false;
       const ci = this.stock.closeMap()[code];
       const lp = this.livePrice();
       const currentPrice = lp[code] ?? ci?.close ?? null;
@@ -416,7 +427,7 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
 
       const slNum = parseFloat(stopLoss);
       const stopLossHit = !isNaN(slNum) && slNum > 0 && currentPrice !== null && currentPrice < slNum;
-      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit, stopLossHit, costNTD, mvNTD, netUnrealizedNTD });
+      result.push({ code, name, holdingShares: fifo.holdingShares, avgCost: fifo.avgCost, currentPrice, unrealized, netUnrealized, sellCost, unrealizedPct, market, stopLoss, takeProfit, stopLossHit, atrEnabled, costNTD, mvNTD, netUnrealizedNTD });
     }
 
     return result.sort((a, b) => a.code.localeCompare(b.code));
@@ -469,6 +480,13 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
 
   toggleExpand(code: string) {
     this.expanded.update(c => c === code ? null : code);
+  }
+
+  asChecked(e: Event) { return (e.target as HTMLInputElement).checked; }
+
+  async toggleAtr(code: string, enabled: boolean) {
+    const updated = await this.api.patchTracked(code, { atrEnabled: enabled });
+    this.state.updateTracked(updated);
   }
 
   openModal(e: Event, code: string) {
