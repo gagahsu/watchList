@@ -47,6 +47,7 @@ export interface GridPosition {
   code: string;
   name: string;
   assetClass: string | null;
+  market: Market;
   enabled: boolean;
   shares: number;
   avgCost: number;
@@ -63,6 +64,7 @@ export interface GridPosition {
 export interface GridPositionAddRequest {
   code: string;
   assetClass: 'equity' | 'bond' | 'leveraged' | 'stock';
+  market: Market;
   gridOverrides?: Record<string, unknown>;
 }
 
