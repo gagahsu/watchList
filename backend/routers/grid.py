@@ -40,31 +40,39 @@ from routers.trades import create_trade
 router = APIRouter()
 
 
-def _market_for(code: str) -> str:
-    """Grid positions can be TW or US tickers — look up the market registered
-    against this code in `trade_markets` (same table trades/portfolio use),
-    defaulting to 'tw' for codes that were never assigned one."""
+def _market_map() -> dict[str, str]:
+    """Grid positions can be TW or US tickers — one query for the whole
+    `trade_markets` table (same one trades/portfolio use), instead of a
+    per-code lookup. Doing this per-code inside _bars_fn/_price_fn used to
+    open a fresh DB connection for every holding *while evaluate_all() was
+    already holding one open* — with several positions that stacks up
+    enough concurrent connections to stall waiting on Postgres/Supabase's
+    connection limit, which is what made the grid page spin forever."""
     with get_db() as conn:
-        row = conn.execute("SELECT market FROM trade_markets WHERE code=%s", (code,)).fetchone()
-    return row["market"] if row else "tw"
+        rows = conn.execute("SELECT code, market FROM trade_markets").fetchall()
+    return {r["code"]: r["market"] for r in rows}
 
 
-def _bars_fn(code: str) -> list[Bar]:
-    today = date.today().isoformat()
-    raw = get_ohlc(code, days=150, market=_market_for(code))
-    bars = []
-    for r in raw:
-        if r["date"] >= today:  # never let today's (still-forming) bar leak into ATR
-            continue
-        bars.append(Bar(
-            date=r["date"], open=r["open"], high=r["high"], low=r["low"],
-            close=r["close"], volume=r.get("volume", 0),
-        ))
-    return bars
+def _make_bars_fn(markets: dict[str, str]):
+    def _bars_fn(code: str) -> list[Bar]:
+        today = date.today().isoformat()
+        raw = get_ohlc(code, days=150, market=markets.get(code, "tw"))
+        bars = []
+        for r in raw:
+            if r["date"] >= today:  # never let today's (still-forming) bar leak into ATR
+                continue
+            bars.append(Bar(
+                date=r["date"], open=r["open"], high=r["high"], low=r["low"],
+                close=r["close"], volume=r.get("volume", 0),
+            ))
+        return bars
+    return _bars_fn
 
 
-def _price_fn(code: str) -> float | None:
-    return _price_us(code) if _market_for(code) == "us" else _price_tw(code)
+def _make_price_fn(markets: dict[str, str]):
+    def _price_fn(code: str) -> float | None:
+        return _price_us(code) if markets.get(code, "tw") == "us" else _price_tw(code)
+    return _price_fn
 
 
 def _decision_to_dict(d: Decision) -> dict:
@@ -92,7 +100,8 @@ def build_grid_alert_message() -> str | None:
     the existing weekday-13:00 price-alert push (same decision time as the
     grid itself) instead of sending a second, separate notification."""
     try:
-        decisions = evaluate_all(_bars_fn, _price_fn)
+        markets = _market_map()
+        decisions = evaluate_all(_make_bars_fn(markets), _make_price_fn(markets))
     except AdapterError:
         return None
     actionable = sorted(
@@ -115,7 +124,8 @@ def get_grid_advice():
     (see grid/adapter.py docstring) — never places or records an order."""
     today = date.today().isoformat()
     try:
-        decisions = evaluate_all(_bars_fn, _price_fn, today=today)
+        markets = _market_map()
+        decisions = evaluate_all(_make_bars_fn(markets), _make_price_fn(markets), today=today)
     except AdapterError as exc:
         raise HTTPException(400, str(exc))
 
@@ -224,15 +234,15 @@ def add_grid_position(body: GridPositionIn):
         if existing:
             raise HTTPException(409, f"{code} 已經是網格標的")
 
-        # Register (or confirm) this code's market before pricing it, since
-        # _price_fn/_bars_fn look it up from trade_markets.
+        # Register (or confirm) this code's market for future advice/position
+        # lookups (via trade_markets, same table trades/portfolio use).
         conn.execute(
             "INSERT INTO trade_markets(code, market) VALUES (%s,%s)"
             " ON CONFLICT(code) DO UPDATE SET market=EXCLUDED.market",
             (code, body.market),
         )
 
-        price = _price_fn(code)
+        price = _price_us(code) if body.market == "us" else _price_tw(code)
         if price is None or price <= 0:
             raise HTTPException(400, f"取不到 {code} 的即時報價，請稍後再試")
 
