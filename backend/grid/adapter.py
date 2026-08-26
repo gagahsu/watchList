@@ -40,6 +40,7 @@ recomputed every day". We persist unconditionally instead.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -279,11 +280,45 @@ def evaluate_all(
     call, both so this is testable offline and so the router can plug in
     watchList's existing ohlc.py/quotes.py (Yahoo, with FinMind as the
     documented fallback — see the architecture review, no TWSE tier).
+
+    Bars/price are fetched *outside* any open DB connection, and
+    concurrently across positions (mirroring routers/quotes.py's
+    ThreadPoolExecutor pattern) — these are slow, unbounded network calls
+    (Yahoo/FinMind, one to three tries each), and this loop used to run
+    them one at a time while holding a connection open for the whole
+    batch. That's the same "connections pile up while network I/O runs"
+    shape that made `_market_map()` stall the grid page forever (see its
+    docstring) — here it was a single held-open connection instead of
+    several, but on a slow/rate-limited fetch it stalls the request (and
+    the frontend's spinner) just the same, or ties up a connection long
+    enough to hit Supabase's connection limit for everyone else.
     """
     today = today or date.today().isoformat()
-    decisions: list[Decision] = []
+
     with get_db() as conn:
         ctx = build_context(conn, codes)
+
+    def _fetch(code: str) -> tuple[list[Bar] | None, float | None, Exception | None]:
+        try:
+            return bars_fn(code), price_fn(code), None
+        except Exception as exc:  # noqa: BLE001 - surfaced as a blocked decision, not a crash
+            return None, None, exc
+
+    fetched: dict[str, tuple[list[Bar] | None, float | None, Exception | None]] = {}
+    codes_to_fetch = list(ctx.holdings.keys())
+    if codes_to_fetch:
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+        try:
+            futures = {pool.submit(_fetch, code): code for code in codes_to_fetch}
+            for fut in concurrent.futures.as_completed(futures, timeout=60):
+                fetched[futures[fut]] = fut.result()
+        except concurrent.futures.TimeoutError:
+            pass  # whatever didn't finish in time is treated as a failed fetch below
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    decisions: list[Decision] = []
+    with get_db() as conn:
         for code, holding in ctx.holdings.items():
             position = ctx.state.positions[code]
 
@@ -301,10 +336,8 @@ def evaluate_all(
                     blocks=[reason],
                 )
 
-            try:
-                bars = bars_fn(code)
-                price = price_fn(code)
-            except Exception as exc:  # noqa: BLE001 - surfaced as a blocked decision, not a crash
+            bars, price, exc = fetched.get(code, (None, None, TimeoutError("資料抓取逾時")))
+            if exc is not None:
                 decisions.append(_skip(f"資料取得失敗：{exc}"))
                 continue
             if not bars:
