@@ -158,6 +158,7 @@ export interface TrackedStock {
   memo: string;
   stopLoss: string;
   takeProfit: string;
+  atrEnabled: boolean;
   addedAt: number;
 }
 

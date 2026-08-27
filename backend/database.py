@@ -143,6 +143,8 @@ DDL = [
         CHECK(status IN ('holding','tracking','locked'));
     EXCEPTION WHEN OTHERS THEN NULL; END $$
     """,
+    # migration: per-stock ATR enable/disable toggle for the portfolio table
+    "ALTER TABLE tracked_stocks ADD COLUMN IF NOT EXISTS atr_enabled BOOLEAN NOT NULL DEFAULT FALSE",
     """
     CREATE TABLE IF NOT EXISTS liabilities (
         id               TEXT PRIMARY KEY,

@@ -164,6 +164,7 @@ class TrackedIn(BaseModel):
     memo: str = ""
     stopLoss: str = ""
     takeProfit: str = ""
+    atrEnabled: bool = False
     addedAt: int
 
 
@@ -173,6 +174,7 @@ class TrackedPatch(BaseModel):
     memo: Optional[str] = None
     stopLoss: Optional[str] = None
     takeProfit: Optional[str] = None
+    atrEnabled: Optional[bool] = None
 
 
 class TrackedOut(BaseModel):
@@ -182,6 +184,7 @@ class TrackedOut(BaseModel):
     memo: str
     stopLoss: str
     takeProfit: str
+    atrEnabled: bool
     addedAt: int
 
 
