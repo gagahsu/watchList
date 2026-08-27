@@ -162,6 +162,7 @@ const ACTION_CLASS: Record<string, string> = {
           <th style="width:60px;text-align:right">階數</th>
           <th>下一買 / 下一賣</th>
           <th style="width:70px">狀態</th>
+          <th style="width:110px"></th>
         </tr>
       </thead>
       <tbody>
@@ -192,6 +193,10 @@ const ACTION_CLASS: Record<string, string> = {
             <td>
               <button class="btn-cancel" style="padding:3px 10px;font-size:12px"
                 (click)="toggleEnabled(p)">{{ p.enabled ? '停用' : '啟用' }}</button>
+            </td>
+            <td>
+              <button class="btn-cancel" style="padding:3px 10px;font-size:12px" [disabled]="resettingAnchor().has(p.code)"
+                (click)="resetAnchor(p)">{{ resettingAnchor().has(p.code) ? '重設中…' : '重設錨點為現價' }}</button>
             </td>
           </tr>
         }
@@ -268,6 +273,23 @@ export class GridViewComponent implements OnInit {
   async toggleEnabled(p: GridPosition) {
     await this.api.patchGridPosition(p.code, { enabled: !p.enabled });
     this.loadPositions();
+  }
+
+  resettingAnchor = signal<ReadonlySet<string>>(new Set());
+
+  /** 錨點放太久沒動（例如軟刪除後隔很久才重新勾選）會讓引擎一次補一堆階數的建議；
+   *  重設成現價、階數歸零，等於用現在的價格重新開始網格。 */
+  async resetAnchor(p: GridPosition) {
+    if (!confirm(`確定要把 ${p.code} 的錨點重設為現價嗎？目前的階數（${p.rung}）會歸零。`)) return;
+    this.resettingAnchor.update(s => new Set(s).add(p.code));
+    try {
+      await this.api.resetGridAnchor(p.code);
+      await this.loadPositions();
+    } catch (e: any) {
+      alert(e?.error?.detail ?? e?.message ?? '重設錨點失敗');
+    } finally {
+      this.resettingAnchor.update(s => { const n = new Set(s); n.delete(p.code); return n; });
+    }
   }
 
   /** 類別決定網格參數（grid_params），勾選 ATR 時後端只能從代碼／名稱猜，這裡讓使用者更正。 */

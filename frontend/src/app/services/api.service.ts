@@ -217,6 +217,9 @@ export class ApiService {
   patchGridPosition(code: string, body: { enabled?: boolean; anchor?: number; gridOverrides?: Record<string, unknown>; assetClass?: string }) {
     return this.put<{ok:boolean}>(`/grid/positions/${code}`, body);
   }
+  resetGridAnchor(code: string) {
+    return this.post<{code:string; anchor:number; rung:number}>(`/grid/positions/${code}/reset-anchor`, {});
+  }
   recordGridFill(body: GridRecordRequest) {
     return this.post<{ok:boolean; code:string; anchor:number; rung:number; fee:number; tax:number; realizedPnl:number|null}>('/grid/record', body);
   }

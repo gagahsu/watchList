@@ -347,6 +347,32 @@ def add_grid_position(body: GridPositionIn):
     return created
 
 
+@router.post("/grid/positions/{code}/reset-anchor")
+def reset_grid_anchor(code: str):
+    """Re-anchor a grid position to its current live price and zero the rung —
+    the same starting state add_grid_position() gives a brand-new symbol.
+
+    For when a position's anchor sat untouched for a long time (soft-deleted
+    while unticked, or just never traded) and reviving it against the old
+    anchor would immediately fire a pile of catch-up rungs. This intentionally
+    forgets "how many steps up/down from anchor" — that's the point — but
+    baseline_shares (the real share count grid math compares against) and the
+    trade history are untouched."""
+    with get_db() as conn:
+        row = conn.execute("SELECT market FROM trade_markets WHERE code=%s", (code,)).fetchone()
+        if not conn.execute("SELECT 1 FROM grid_positions WHERE code=%s", (code,)).fetchone():
+            raise HTTPException(404, f"{code} 不是網格標的")
+    market = row["market"] if row else "tw"
+
+    price = _price_us(code) if market == "us" else _price_tw(code)
+    if price is None or price <= 0:
+        raise HTTPException(400, f"取不到 {code} 的即時報價，請稍後再試")
+
+    with get_db() as conn:
+        conn.execute("UPDATE grid_positions SET anchor=%s, rung=0 WHERE code=%s", (price, code))
+    return {"code": code, "anchor": round(price, 3), "rung": 0}
+
+
 @router.put("/grid/positions/{code}")
 def patch_grid_position(code: str, body: GridPositionPatch):
     with get_db() as conn:
