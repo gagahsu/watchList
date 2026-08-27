@@ -75,7 +75,7 @@ def patch_tracked(code: str, body: TrackedPatch):
 
 @router.delete("/tracked/{code}")
 def delete_tracked(code: str):
-    sync_grid_position(code, False)  # untracked ⇒ off the ATR 網格 too
+    sync_grid_position(code, False)  # untracked ⇒ off the ATR 網格 too (soft delete)
     with get_db() as conn:
         conn.execute("DELETE FROM tracked_stocks WHERE code=%s", (code,))
     return {"ok": True}

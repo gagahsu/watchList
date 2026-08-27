@@ -84,16 +84,20 @@ def sync_grid_position(code: str, enabled: bool, asset_class: str | None = None,
     grid rows came from the grid page's own add form — so the grid could show
     symbols that weren't ticked (and vice versa). Now `atr_enabled` is the single
     source of truth: ticking creates the grid row (anchored at the current live
-    price, exactly like a manual add), unticking deletes it. Grid state (anchor,
-    rung) is derived from "when did you start gridding this", so dropping it on
-    untick is intentional — the recorded trades themselves live in `trades` and
-    are untouched.
+    price, exactly like a manual add) — or, if the code was gridded before,
+    revives the row it already had.
+
+    Unticking is a soft delete: the row stays with enabled=FALSE, keeping its
+    anchor/rung/ex-dividend history, so an accidental untick (or a deliberate
+    pause) doesn't reset the grid. get_grid_positions() lists only ticked codes
+    and adapter.build_context() only loads enabled ones, so a soft-deleted row
+    is invisible to both the page and the daily advice until it's ticked again.
 
     Returns the new row's summary when one was created, else None.
     """
     if not enabled:
         with get_db() as conn:
-            conn.execute("DELETE FROM grid_positions WHERE code=%s", (code,))
+            conn.execute("UPDATE grid_positions SET enabled=FALSE WHERE code=%s", (code,))
         return None
 
     with get_db() as conn:
@@ -233,11 +237,12 @@ def get_grid_advice():
 
 @router.get("/grid/asset-classes")
 def get_grid_asset_classes():
-    """{code: assetClass} for every grid position (enabled or not) — a
-    lightweight lookup the frontend loads at startup so calcFIFO() can pick
-    the right TW sell-tax rate for realized-P&L display. Deliberately not
-    the same endpoint/shape as the shared /api/asset-classes (Chinese
-    balance-sheet labels) — see grid_positions.asset_class's DDL comment."""
+    """{code: assetClass} for every grid position, including soft-deleted ones
+    (unticked codes keep their row — see sync_grid_position) — a lightweight
+    lookup the frontend loads at startup so calcFIFO() can pick the right TW
+    sell-tax rate for realized-P&L display. Deliberately not the same
+    endpoint/shape as the shared /api/asset-classes (Chinese balance-sheet
+    labels) — see grid_positions.asset_class's DDL comment."""
     with get_db() as conn:
         rows = conn.execute("SELECT code, asset_class FROM grid_positions WHERE asset_class IS NOT NULL").fetchall()
     return {r["code"]: r["asset_class"] for r in rows}
@@ -245,10 +250,20 @@ def get_grid_asset_classes():
 
 @router.get("/grid/positions")
 def get_grid_positions():
-    """Status of every grid position, enabled or not — anchor, rung, lot
-    size, and the next few buy/sell trigger prices."""
+    """Status of every grid position — anchor, rung, lot size, and the next few
+    buy/sell trigger prices.
+
+    Scoped to codes ticked ATR in 投資組合: unticking soft-deletes the row (see
+    sync_grid_position), and a soft-deleted row should be off the page entirely,
+    not just greyed out. Rows that *are* ticked show whether or not they're
+    enabled — that's the page's own 停用 button, which pauses the advice while
+    keeping the symbol on the list."""
     with get_db() as conn:
-        rows = conn.execute("SELECT * FROM grid_positions ORDER BY code").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM grid_positions"
+            " WHERE code IN (SELECT code FROM tracked_stocks WHERE atr_enabled)"
+            " ORDER BY code"
+        ).fetchall()
         codes = [r["code"] for r in rows]
         names = {}
         by_code: dict[str, list] = {c: [] for c in codes}
@@ -314,14 +329,16 @@ def add_grid_position(body: GridPositionIn):
     fine, the grid will just start from a flat position).
 
     Marks the code atr_enabled too: that flag is the grid's membership list
-    (see sync_grid_position), and init_db() drops grid rows that aren't
-    flagged, so skipping this would make the row vanish on the next restart."""
+    (see sync_grid_position), and /grid/positions lists only flagged codes, so
+    skipping it would add a row nobody can see."""
     code = body.code.strip()
     if not code:
         raise HTTPException(400, "code 不可為空")
 
     with get_db() as conn:
-        existing = conn.execute("SELECT code FROM grid_positions WHERE code=%s", (code,)).fetchone()
+        existing = conn.execute(
+            "SELECT code FROM grid_positions WHERE code=%s AND enabled", (code,)
+        ).fetchone()
     if existing:
         raise HTTPException(409, f"{code} 已經是網格標的")
 

@@ -139,7 +139,7 @@ const ACTION_CLASS: Record<string, string> = {
 
 } @else {
   <!-- 持股狀態 -->
-  <div class="grid-hint">網格標的來自「投資組合」的 ATR 勾選：勾選即以當下現價建立網格，取消勾選就移出網格。</div>
+  <div class="grid-hint">網格標的來自「投資組合」的 ATR 勾選：勾選即以當下現價建立網格，取消勾選會移出清單但保留錨點與階數，重新勾選就接續原本的網格。</div>
 
   @if (positions.length === 0) {
     <div class="empty-state">

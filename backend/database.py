@@ -331,15 +331,26 @@ DDL = [
         params      JSONB NOT NULL
     )
     """,
-    # ATR 網格的標的清單，一律以投資組合的 ATR 勾選（tracked_stocks.atr_enabled）為準。
-    # 這兩者原本各走各的：勾選只寫 atr_enabled，網格頁自己有「加入網格」表單寫
-    # grid_positions，於是網格頁會出現沒被勾選的標的。這句在啟動時把沒勾選的網格
-    # 資料清掉，一次把歷史殘留對帳掉；之後兩邊都經過
-    # routers/grid.py::sync_grid_position()，這句就是 no-op。
-    """
-    DELETE FROM grid_positions
-     WHERE code NOT IN (SELECT code FROM tracked_stocks WHERE atr_enabled)
-    """,
+]
+
+#: 只跑一次的資料修正（不是 DDL，重跑會有副作用），以 settings 表的
+#: ``migration_<key>`` 當作已執行的記號。
+ONE_TIME_MIGRATIONS = [
+    (
+        "grid_positions_atr_reconcile_v1",
+        # ATR 網格的標的清單，一律以投資組合的 ATR 勾選（tracked_stocks.atr_enabled）
+        # 為準。這兩者原本各走各的：勾選只寫 atr_enabled，網格頁自己有「加入網格」
+        # 表單寫 grid_positions，於是網格頁會出現沒被勾選的標的。這裡把那些歷史殘留
+        # 一次刪乾淨。
+        #
+        # 只能跑一次：之後取消勾選是「軟刪除」（grid_positions.enabled=FALSE，錨點與
+        # 階數留著，重新勾選就接續），而軟刪除的列跟這裡要清的歷史殘留在資料庫裡長
+        # 得一模一樣，每次啟動都跑就會把使用者的網格狀態一起清掉。
+        """
+        DELETE FROM grid_positions
+         WHERE code NOT IN (SELECT code FROM tracked_stocks WHERE atr_enabled)
+        """,
+    ),
 ]
 
 
@@ -405,3 +416,9 @@ def init_db():
                 "INSERT INTO sources(name) VALUES (%s) ON CONFLICT DO NOTHING",
                 (src,),
             )
+        for key, stmt in ONE_TIME_MIGRATIONS:
+            marker = "migration_" + key
+            if conn.execute("SELECT 1 FROM settings WHERE key=%s", (marker,)).fetchone():
+                continue
+            conn.execute(stmt)
+            conn.execute("INSERT INTO settings(key, value) VALUES (%s,'1')", (marker,))

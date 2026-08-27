@@ -192,7 +192,7 @@ interface ClosedPosition {
               }
             </td>
             <td style="text-align:center" (click)="$event.stopPropagation()">
-              <label class="bs-toggle" style="justify-content:center" title="勾選後這檔會出現在「ATR 網格」頁">
+              <label class="bs-toggle" style="justify-content:center" title="勾選後這檔會出現在「ATR 網格」頁；取消勾選會保留網格狀態，重新勾選接續">
                 <input type="checkbox" [checked]="h.atrEnabled" [disabled]="atrBusy().has(h.code)"
                   (change)="toggleAtr(h.code, asChecked($event), $event)" />
               </label>
@@ -488,7 +488,8 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
   atrBusy = signal<ReadonlySet<string>>(new Set());
 
   /** ATR 欄位就是「ATR 網格」頁的標的清單：勾選會在後端建立網格部位（錨點＝當下現價），
-   *  取消勾選會把該檔從網格移除。取不到報價時後端會擋下來，這裡把勾選狀態還原。 */
+   *  取消勾選是軟刪除 —— 該檔從網格頁消失，但錨點與階數留著，重新勾選就接續。
+   *  取不到報價時後端會擋下來，這裡把勾選狀態還原。 */
   async toggleAtr(code: string, enabled: boolean, e: Event) {
     this.atrBusy.update(s => new Set(s).add(code));
     try {
