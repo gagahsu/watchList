@@ -214,7 +214,7 @@ export class ApiService {
   addGridPosition(body: GridPositionAddRequest) {
     return this.post<{code:string; assetClass:string; market:string; anchor:number; baselineShares:number}>('/grid/positions', body);
   }
-  patchGridPosition(code: string, body: { enabled?: boolean; anchor?: number; gridOverrides?: Record<string, unknown> }) {
+  patchGridPosition(code: string, body: { enabled?: boolean; anchor?: number; gridOverrides?: Record<string, unknown>; assetClass?: string }) {
     return this.put<{ok:boolean}>(`/grid/positions/${code}`, body);
   }
   recordGridFill(body: GridRecordRequest) {

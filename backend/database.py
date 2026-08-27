@@ -331,6 +331,15 @@ DDL = [
         params      JSONB NOT NULL
     )
     """,
+    # ATR 網格的標的清單，一律以投資組合的 ATR 勾選（tracked_stocks.atr_enabled）為準。
+    # 這兩者原本各走各的：勾選只寫 atr_enabled，網格頁自己有「加入網格」表單寫
+    # grid_positions，於是網格頁會出現沒被勾選的標的。這句在啟動時把沒勾選的網格
+    # 資料清掉，一次把歷史殘留對帳掉；之後兩邊都經過
+    # routers/grid.py::sync_grid_position()，這句就是 no-op。
+    """
+    DELETE FROM grid_positions
+     WHERE code NOT IN (SELECT code FROM tracked_stocks WHERE atr_enabled)
+    """,
 ]
 
 

@@ -243,6 +243,7 @@ class GridPositionPatch(BaseModel):
     enabled: bool | None = None
     anchor: float | None = None
     gridOverrides: dict | None = None
+    assetClass: str | None = None
 
 
 class GridParamsIn(BaseModel):

@@ -29,7 +29,7 @@ from fastapi import APIRouter, HTTPException
 from database import get_db, get_setting
 from fifo import calc_fifo
 from grid.adapter import AdapterError, build_settings, commit_fill, evaluate_all, position_from_row
-from grid.config import ConfigError, GridParams, VALID_CLASSES
+from grid.config import ConfigError, GridParams, VALID_CLASSES, infer_asset_class
 from grid.engine import BUY, SELL, Decision, lot_size, next_grid_levels
 from grid.indicators import Bar
 from models import GridParamsIn, GridPositionIn, GridPositionPatch, GridRecordIn, TradeIn
@@ -73,6 +73,95 @@ def _make_price_fn(markets: dict[str, str]):
     def _price_fn(code: str) -> float | None:
         return _price_us(code) if markets.get(code, "tw") == "us" else _price_tw(code)
     return _price_fn
+
+
+def sync_grid_position(code: str, enabled: bool, asset_class: str | None = None,
+                       market: str | None = None, grid_overrides: dict | None = None) -> dict | None:
+    """Mirror 投資組合 的 ATR 勾選 (tracked_stocks.atr_enabled) into grid_positions,
+    which is what the ATR 網格 page lists.
+
+    The two used to be independent — the checkbox only wrote `atr_enabled`, while
+    grid rows came from the grid page's own add form — so the grid could show
+    symbols that weren't ticked (and vice versa). Now `atr_enabled` is the single
+    source of truth: ticking creates the grid row (anchored at the current live
+    price, exactly like a manual add), unticking deletes it. Grid state (anchor,
+    rung) is derived from "when did you start gridding this", so dropping it on
+    untick is intentional — the recorded trades themselves live in `trades` and
+    are untouched.
+
+    Returns the new row's summary when one was created, else None.
+    """
+    if not enabled:
+        with get_db() as conn:
+            conn.execute("DELETE FROM grid_positions WHERE code=%s", (code,))
+        return None
+
+    with get_db() as conn:
+        existing = conn.execute("SELECT code FROM grid_positions WHERE code=%s", (code,)).fetchone()
+        if existing:
+            conn.execute("UPDATE grid_positions SET enabled=TRUE WHERE code=%s", (code,))
+            return None
+
+        if market is None:
+            row = conn.execute("SELECT market FROM trade_markets WHERE code=%s", (code,)).fetchone()
+            market = row["market"] if row else "tw"
+        if asset_class is None:
+            row = conn.execute("SELECT name FROM stocks WHERE code=%s", (code,)).fetchone()
+            asset_class = infer_asset_class(code, (row["name"] if row else "") or "", market)
+        trade_rows = [
+            dict(r) for r in conn.execute(
+                "SELECT id, date, type, shares, price, fee FROM trades WHERE code=%s ORDER BY date ASC",
+                (code,),
+            ).fetchall()
+        ]
+
+    if asset_class not in VALID_CLASSES:
+        raise HTTPException(400, f"assetClass 必須是 {sorted(VALID_CLASSES)} 之一")
+    if market not in ("tw", "us"):
+        raise HTTPException(400, "market 必須是 'tw' 或 'us'")
+
+    # Quote fetch is a network round-trip — deliberately outside the connection
+    # above (see _market_map()'s note on holding Supabase connections open).
+    price = _price_us(code) if market == "us" else _price_tw(code)
+    if price is None or price <= 0:
+        raise HTTPException(400, f"取不到 {code} 的即時報價，請稍後再試")
+    baseline_shares = int(calc_fifo(trade_rows, market, asset_class)["holdingShares"])
+
+    with get_db() as conn:
+        # Register (or confirm) this code's market for future advice/position
+        # lookups (via trade_markets, same table trades/portfolio use).
+        conn.execute(
+            "INSERT INTO trade_markets(code, market) VALUES (%s,%s)"
+            " ON CONFLICT(code) DO UPDATE SET market=EXCLUDED.market",
+            (code, market),
+        )
+        conn.execute(
+            """
+            INSERT INTO grid_positions
+                (code, enabled, anchor, rung, baseline_shares, last_drift_date,
+                 applied_ex_dividends, grid_overrides, created_at, asset_class)
+            VALUES (%s, TRUE, %s, 0, %s, NULL, '[]', %s, %s, %s)
+            """,
+            (code, price, baseline_shares, json.dumps(grid_overrides or {}),
+             int(time.time() * 1000), asset_class),
+        )
+    return {
+        "code": code, "assetClass": asset_class, "market": market,
+        "anchor": round(price, 3), "baselineShares": baseline_shares,
+    }
+
+
+def mark_atr_enabled(code: str, enabled: bool) -> None:
+    """Set the portfolio's ATR checkbox (tracked_stocks.atr_enabled) for `code`,
+    creating the tracked row if the code isn't tracked yet. Lives here rather
+    than in routers/tracked.py to keep the dependency one-way (tracked imports
+    grid, never the reverse)."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO tracked_stocks(code, atr_enabled, added_at) VALUES (%s,%s,%s)"
+            " ON CONFLICT(code) DO UPDATE SET atr_enabled=EXCLUDED.atr_enabled",
+            (code, enabled, int(time.time() * 1000)),
+        )
 
 
 def _decision_to_dict(d: Decision) -> dict:
@@ -215,55 +304,30 @@ def get_grid_positions():
 
 @router.post("/grid/positions", status_code=201)
 def add_grid_position(body: GridPositionIn):
-    """Add a new symbol to the grid. Anchor is set to the current live
-    price (fetched server-side, same as atrgrid's own `init`/`add-holding`
-    behavior: the grid starts from "right now", it doesn't retroactively
-    grid past price history) and baseline_shares from the symbol's current
-    real holding (via FIFO over `trades` — 0 if watchList has no trades for
-    it yet, which is fine, the grid will just start from a flat position)."""
+    """Add a symbol to the grid directly (the UI adds them by ticking ATR in
+    投資組合 instead — this stays for codes you don't hold yet, which never show
+    up in the portfolio table). Anchor is set to the current live price
+    (fetched server-side, same as atrgrid's own `init`/`add-holding` behavior:
+    the grid starts from "right now", it doesn't retroactively grid past price
+    history) and baseline_shares from the symbol's current real holding (via
+    FIFO over `trades` — 0 if watchList has no trades for it yet, which is
+    fine, the grid will just start from a flat position).
+
+    Marks the code atr_enabled too: that flag is the grid's membership list
+    (see sync_grid_position), and init_db() drops grid rows that aren't
+    flagged, so skipping this would make the row vanish on the next restart."""
     code = body.code.strip()
     if not code:
         raise HTTPException(400, "code 不可為空")
-    if body.assetClass not in VALID_CLASSES:
-        raise HTTPException(400, f"assetClass 必須是 {sorted(VALID_CLASSES)} 之一")
-    if body.market not in ("tw", "us"):
-        raise HTTPException(400, "market 必須是 'tw' 或 'us'")
 
     with get_db() as conn:
         existing = conn.execute("SELECT code FROM grid_positions WHERE code=%s", (code,)).fetchone()
-        if existing:
-            raise HTTPException(409, f"{code} 已經是網格標的")
+    if existing:
+        raise HTTPException(409, f"{code} 已經是網格標的")
 
-        # Register (or confirm) this code's market for future advice/position
-        # lookups (via trade_markets, same table trades/portfolio use).
-        conn.execute(
-            "INSERT INTO trade_markets(code, market) VALUES (%s,%s)"
-            " ON CONFLICT(code) DO UPDATE SET market=EXCLUDED.market",
-            (code, body.market),
-        )
-
-        price = _price_us(code) if body.market == "us" else _price_tw(code)
-        if price is None or price <= 0:
-            raise HTTPException(400, f"取不到 {code} 的即時報價，請稍後再試")
-
-        trade_rows = conn.execute(
-            "SELECT id, date, type, shares, price, fee FROM trades WHERE code=%s ORDER BY date ASC", (code,)
-        ).fetchall()
-        baseline_shares = int(calc_fifo([dict(r) for r in trade_rows], body.market, body.assetClass)["holdingShares"])
-
-        conn.execute(
-            """
-            INSERT INTO grid_positions
-                (code, enabled, anchor, rung, baseline_shares, last_drift_date,
-                 applied_ex_dividends, grid_overrides, created_at, asset_class)
-            VALUES (%s, TRUE, %s, 0, %s, NULL, '[]', %s, %s, %s)
-            """,
-            (code, price, baseline_shares, json.dumps(body.gridOverrides), int(time.time() * 1000), body.assetClass),
-        )
-    return {
-        "code": code, "assetClass": body.assetClass, "market": body.market,
-        "anchor": round(price, 3), "baselineShares": baseline_shares,
-    }
+    created = sync_grid_position(code, True, body.assetClass, body.market, body.gridOverrides)
+    mark_atr_enabled(code, True)
+    return created
 
 
 @router.put("/grid/positions/{code}")
@@ -272,12 +336,15 @@ def patch_grid_position(code: str, body: GridPositionPatch):
         row = conn.execute("SELECT * FROM grid_positions WHERE code=%s", (code,)).fetchone()
         if not row:
             raise HTTPException(404, f"{code} 不是網格標的")
+        if body.assetClass is not None and body.assetClass not in VALID_CLASSES:
+            raise HTTPException(400, f"assetClass 必須是 {sorted(VALID_CLASSES)} 之一")
         enabled = row["enabled"] if body.enabled is None else body.enabled
         anchor = row["anchor"] if body.anchor is None else body.anchor
         overrides = row["grid_overrides"] if body.gridOverrides is None else body.gridOverrides
+        asset_class = row["asset_class"] if body.assetClass is None else body.assetClass
         conn.execute(
-            "UPDATE grid_positions SET enabled=%s, anchor=%s, grid_overrides=%s WHERE code=%s",
-            (enabled, anchor, json.dumps(overrides), code),
+            "UPDATE grid_positions SET enabled=%s, anchor=%s, grid_overrides=%s, asset_class=%s WHERE code=%s",
+            (enabled, anchor, json.dumps(overrides), asset_class, code),
         )
     return {"ok": True}
 
