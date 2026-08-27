@@ -192,8 +192,9 @@ interface ClosedPosition {
               }
             </td>
             <td style="text-align:center" (click)="$event.stopPropagation()">
-              <label class="bs-toggle" style="justify-content:center">
-                <input type="checkbox" [checked]="h.atrEnabled" (change)="toggleAtr(h.code, asChecked($event))" />
+              <label class="bs-toggle" style="justify-content:center" title="勾選後這檔會出現在「ATR 網格」頁；取消勾選會保留網格狀態，重新勾選接續">
+                <input type="checkbox" [checked]="h.atrEnabled" [disabled]="atrBusy().has(h.code)"
+                  (change)="toggleAtr(h.code, asChecked($event), $event)" />
               </label>
             </td>
             <td style="text-align:center">
@@ -484,9 +485,27 @@ export class PortfolioViewComponent implements OnInit, OnDestroy {
 
   asChecked(e: Event) { return (e.target as HTMLInputElement).checked; }
 
-  async toggleAtr(code: string, enabled: boolean) {
-    const updated = await this.api.patchTracked(code, { atrEnabled: enabled });
-    this.state.updateTracked(updated);
+  atrBusy = signal<ReadonlySet<string>>(new Set());
+
+  /** ATR 欄位就是「ATR 網格」頁的標的清單：勾選會在後端建立網格部位（錨點＝當下現價），
+   *  取消勾選是軟刪除 —— 該檔從網格頁消失，但錨點與階數留著，重新勾選就接續。
+   *  取不到報價時後端會擋下來，這裡把勾選狀態還原。 */
+  async toggleAtr(code: string, enabled: boolean, e: Event) {
+    this.atrBusy.update(s => new Set(s).add(code));
+    try {
+      // 只有交易紀錄、從沒進過追蹤清單的持股沒有 tracked 資料，PATCH 會 404，先補一筆。
+      if (!this.state.tracked().some(t => t.code === code)) {
+        this.state.addTracked(await this.api.addTracked({ code, status: 'holding' }));
+      }
+      const updated = await this.api.patchTracked(code, { atrEnabled: enabled });
+      this.state.updateTracked(updated);
+      this.state.gridAssetClasses.set(await this.api.getGridAssetClasses());
+    } catch (err: any) {
+      (e.target as HTMLInputElement).checked = !enabled;
+      alert(err?.error?.detail ?? err?.message ?? '設定 ATR 網格失敗');
+    } finally {
+      this.atrBusy.update(s => { const n = new Set(s); n.delete(code); return n; });
+    }
   }
 
   openModal(e: Event, code: string) {

@@ -3,6 +3,13 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { GridAdvice, GridDecision, GridPosition } from '../../models/types';
 
+const ASSET_CLASS_OPTIONS = [
+  { value: 'equity', label: 'equity（股票型 ETF）' },
+  { value: 'bond', label: 'bond（債券 ETF）' },
+  { value: 'leveraged', label: 'leveraged（槓桿型）' },
+  { value: 'stock', label: 'stock（個股）' },
+];
+
 const ACTION_LABELS: Record<string, string> = {
   BUY: '買進', SELL: '賣出', HOLD: '持有', REVIEW: '需複核', SKIP: '略過',
 };
@@ -132,26 +139,13 @@ const ACTION_CLASS: Record<string, string> = {
 
 } @else {
   <!-- 持股狀態 -->
-  <div class="grid-add-panel">
-    <input class="grid-add-input" placeholder="代碼，如 2330" [(ngModel)]="addCode" style="width:110px" />
-    <select class="grid-add-select" [(ngModel)]="addAssetClass">
-      <option value="equity">equity（股票型 ETF）</option>
-      <option value="bond">bond（債券 ETF）</option>
-      <option value="leveraged">leveraged（槓桿型）</option>
-      <option value="stock">stock（個股）</option>
-    </select>
-    <select class="grid-add-select" [(ngModel)]="addMarket">
-      <option value="tw">台股</option>
-      <option value="us">美股</option>
-    </select>
-    <button class="btn-cancel" style="padding:6px 14px;font-size:13px" [disabled]="addingPosition()" (click)="submitAddPosition()">＋ 加入網格</button>
-    @if (addError()) { <span style="color:var(--red);font-size:12px">{{ addError() }}</span> }
-  </div>
+  <div class="grid-hint">網格標的來自「投資組合」的 ATR 勾選：勾選即以當下現價建立網格，取消勾選會移出清單但保留錨點與階數，重新勾選就接續原本的網格。</div>
 
   @if (positions.length === 0) {
     <div class="empty-state">
       <div class="empty-icon">🕸️</div>
       <div class="empty-title">尚無網格標的</div>
+      <div class="empty-sub">到「投資組合」把想跑網格的持股勾選 ATR 欄位。</div>
     </div>
   } @else {
     <div class="table-scroll-wrap">
@@ -168,6 +162,7 @@ const ACTION_CLASS: Record<string, string> = {
           <th style="width:60px;text-align:right">階數</th>
           <th>下一買 / 下一賣</th>
           <th style="width:70px">狀態</th>
+          <th style="width:110px"></th>
         </tr>
       </thead>
       <tbody>
@@ -175,7 +170,14 @@ const ACTION_CLASS: Record<string, string> = {
           <tr [class.grid-row-disabled]="!p.enabled">
             <td><span class="risk-code">{{ p.code }}</span></td>
             <td style="font-weight:600">{{ p.name }}</td>
-            <td style="font-size:12px;color:var(--text-muted)">{{ p.assetClass ?? '—' }}</td>
+            <td>
+              <select class="grid-class-select" style="font-size:12px;padding:3px 4px"
+                [ngModel]="p.assetClass" (ngModelChange)="setAssetClass(p, $event)">
+                @for (c of ASSET_CLASS_OPTIONS; track c.value) {
+                  <option [value]="c.value">{{ c.label }}</option>
+                }
+              </select>
+            </td>
             <td style="font-size:12px;color:var(--text-muted)">{{ p.market === 'us' ? '美股' : '台股' }}</td>
             <td class="risk-num">{{ p.shares.toLocaleString() }}</td>
             <td class="risk-num">{{ p.avgCost.toFixed(2) }}</td>
@@ -191,6 +193,10 @@ const ACTION_CLASS: Record<string, string> = {
             <td>
               <button class="btn-cancel" style="padding:3px 10px;font-size:12px"
                 (click)="toggleEnabled(p)">{{ p.enabled ? '停用' : '啟用' }}</button>
+            </td>
+            <td>
+              <button class="btn-cancel" style="padding:3px 10px;font-size:12px" [disabled]="resettingAnchor().has(p.code)"
+                (click)="resetAnchor(p)">{{ resettingAnchor().has(p.code) ? '重設中…' : '重設錨點為現價' }}</button>
             </td>
           </tr>
         }
@@ -211,12 +217,13 @@ const ACTION_CLASS: Record<string, string> = {
     .grid-record-fields { display:flex; gap:12px; flex-wrap:wrap; }
     .grid-record-fields label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--text-muted); }
     .grid-record-fields input { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:14px; width:120px; }
-    .grid-add-panel { display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
-    .grid-add-input, .grid-add-select { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; }
+    .grid-hint { margin-bottom:16px; font-size:12px; color:var(--text-muted); }
+    .grid-class-select { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; background:none; color:inherit; }
   `],
 })
 export class GridViewComponent implements OnInit {
   ACTION_LABELS = ACTION_LABELS;
+  ASSET_CLASS_OPTIONS = ASSET_CLASS_OPTIONS;
   ACTION_CLASS = ACTION_CLASS;
 
   tab = signal<'advice' | 'positions'>('advice');
@@ -268,29 +275,28 @@ export class GridViewComponent implements OnInit {
     this.loadPositions();
   }
 
-  addCode = '';
-  addAssetClass: 'equity' | 'bond' | 'leveraged' | 'stock' = 'equity';
-  addMarket: 'tw' | 'us' = 'tw';
-  addingPosition = signal(false);
-  addError = signal('');
+  resettingAnchor = signal<ReadonlySet<string>>(new Set());
 
-  async submitAddPosition() {
-    const code = this.addCode.trim();
-    if (!code) {
-      this.addError.set('請輸入代碼');
-      return;
-    }
-    this.addError.set('');
-    this.addingPosition.set(true);
+  /** 錨點放太久沒動（例如軟刪除後隔很久才重新勾選）會讓引擎一次補一堆階數的建議；
+   *  重設成現價、階數歸零，等於用現在的價格重新開始網格。 */
+  async resetAnchor(p: GridPosition) {
+    if (!confirm(`確定要把 ${p.code} 的錨點重設為現價嗎？目前的階數（${p.rung}）會歸零。`)) return;
+    this.resettingAnchor.update(s => new Set(s).add(p.code));
     try {
-      await this.api.addGridPosition({ code, assetClass: this.addAssetClass, market: this.addMarket });
-      this.addCode = '';
+      await this.api.resetGridAnchor(p.code);
       await this.loadPositions();
     } catch (e: any) {
-      this.addError.set(e.error?.detail ?? e.message ?? '新增失敗');
+      alert(e?.error?.detail ?? e?.message ?? '重設錨點失敗');
     } finally {
-      this.addingPosition.set(false);
+      this.resettingAnchor.update(s => { const n = new Set(s); n.delete(p.code); return n; });
     }
+  }
+
+  /** 類別決定網格參數（grid_params），勾選 ATR 時後端只能從代碼／名稱猜，這裡讓使用者更正。 */
+  async setAssetClass(p: GridPosition, assetClass: string) {
+    if (assetClass === p.assetClass) return;
+    await this.api.patchGridPosition(p.code, { assetClass });
+    await this.loadPositions();
   }
 
   openRecord(d: GridDecision) {

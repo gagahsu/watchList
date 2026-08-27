@@ -21,6 +21,27 @@ class ConfigError(Exception):
     """設定檔有問題時拋出。"""
 
 
+#: 台股 ETF 代碼字尾對應的網格資產類別（00679B 債券 ETF、00631L 槓桿、00632R 反向）
+_TW_ETF_SUFFIX_CLASS = {"B": "bond", "L": "leveraged", "R": "leveraged"}
+
+
+def infer_asset_class(code: str, name: str, market: str) -> str:
+    """Best-effort 網格資產類別（equity/bond/leveraged/stock），給「使用者剛在投資組合
+    勾選 ATR」這種沒有地方問類別的情況用。投資組合的勾選欄位問不到類別，但網格參數
+    是分類別的，所以先照台股命名慣例猜，再讓使用者在網格頁的「持股狀態」分頁改
+    （PUT /grid/positions/{code} 的 assetClass）。"""
+    if market == "us":
+        return "stock"
+    if any(k in name for k in ("正2", "正二", "反1", "反一", "槓桿")):
+        return "leveraged"
+    if code.startswith("00"):
+        suffix = _TW_ETF_SUFFIX_CLASS.get(code[-1:].upper())
+        if suffix:
+            return suffix
+        return "bond" if "債" in name else "equity"
+    return "stock"
+
+
 @dataclass(frozen=True)
 class GridParams:
     """單一資產類別（或單一標的覆寫）的網格參數。"""

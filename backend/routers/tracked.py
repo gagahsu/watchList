@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from database import get_db
 from models import TrackedIn, TrackedPatch, TrackedOut
+from routers.grid import sync_grid_position
 
 router = APIRouter()
 
@@ -34,6 +35,8 @@ def add_tracked(body: TrackedIn):
             "SELECT code, status, thesis, memo, stop_loss, take_profit, atr_enabled, added_at"
             " FROM tracked_stocks WHERE code=%s", (body.code,)
         ).fetchone()
+    if row["atr_enabled"]:
+        sync_grid_position(body.code, True)
     return _row_out(row)
 
 
@@ -52,8 +55,17 @@ def patch_tracked(code: str, body: TrackedPatch):
             conn.execute("UPDATE tracked_stocks SET stop_loss=%s WHERE code=%s", (body.stopLoss, code))
         if body.takeProfit is not None:
             conn.execute("UPDATE tracked_stocks SET take_profit=%s WHERE code=%s", (body.takeProfit, code))
-        if body.atrEnabled is not None:
+    # The ATR checkbox is the ATR 網格 page's membership list, so flipping it has
+    # to create/remove the grid_positions row too — outside the transaction
+    # above, because enabling fetches a live quote for the anchor. Sync first:
+    # if the quote lookup fails it raises, and we'd rather leave the checkbox
+    # off than tick it with no grid row behind it.
+    if body.atrEnabled is not None:
+        sync_grid_position(code, body.atrEnabled)
+        with get_db() as conn:
             conn.execute("UPDATE tracked_stocks SET atr_enabled=%s WHERE code=%s", (body.atrEnabled, code))
+
+    with get_db() as conn:
         row = conn.execute(
             "SELECT code, status, thesis, memo, stop_loss, take_profit, atr_enabled, added_at"
             " FROM tracked_stocks WHERE code=%s", (code,)
@@ -63,6 +75,7 @@ def patch_tracked(code: str, body: TrackedPatch):
 
 @router.delete("/tracked/{code}")
 def delete_tracked(code: str):
+    sync_grid_position(code, False)  # untracked ⇒ off the ATR 網格 too (soft delete)
     with get_db() as conn:
         conn.execute("DELETE FROM tracked_stocks WHERE code=%s", (code,))
     return {"ok": True}
