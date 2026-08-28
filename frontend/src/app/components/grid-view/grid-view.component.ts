@@ -181,7 +181,13 @@ const ACTION_CLASS: Record<string, string> = {
             <td style="font-size:12px;color:var(--text-muted)">{{ p.market === 'us' ? '美股' : '台股' }}</td>
             <td class="risk-num">{{ p.shares.toLocaleString() }}</td>
             <td class="risk-num">{{ p.avgCost.toFixed(2) }}</td>
-            <td class="risk-num">{{ p.anchor.toFixed(3) }}</td>
+            <td class="risk-num">
+              @if (editingAnchorCode() === p.code) {
+                <input type="number" step="0.001" style="width:90px;text-align:right" [(ngModel)]="anchorInputValue" />
+              } @else {
+                {{ p.anchor.toFixed(3) }}
+              }
+            </td>
             <td class="risk-num">{{ p.rung > 0 ? '+' + p.rung : p.rung }}</td>
             <td style="font-size:12px">
               @if (p.nextBuy && p.nextSell) {
@@ -195,8 +201,17 @@ const ACTION_CLASS: Record<string, string> = {
                 (click)="toggleEnabled(p)">{{ p.enabled ? '停用' : '啟用' }}</button>
             </td>
             <td>
-              <button class="btn-cancel" style="padding:3px 10px;font-size:12px" [disabled]="resettingAnchor().has(p.code)"
-                (click)="resetAnchor(p)">{{ resettingAnchor().has(p.code) ? '重設中…' : '重設錨點為現價' }}</button>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                @if (editingAnchorCode() === p.code) {
+                  <button class="btn-primary" style="padding:3px 10px;font-size:12px" [disabled]="savingAnchor().has(p.code)"
+                    (click)="saveAnchor(p)">{{ savingAnchor().has(p.code) ? '儲存中…' : '儲存' }}</button>
+                  <button class="btn-cancel" style="padding:3px 10px;font-size:12px" (click)="cancelEditAnchor()">取消</button>
+                } @else {
+                  <button class="btn-cancel" style="padding:3px 10px;font-size:12px" (click)="startEditAnchor(p)">自訂錨點</button>
+                  <button class="btn-cancel" style="padding:3px 10px;font-size:12px" [disabled]="resettingAnchor().has(p.code)"
+                    (click)="resetAnchor(p)">{{ resettingAnchor().has(p.code) ? '重設中…' : '重設為現價' }}</button>
+                }
+              </div>
             </td>
           </tr>
         }
@@ -276,6 +291,37 @@ export class GridViewComponent implements OnInit {
   }
 
   resettingAnchor = signal<ReadonlySet<string>>(new Set());
+  savingAnchor = signal<ReadonlySet<string>>(new Set());
+  editingAnchorCode = signal<string | null>(null);
+  anchorInputValue = 0;
+
+  /** 手動指定錨點，例如回填成幾天前的實際買入價，或用今天的成交價取代啟用當下抓到的即時報價。 */
+  startEditAnchor(p: GridPosition) {
+    this.editingAnchorCode.set(p.code);
+    this.anchorInputValue = p.anchor;
+  }
+
+  cancelEditAnchor() {
+    this.editingAnchorCode.set(null);
+  }
+
+  async saveAnchor(p: GridPosition) {
+    if (this.anchorInputValue <= 0) {
+      alert('錨點必須大於 0');
+      return;
+    }
+    if (p.rung !== 0 && !confirm(`${p.code} 目前階數為 ${p.rung}，手動改錨點不會連動調整階數，可能會對不上。確定要繼續嗎？`)) return;
+    this.savingAnchor.update(s => new Set(s).add(p.code));
+    try {
+      await this.api.patchGridPosition(p.code, { anchor: this.anchorInputValue });
+      this.editingAnchorCode.set(null);
+      await this.loadPositions();
+    } catch (e: any) {
+      alert(e?.error?.detail ?? e?.message ?? '設定錨點失敗');
+    } finally {
+      this.savingAnchor.update(s => { const n = new Set(s); n.delete(p.code); return n; });
+    }
+  }
 
   /** 錨點放太久沒動（例如軟刪除後隔很久才重新勾選）會讓引擎一次補一堆階數的建議；
    *  重設成現價、階數歸零，等於用現在的價格重新開始網格。 */
