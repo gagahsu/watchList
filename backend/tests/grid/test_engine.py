@@ -322,7 +322,7 @@ def test_us_stock_decision_has_no_fee_or_tax(settings):
     from grid.state import Lot, Position, State
 
     us_settings = Settings(
-        cash=1_000_000.0,
+        us_cash=1_000_000.0,
         defaults={**settings.defaults, "stock": settings.params_for("equity")},
     )
     us_holding = Holding(
@@ -333,7 +333,7 @@ def test_us_stock_decision_has_no_fee_or_tax(settings):
         ticker="AAPL", shares=1000, anchor=100.0, rung=0, baseline_shares=1000,
         lots=[Lot(date="2026-01-01", price=50.0, shares=1000, source="initial")],
     )
-    us_state = State(cash=1_000_000.0, positions={"AAPL": us_position})
+    us_state = State(us_cash=1_000_000.0, positions={"AAPL": us_position})
 
     buy = _evaluate(us_holding, us_position, us_settings, us_state, price=97.5)
     assert buy.action == BUY
@@ -346,6 +346,32 @@ def test_us_stock_decision_has_no_fee_or_tax(settings):
     assert sell.action == SELL
     assert sell.est_fee == 0
     assert sell.est_tax == 0
+
+
+def test_us_buy_is_gated_by_us_cash_not_tw_cash(settings):
+    """一個有大量台幣現金、但美元現金不足的帳戶，不該被台幣餘額誤判成夠錢買美股
+    （這是 grid_cash_account_id 跟 grid_us_cash_account_id 沒分開時會踩到的坑）。"""
+    from grid.config import Holding
+    from grid.state import Lot, Position, State
+
+    us_settings = Settings(
+        cash=1_000_000.0,  # 大把台幣現金
+        us_cash=100.0,     # 但美元現金只有 $100，不夠買一股 $97.5 x 3 格
+        defaults={**settings.defaults, "stock": settings.params_for("equity")},
+    )
+    us_holding = Holding(
+        ticker="AAPL", name="Apple", asset_class="stock", market="us",
+        shares=1000, avg_cost=50.0, ticker_verified=True,
+    )
+    us_position = Position(
+        ticker="AAPL", shares=1000, anchor=100.0, rung=0, baseline_shares=1000,
+        lots=[Lot(date="2026-01-01", price=50.0, shares=1000, source="initial")],
+    )
+    us_state = State(cash=1_000_000.0, us_cash=100.0, positions={"AAPL": us_position})
+
+    decision = _evaluate(us_holding, us_position, us_settings, us_state, price=95.0)
+    assert decision.rungs == 1  # $100 只夠買 1 股
+    assert decision.shares == 1
 
 
 def test_drift_applies_only_once_per_day(holding, position, settings, state):

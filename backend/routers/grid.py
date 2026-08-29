@@ -405,7 +405,8 @@ def record_grid_fill(body: GridRecordIn):
         raise HTTPException(400, str(exc))
 
     trade_date = body.date or date.today().isoformat()
-    account_id = body.accountId or get_setting("grid_cash_account_id")
+    default_setting = "grid_us_cash_account_id" if decision.market == "us" else "grid_cash_account_id"
+    account_id = body.accountId or get_setting(default_setting)
     trade = TradeIn(
         id=str(uuid.uuid4()),
         date=trade_date,

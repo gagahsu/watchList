@@ -108,10 +108,15 @@ class Settings:
 
     fee_discount: Decimal = Decimal("0.28")
     fee_minimum: int = 1
-    #: 可動用現金（元）。買進會扣減，賣出會回補。
+    #: 可動用現金（新台幣）。買進會扣減，賣出會回補 —— 只給台股持倉用。
     cash: float = 0.0
-    #: 現金水位低於此金額就停止買進
+    #: 現金水位低於此金額就停止買進（新台幣）
     cash_floor: float = 0.0
+    #: 可動用現金（美元）。美股持倉（Holding.market == "us"）走這一包，
+    #: 跟台股的 `cash` 完全分開，避免拿新台幣餘額去比美元成交金額。
+    us_cash: float = 0.0
+    #: 美股現金水位下限（美元）
+    us_cash_floor: float = 0.0
     #: 建議產生的時間（僅用於報表顯示）
     decision_time: str = "13:00"
     timezone: str = "Asia/Taipei"

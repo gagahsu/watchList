@@ -90,21 +90,27 @@ def build_settings(conn) -> Settings:
     if missing:
         raise AdapterError(f"grid_params 缺少資產類別：{sorted(missing)}")
 
-    cash_account_id = _grid_setting(conn, "cash_account_id", "")
-    cash = 0.0
-    if cash_account_id:
+    def _account_balance(setting_key: str) -> float:
+        account_id = _grid_setting(conn, setting_key, "")
+        if not account_id:
+            return 0.0
         row = conn.execute(
-            "SELECT balance FROM accounts WHERE id=%s", (cash_account_id,)
+            "SELECT balance FROM accounts WHERE id=%s", (account_id,)
         ).fetchone()
         if row is None:
-            raise AdapterError(f"grid_cash_account_id={cash_account_id} 找不到對應帳戶")
-        cash = float(row["balance"])
+            raise AdapterError(f"grid_{setting_key}={account_id} 找不到對應帳戶")
+        return float(row["balance"])
+
+    cash = _account_balance("cash_account_id")
+    us_cash = _account_balance("us_cash_account_id")
 
     return Settings(
         fee_discount=Decimal(_grid_setting(conn, "fee_discount", "0.28")),
         fee_minimum=int(_grid_setting(conn, "fee_minimum", "1")),
         cash=cash,
         cash_floor=float(_grid_setting(conn, "cash_floor", "0")),
+        us_cash=us_cash,
+        us_cash_floor=float(_grid_setting(conn, "us_cash_floor", "0")),
         decision_time=_grid_setting(conn, "decision_time", "13:00"),
         timezone=_grid_setting(conn, "timezone", "Asia/Taipei"),
         max_data_staleness_days=int(_grid_setting(conn, "max_data_staleness_days", "5")),
@@ -245,7 +251,7 @@ def build_context(conn, codes: list[str] | None = None) -> GridContext:
         holdings[code] = holding
         positions[code] = position
 
-    state = State(cash=settings.cash, positions=positions)
+    state = State(cash=settings.cash, us_cash=settings.us_cash, positions=positions)
     return GridContext(settings=settings, state=state, holdings=holdings)
 
 
@@ -295,6 +301,7 @@ def evaluate_all(
                     name=holding.name,
                     asset_class=holding.asset_class,
                     action="SKIP",
+                    market=holding.market,
                     anchor_before=position.anchor,
                     anchor_after=position.anchor,
                     rung_before=position.rung,
@@ -364,6 +371,7 @@ def commit_fill(
             name=holding.name,
             asset_class=holding.asset_class,
             action=action,
+            market=holding.market,
             shares=shares,
             rungs=rungs,
             price=price,

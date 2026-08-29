@@ -40,6 +40,7 @@ class Decision:
     name: str
     asset_class: str
     action: str
+    market: str = "tw"
     shares: int = 0
     rungs: int = 0
     lot_shares: int = 0
@@ -166,6 +167,7 @@ def evaluate(
         name=holding.name,
         asset_class=holding.asset_class,
         action=SKIP,
+        market=holding.market,
         price=price,
         anchor_before=position.anchor,
         anchor_after=position.anchor,
@@ -334,10 +336,12 @@ def _limit_buy(
         decision.notes.append(f"受部位上限限制，由 {rungs} 份縮減為 {room} 份")
         rungs = room
 
-    spendable = state.cash - settings.cash_floor
+    cash = state.us_cash if market == "us" else state.cash
+    cash_floor = settings.us_cash_floor if market == "us" else settings.cash_floor
+    spendable = cash - cash_floor
     if spendable <= 0:
         decision.blocks.append(
-            f"可用現金 {state.cash:,.0f} 元已達保留水位 {settings.cash_floor:,.0f} 元"
+            f"可用現金 {cash:,.2f} 已達保留水位 {cash_floor:,.2f}"
         )
         return 0
 
@@ -354,8 +358,9 @@ def _limit_buy(
                 1, lot, price, settings.fee_discount, settings.fee_minimum, market
             ).net
         )
+        unit = "美元" if market == "us" else "元"
         decision.blocks.append(
-            f"現金不足，買一份需約 {one_lot:,.0f} 元，可動用 {spendable:,.0f} 元"
+            f"現金不足，買一份需約 {one_lot:,.2f} {unit}，可動用 {spendable:,.2f} {unit}"
         )
     return rungs
 
@@ -430,7 +435,10 @@ def commit(state: State, decision: Decision, trade_date: str | None = None) -> N
         realized = gross_pnl - decision.est_fee - decision.est_tax
 
     position.anchor = decision.anchor_after
-    state.cash += decision.est_cash_flow
+    if decision.market == "us":
+        state.us_cash += decision.est_cash_flow
+    else:
+        state.cash += decision.est_cash_flow
     state.trades.append(
         Trade(
             date=trade_date,
