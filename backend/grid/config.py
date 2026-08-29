@@ -108,10 +108,15 @@ class Settings:
 
     fee_discount: Decimal = Decimal("0.28")
     fee_minimum: int = 1
-    #: 可動用現金（元）。買進會扣減，賣出會回補。
+    #: 可動用現金（新台幣）。買進會扣減，賣出會回補 —— 只給台股持倉用。
     cash: float = 0.0
-    #: 現金水位低於此金額就停止買進
+    #: 現金水位低於此金額就停止買進（新台幣）
     cash_floor: float = 0.0
+    #: 可動用現金（美元）。美股持倉（Holding.market == "us"）走這一包，
+    #: 跟台股的 `cash` 完全分開，避免拿新台幣餘額去比美元成交金額。
+    us_cash: float = 0.0
+    #: 美股現金水位下限（美元）
+    us_cash_floor: float = 0.0
     #: 建議產生的時間（僅用於報表顯示）
     decision_time: str = "13:00"
     timezone: str = "Asia/Taipei"
@@ -136,6 +141,9 @@ class Holding:
     asset_class: str
     shares: int
     avg_cost: float
+    #: 'tw' 或 'us'。決定 ATR/報價的計價幣別，以及是否套用台股手續費與證交稅
+    #: （美股走零手續費券商，一律不收費、不課台股證交稅 —— 見 grid/fees.py）。
+    market: str = "tw"
     #: 代號是否已對照交易所資料驗證過。未驗證者不會產生下單建議。
     ticker_verified: bool = False
     enabled: bool = True
@@ -149,6 +157,8 @@ class Holding:
     tracked_since: str | None = None
 
     def validate(self) -> None:
+        if self.market not in ("tw", "us"):
+            raise ConfigError(f"{self.ticker}: market 必須是 'tw' 或 'us'，收到 {self.market!r}")
         if self.asset_class not in VALID_CLASSES:
             raise ConfigError(
                 f"{self.ticker}: asset_class '{self.asset_class}' 無效，"

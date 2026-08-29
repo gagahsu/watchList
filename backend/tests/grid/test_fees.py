@@ -123,3 +123,40 @@ def test_split_sell_cost_is_tax_free_for_bonds():
 
     lot = max_shares_for_min_fee(34.03)
     assert split_sell_cost(2, lot, 34.03, "bond").tax == 0
+
+
+# ------------------------------------------------------------ 美股零手續費
+
+
+def test_us_market_has_no_brokerage_fee():
+    assert brokerage_fee(10000, market="us") == 0
+    assert brokerage_fee(100, market="us") == 0
+
+
+def test_us_market_has_no_transaction_tax():
+    assert transaction_tax(100000, "equity", market="us") == 0
+    assert transaction_tax(100000, "stock", market="us") == 0
+
+
+def test_us_market_lot_size_is_one_share():
+    """台股的「一份」是手續費 1 元的臨界股數；美股零手續費沒有這個臨界點，
+    一份就是 1 股 —— 每格都能用最細的股數下單。"""
+    assert max_shares_for_min_fee(150.0, market="us") == 1
+    assert max_shares_for_min_fee(5.0, market="us") == 1
+
+
+def test_us_round_trip_cost_is_zero():
+    assert round_trip_cost_pct(150.0, "stock", market="us") == 0
+
+
+def test_us_buy_and_sell_cash_flows_have_no_cost():
+    from grid.fees import split_buy_cost, split_sell_cost
+
+    buy = split_buy_cost(2, 10, 150.0, market="us")
+    assert buy.fee == 0
+    assert float(buy.net) == pytest.approx(3000.0)
+
+    sell = split_sell_cost(2, 10, 150.0, "stock", market="us")
+    assert sell.fee == 0
+    assert sell.tax == 0
+    assert float(sell.proceeds) == pytest.approx(3000.0)

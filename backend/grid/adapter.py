@@ -90,21 +90,27 @@ def build_settings(conn) -> Settings:
     if missing:
         raise AdapterError(f"grid_params 缺少資產類別：{sorted(missing)}")
 
-    cash_account_id = _grid_setting(conn, "cash_account_id", "")
-    cash = 0.0
-    if cash_account_id:
+    def _account_balance(setting_key: str) -> float:
+        account_id = _grid_setting(conn, setting_key, "")
+        if not account_id:
+            return 0.0
         row = conn.execute(
-            "SELECT balance FROM accounts WHERE id=%s", (cash_account_id,)
+            "SELECT balance FROM accounts WHERE id=%s", (account_id,)
         ).fetchone()
         if row is None:
-            raise AdapterError(f"grid_cash_account_id={cash_account_id} 找不到對應帳戶")
-        cash = float(row["balance"])
+            raise AdapterError(f"grid_{setting_key}={account_id} 找不到對應帳戶")
+        return float(row["balance"])
+
+    cash = _account_balance("cash_account_id")
+    us_cash = _account_balance("us_cash_account_id")
 
     return Settings(
         fee_discount=Decimal(_grid_setting(conn, "fee_discount", "0.28")),
         fee_minimum=int(_grid_setting(conn, "fee_minimum", "1")),
         cash=cash,
         cash_floor=float(_grid_setting(conn, "cash_floor", "0")),
+        us_cash=us_cash,
+        us_cash_floor=float(_grid_setting(conn, "us_cash_floor", "0")),
         decision_time=_grid_setting(conn, "decision_time", "13:00"),
         timezone=_grid_setting(conn, "timezone", "Asia/Taipei"),
         max_data_staleness_days=int(_grid_setting(conn, "max_data_staleness_days", "5")),
@@ -126,6 +132,7 @@ def holding_from_row(
     grid_row: dict[str, Any],
     fifo_result: dict[str, Any],
     ex_dividend_rows: Sequence[dict[str, Any]],
+    market: str = "tw",
 ) -> Holding:
     if asset_class not in VALID_CLASSES:
         raise AdapterError(
@@ -150,6 +157,7 @@ def holding_from_row(
         asset_class=asset_class,
         shares=int(fifo_result["holdingShares"]),
         avg_cost=float(fifo_result["avgCost"]),
+        market=market,
         ticker_verified=bool(grid_row["enabled"]),
         enabled=True,
         overrides=dict(grid_row.get("grid_overrides") or {}),
@@ -209,7 +217,7 @@ def _build_one(conn, grid_row: dict[str, Any], trades: list[dict], market: str) 
         "SELECT ex_date, cash_div FROM dividend_records WHERE code=%s ORDER BY ex_date", (code,)
     ).fetchall()
 
-    holding = holding_from_row(code, name, asset_class, grid_row, fifo_result, ex_div_rows)
+    holding = holding_from_row(code, name, asset_class, grid_row, fifo_result, ex_div_rows, market)
     position = position_from_row(code, grid_row, fifo_result)
     return holding, position
 
@@ -243,7 +251,7 @@ def build_context(conn, codes: list[str] | None = None) -> GridContext:
         holdings[code] = holding
         positions[code] = position
 
-    state = State(cash=settings.cash, positions=positions)
+    state = State(cash=settings.cash, us_cash=settings.us_cash, positions=positions)
     return GridContext(settings=settings, state=state, holdings=holdings)
 
 
@@ -293,6 +301,7 @@ def evaluate_all(
                     name=holding.name,
                     asset_class=holding.asset_class,
                     action="SKIP",
+                    market=holding.market,
                     anchor_before=position.anchor,
                     anchor_after=position.anchor,
                     rung_before=position.rung,
@@ -362,6 +371,7 @@ def commit_fill(
             name=holding.name,
             asset_class=holding.asset_class,
             action=action,
+            market=holding.market,
             shares=shares,
             rungs=rungs,
             price=price,
@@ -372,7 +382,10 @@ def commit_fill(
         )
         per_order_shares = shares // rungs
         if action == BUY:
-            cost = split_buy_cost(rungs, per_order_shares, price, ctx.settings.fee_discount, ctx.settings.fee_minimum)
+            cost = split_buy_cost(
+                rungs, per_order_shares, price, ctx.settings.fee_discount,
+                ctx.settings.fee_minimum, holding.market,
+            )
             decision.est_fee = cost.fee
             decision.est_cash_flow = -float(cost.net)
             decision.anchor_after = position.anchor - step * rungs
@@ -381,7 +394,7 @@ def commit_fill(
                 raise AdapterError(f"賣出 {shares} 股超過持股 {position.shares} 股")
             cost = split_sell_cost(
                 rungs, per_order_shares, price, holding.asset_class,
-                ctx.settings.fee_discount, ctx.settings.fee_minimum,
+                ctx.settings.fee_discount, ctx.settings.fee_minimum, holding.market,
             )
             decision.est_fee = cost.fee
             decision.est_tax = cost.tax

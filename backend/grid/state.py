@@ -125,7 +125,10 @@ class Position:
 @dataclass
 class State:
     version: int = 2
+    #: 台股現金池（新台幣）
     cash: float = 0.0
+    #: 美股現金池（美元），跟 `cash` 分開累計，見 `config.Settings.us_cash`
+    us_cash: float = 0.0
     positions: dict[str, Position] = field(default_factory=dict)
     trades: list[Trade] = field(default_factory=list)
     last_run_date: str | None = None
