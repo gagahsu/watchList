@@ -68,9 +68,9 @@ class Decision:
         return self.action in (BUY, SELL) and self.shares > 0
 
 
-def lot_size(price: float, settings: Settings) -> int:
-    """當日「一份」的股數。"""
-    return max_shares_for_min_fee(price, settings.fee_discount, settings.fee_minimum)
+def lot_size(price: float, settings: Settings, market: str = "tw") -> int:
+    """當日「一份」的股數。美股零手續費，一份固定是 1 股。"""
+    return max_shares_for_min_fee(price, settings.fee_discount, settings.fee_minimum, market)
 
 
 def grid_step(price: float, atr: float, params: GridParams) -> float:
@@ -213,7 +213,7 @@ def evaluate(
 
     # ---------------------------------------------------------------- 網格
     step = grid_step(price, atr, params)
-    lot = lot_size(price, settings)
+    lot = lot_size(price, settings, holding.market)
     decision.atr = atr
     decision.atr_pct = atr / price * 100
     decision.step = step
@@ -260,9 +260,9 @@ def evaluate(
         )
 
     if side == BUY:
-        rungs = _limit_buy(decision, position, params, settings, state, price, lot, rungs)
+        rungs = _limit_buy(decision, position, params, settings, state, price, lot, rungs, holding.market)
     else:
-        rungs = _limit_sell(decision, position, params, settings, price, lot, rungs)
+        rungs = _limit_sell(decision, position, params, settings, price, lot, rungs, holding.market)
 
     if rungs <= 0:
         decision.action = HOLD if not decision.blocks else REVIEW
@@ -272,7 +272,7 @@ def evaluate(
     shares = lot * rungs
     decision.rungs = rungs
     decision.shares = shares
-    if rungs > 1:
+    if rungs > 1 and holding.market == "tw":
         # 一份的定義就是手續費 1 元的上限，合併下單會踩過門檻。
         decision.notes.append(
             f"請分 {rungs} 筆、每筆 {lot} 股下單（合併成 {shares} 股一筆會多付手續費）"
@@ -280,7 +280,7 @@ def evaluate(
 
     if side == BUY:
         cost = split_buy_cost(
-            rungs, lot, price, settings.fee_discount, settings.fee_minimum
+            rungs, lot, price, settings.fee_discount, settings.fee_minimum, holding.market
         )
         decision.est_gross = float(cost.gross)
         decision.est_fee = cost.fee
@@ -295,6 +295,7 @@ def evaluate(
             holding.asset_class,
             settings.fee_discount,
             settings.fee_minimum,
+            holding.market,
         )
         decision.est_gross = float(cost.gross)
         decision.est_fee = cost.fee
@@ -320,6 +321,7 @@ def _limit_buy(
     price: float,
     lot: int,
     rungs: int,
+    market: str = "tw",
 ) -> int:
     """把買進份數壓到部位上限與現金允許的範圍內。"""
     room = params.max_buy_rungs - position.rung
@@ -341,7 +343,7 @@ def _limit_buy(
 
     while rungs > 0:
         cost = split_buy_cost(
-            rungs, lot, price, settings.fee_discount, settings.fee_minimum
+            rungs, lot, price, settings.fee_discount, settings.fee_minimum, market
         )
         if float(cost.net) <= spendable:
             break
@@ -349,7 +351,7 @@ def _limit_buy(
     if rungs == 0:
         one_lot = float(
             split_buy_cost(
-                1, lot, price, settings.fee_discount, settings.fee_minimum
+                1, lot, price, settings.fee_discount, settings.fee_minimum, market
             ).net
         )
         decision.blocks.append(
@@ -366,6 +368,7 @@ def _limit_sell(
     price: float,
     lot: int,
     rungs: int,
+    market: str = "tw",
 ) -> int:
     """把賣出份數壓到部位下限、實際持股與「不賠售」規則之內。"""
     room = params.max_sell_rungs + position.rung
@@ -398,6 +401,7 @@ def _limit_sell(
                 decision.asset_class,
                 settings.fee_discount,
                 settings.fee_minimum,
+                market,
             )
             if float(cost.proceeds) - position.peek_sell_basis(shares) > 0:
                 break

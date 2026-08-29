@@ -316,6 +316,38 @@ def test_single_rung_has_no_split_note(holding, position, settings, state):
     assert not any("分" in n and "筆" in n for n in decision.notes)
 
 
+def test_us_stock_decision_has_no_fee_or_tax(settings):
+    """美股走零手續費券商，買賣都不該產生手續費或證交稅。"""
+    from grid.config import Holding
+    from grid.state import Lot, Position, State
+
+    us_settings = Settings(
+        cash=1_000_000.0,
+        defaults={**settings.defaults, "stock": settings.params_for("equity")},
+    )
+    us_holding = Holding(
+        ticker="AAPL", name="Apple", asset_class="stock", market="us",
+        shares=1000, avg_cost=50.0, ticker_verified=True,
+    )
+    us_position = Position(
+        ticker="AAPL", shares=1000, anchor=100.0, rung=0, baseline_shares=1000,
+        lots=[Lot(date="2026-01-01", price=50.0, shares=1000, source="initial")],
+    )
+    us_state = State(cash=1_000_000.0, positions={"AAPL": us_position})
+
+    buy = _evaluate(us_holding, us_position, us_settings, us_state, price=97.5)
+    assert buy.action == BUY
+    assert buy.est_fee == 0
+    assert buy.est_tax == 0
+    # 零手續費沒有「湊到最低手續費」的一份股數概念，一份就是 1 股。
+    assert lot_size(97.5, us_settings, "us") == 1
+
+    sell = _evaluate(us_holding, us_position, us_settings, us_state, price=102.6, today="2026-03-16")
+    assert sell.action == SELL
+    assert sell.est_fee == 0
+    assert sell.est_tax == 0
+
+
 def test_drift_applies_only_once_per_day(holding, position, settings, state):
     """同一天重複執行 advise 不該把錨點越推越遠。"""
     drifting = replace(

@@ -126,6 +126,7 @@ def holding_from_row(
     grid_row: dict[str, Any],
     fifo_result: dict[str, Any],
     ex_dividend_rows: Sequence[dict[str, Any]],
+    market: str = "tw",
 ) -> Holding:
     if asset_class not in VALID_CLASSES:
         raise AdapterError(
@@ -150,6 +151,7 @@ def holding_from_row(
         asset_class=asset_class,
         shares=int(fifo_result["holdingShares"]),
         avg_cost=float(fifo_result["avgCost"]),
+        market=market,
         ticker_verified=bool(grid_row["enabled"]),
         enabled=True,
         overrides=dict(grid_row.get("grid_overrides") or {}),
@@ -209,7 +211,7 @@ def _build_one(conn, grid_row: dict[str, Any], trades: list[dict], market: str) 
         "SELECT ex_date, cash_div FROM dividend_records WHERE code=%s ORDER BY ex_date", (code,)
     ).fetchall()
 
-    holding = holding_from_row(code, name, asset_class, grid_row, fifo_result, ex_div_rows)
+    holding = holding_from_row(code, name, asset_class, grid_row, fifo_result, ex_div_rows, market)
     position = position_from_row(code, grid_row, fifo_result)
     return holding, position
 
@@ -372,7 +374,10 @@ def commit_fill(
         )
         per_order_shares = shares // rungs
         if action == BUY:
-            cost = split_buy_cost(rungs, per_order_shares, price, ctx.settings.fee_discount, ctx.settings.fee_minimum)
+            cost = split_buy_cost(
+                rungs, per_order_shares, price, ctx.settings.fee_discount,
+                ctx.settings.fee_minimum, holding.market,
+            )
             decision.est_fee = cost.fee
             decision.est_cash_flow = -float(cost.net)
             decision.anchor_after = position.anchor - step * rungs
@@ -381,7 +386,7 @@ def commit_fill(
                 raise AdapterError(f"賣出 {shares} 股超過持股 {position.shares} 股")
             cost = split_sell_cost(
                 rungs, per_order_shares, price, holding.asset_class,
-                ctx.settings.fee_discount, ctx.settings.fee_minimum,
+                ctx.settings.fee_discount, ctx.settings.fee_minimum, holding.market,
             )
             decision.est_fee = cost.fee
             decision.est_tax = cost.tax

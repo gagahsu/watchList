@@ -33,12 +33,16 @@ def brokerage_fee(
     amount: Decimal | float | int,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> int:
     """券商手續費。
 
     ``amount`` 為成交金額。折扣後小數點無條件捨去，再套用最低收費。
-    金額為 0 時不收費（沒有成交就沒有手續費）。
+    金額為 0 時不收費（沒有成交就沒有手續費）。這張費率表是台股券商的，
+    美股（``market="us"``）走零手續費美股券商，一律不收費。
     """
+    if market != "tw":
+        return 0
     amount = Decimal(str(amount))
     if amount <= 0:
         return 0
@@ -46,8 +50,11 @@ def brokerage_fee(
     return max(_floor_int(raw), minimum)
 
 
-def transaction_tax(amount: Decimal | float | int, asset_class: str) -> int:
-    """賣出證交稅。債券 ETF 免徵、個股 0.3%、其餘（股票型/槓桿型 ETF）0.1%，元以下捨去。"""
+def transaction_tax(amount: Decimal | float | int, asset_class: str, market: str = "tw") -> int:
+    """賣出證交稅。債券 ETF 免徵、個股 0.3%、其餘（股票型/槓桿型 ETF）0.1%，元以下捨去。
+    這是台股證交稅，美股（``market="us"``）不適用，一律不收。"""
+    if market != "tw":
+        return 0
     amount = Decimal(str(amount))
     if amount <= 0:
         return 0
@@ -64,6 +71,7 @@ def max_shares_for_min_fee(
     price: Decimal | float | int,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> int:
     """手續費仍等於最低收費（預設 1 元）時可買進的最大股數 ── 使用者的「一份」。
 
@@ -72,13 +80,20 @@ def max_shares_for_min_fee(
 
     手續費隨股數單調遞增，所以用二分搜尋找臨界點。若連 1 股都超過門檻
     （例如超高價標的），回傳 1 ── 一份至少是 1 股。
+
+    美股（``market="us"``）零手續費，沒有「手續費 1 元上限」這回事，這裡
+    的二分搜尋找的臨界點會失去意義（費率恆為 0，區間永遠不會收斂），所以
+    直接把一份定義成 1 股 ── 每格都能用最細的股數下單，不必為了省手續費
+    而合併批次。
     """
     price = Decimal(str(price))
     if price <= 0:
         raise ValueError(f"price must be positive, got {price}")
+    if market != "tw":
+        return 1
 
     def fee_of(shares: int) -> int:
-        return brokerage_fee(price * shares, discount, minimum)
+        return brokerage_fee(price * shares, discount, minimum, market)
 
     if fee_of(1) > minimum:
         return 1
@@ -132,10 +147,11 @@ def buy_cost(
     price: Decimal | float | int,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> TradeCost:
     price = Decimal(str(price))
     gross = price * shares
-    return TradeCost(shares, price, gross, brokerage_fee(gross, discount, minimum), 0)
+    return TradeCost(shares, price, gross, brokerage_fee(gross, discount, minimum, market), 0)
 
 
 def sell_cost(
@@ -144,6 +160,7 @@ def sell_cost(
     asset_class: str,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> TradeCost:
     price = Decimal(str(price))
     gross = price * shares
@@ -151,8 +168,8 @@ def sell_cost(
         shares,
         price,
         gross,
-        brokerage_fee(gross, discount, minimum),
-        transaction_tax(gross, asset_class),
+        brokerage_fee(gross, discount, minimum, market),
+        transaction_tax(gross, asset_class, market),
     )
 
 
@@ -162,15 +179,17 @@ def split_buy_cost(
     price: Decimal | float | int,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> TradeCost:
     """買進 ``rungs`` 份時，**拆成 rungs 筆各 lot 股**下單的合計成本。
 
     這件事很重要：一份的定義就是「手續費剛好 1 元的最大股數」，所以兩份
     合併成一筆下單會踩過門檻（例如 622 股要 3 元），拆成兩筆各 311 股則
-    只要 1+1 = 2 元。系統一律以拆單為前提試算。
+    只要 1+1 = 2 元。系統一律以拆單為前提試算。美股零手續費，拆單與否
+    對成本沒有影響。
     """
     price = Decimal(str(price))
-    per_order = brokerage_fee(price * lot, discount, minimum)
+    per_order = brokerage_fee(price * lot, discount, minimum, market)
     return TradeCost(
         shares=lot * rungs,
         price=price,
@@ -187,14 +206,16 @@ def split_sell_cost(
     asset_class: str,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> TradeCost:
     """賣出 ``rungs`` 份、拆成 rungs 筆各 lot 股的合計成本。
 
-    證交稅同樣逐筆計算後捨去，所以拆單的稅額可能比合併下單少一點。
+    證交稅同樣逐筆計算後捨去，所以拆單的稅額可能比合併下單少一點。美股
+    不課台股證交稅，一律為 0。
     """
     price = Decimal(str(price))
-    per_fee = brokerage_fee(price * lot, discount, minimum)
-    per_tax = transaction_tax(price * lot, asset_class)
+    per_fee = brokerage_fee(price * lot, discount, minimum, market)
+    per_tax = transaction_tax(price * lot, asset_class, market)
     return TradeCost(
         shares=lot * rungs,
         price=price,
@@ -209,15 +230,16 @@ def round_trip_cost_pct(
     asset_class: str,
     discount: Decimal | float | str = "0.28",
     minimum: int = 1,
+    market: str = "tw",
 ) -> Decimal:
     """一買一賣「一份」的來回成本，以百分比表示。
 
     這是網格步長的下限依據：步長若不明顯大於來回成本，網格只是在幫券商和
-    國庫打工。
+    國庫打工。美股零手續費、零證交稅，來回成本恆為 0。
     """
-    shares = max_shares_for_min_fee(price, discount, minimum)
-    buy = buy_cost(shares, price, discount, minimum)
-    sell = sell_cost(shares, price, asset_class, discount, minimum)
+    shares = max_shares_for_min_fee(price, discount, minimum, market)
+    buy = buy_cost(shares, price, discount, minimum, market)
+    sell = sell_cost(shares, price, asset_class, discount, minimum, market)
     if buy.gross == 0:
         return Decimal(0)
     total = Decimal(buy.fee + sell.fee + sell.tax)

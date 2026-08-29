@@ -307,7 +307,7 @@ def get_grid_positions():
             step_guess = row["anchor"] * params.min_step_pct / 100
             buys, sells = next_grid_levels(position, step_guess, 3)
             entry.update({
-                "lotShares": lot_size(row["anchor"], settings),
+                "lotShares": lot_size(row["anchor"], settings, markets.get(code, "tw")),
                 "maxBuyRungs": params.max_buy_rungs,
                 "maxSellRungs": params.max_sell_rungs,
                 "nextBuy": [round(p, 2) for p in buys],
