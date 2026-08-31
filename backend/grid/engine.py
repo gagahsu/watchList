@@ -51,6 +51,8 @@ class Decision:
     atr: float | None = None
     atr_pct: float | None = None
     step_pct: float = 0.0
+    price_band_low: float | None = None
+    price_band_high: float | None = None
     rung_before: int = 0
     rung_after: int = 0
     position_shares: int = 0
@@ -245,6 +247,12 @@ def evaluate(
     side = SELL if distance > 0 else BUY
     decision.signal_rungs = raw_rungs
     decision.action = side
+    if side == BUY:
+        decision.price_band_low = position.anchor - (raw_rungs + 1) * step
+        decision.price_band_high = position.anchor - raw_rungs * step
+    else:
+        decision.price_band_low = position.anchor + raw_rungs * step
+        decision.price_band_high = position.anchor + (raw_rungs + 1) * step
     decision.reasons.append(
         f"ATR({params.atr_period})={atr:.3f}（{decision.atr_pct:.2f}%），"
         f"步長 {step:.3f} 元（{decision.step_pct:.2f}%）"
@@ -252,6 +260,10 @@ def evaluate(
     decision.reasons.append(
         f"現價 {price:.2f} {'高於' if side == SELL else '低於'}錨點 "
         f"{position.anchor:.2f} 共 {raw_rungs} 格"
+    )
+    decision.notes.append(
+        f"價格在 {decision.price_band_low:.2f}~{decision.price_band_high:.2f} 之間，"
+        f"份數都維持 {raw_rungs} 份（超出區間需重新試算）"
     )
 
     # ------------------------------------------------------------ 風控閘門
