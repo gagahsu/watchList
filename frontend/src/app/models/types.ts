@@ -21,6 +21,8 @@ export interface GridDecision {
   anchorAfter: number;
   step: number;
   stepPct: number;
+  priceBandLow: number | null;
+  priceBandHigh: number | null;
   atr: number | null;
   atrPct: number | null;
   rungBefore: number;

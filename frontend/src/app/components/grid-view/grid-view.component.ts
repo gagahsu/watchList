@@ -95,7 +95,14 @@ const ACTION_CLASS: Record<string, string> = {
                 {{ d.rungs }} × {{ d.lotShares }} = {{ d.shares.toLocaleString() }}
               } @else { <span style="color:var(--border)">—</span> }
             </td>
-            <td class="risk-num">{{ d.price > 0 ? d.price.toFixed(2) : '—' }}</td>
+            <td class="risk-num">
+              {{ d.price > 0 ? d.price.toFixed(2) : '—' }}
+              @if (d.priceBandLow !== null && d.priceBandHigh !== null) {
+                <div style="font-size:11px;color:var(--text-muted);font-weight:400">
+                  {{ d.priceBandLow.toFixed(2) }}~{{ d.priceBandHigh.toFixed(2) }} 仍算此份數
+                </div>
+              }
+            </td>
             <td class="risk-num">{{ d.anchorBefore.toFixed(3) }}</td>
             <td class="risk-num">{{ d.stepPct > 0 ? d.stepPct.toFixed(2) + '%' : '—' }}</td>
             <td style="font-size:12px;color:var(--text-muted);line-height:1.5">

@@ -175,6 +175,8 @@ def _decision_to_dict(d: Decision) -> dict:
         "price": round(d.price, 2),
         "anchorBefore": round(d.anchor_before, 4), "anchorAfter": round(d.anchor_after, 4),
         "step": round(d.step, 4), "stepPct": round(d.step_pct, 2),
+        "priceBandLow": round(d.price_band_low, 2) if d.price_band_low is not None else None,
+        "priceBandHigh": round(d.price_band_high, 2) if d.price_band_high is not None else None,
         "atr": round(d.atr, 4) if d.atr is not None else None,
         "atrPct": round(d.atr_pct, 2) if d.atr_pct is not None else None,
         "rungBefore": d.rung_before, "rungAfter": d.rung_after,
@@ -206,7 +208,15 @@ def build_grid_alert_message() -> str | None:
     lines = []
     for d in actionable:
         verb = "買進" if d.action == BUY else "賣出"
-        lines.append(f"  • {d.ticker} {d.name}　{verb} {d.rungs}×{d.lot_shares}={d.shares} 股　@{d.price:.2f}")
+        band = (
+            f"（{d.price_band_low:.2f}~{d.price_band_high:.2f} 仍算此份數）"
+            if d.price_band_low is not None and d.price_band_high is not None
+            else ""
+        )
+        lines.append(
+            f"  • {d.ticker} {d.name}　{verb} {d.rungs}×{d.lot_shares}={d.shares} 股　"
+            f"@{d.price:.2f}{band}"
+        )
     return "🕸️ ATR 網格今日建議\n\n" + "\n".join(lines) + "\n\n請至網站「ATR 網格」確認並回填成交。"
 
 
