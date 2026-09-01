@@ -31,6 +31,7 @@ const ACTION_CLASS: Record<string, string> = {
   @if (advice) {
     <span style="font-size:12px;color:var(--text-muted)">建議日期 {{ advice.asOf }}</span>
   }
+  <button class="btn-cancel" style="padding:6px 12px;font-size:13px" (click)="openManualPicker()">手動回填成交</button>
   <button class="grid-tab-btn" [class.active]="tab() === 'advice'" (click)="tab.set('advice')">今日建議</button>
   <button class="grid-tab-btn" [class.active]="tab() === 'positions'" (click)="tab.set('positions')">持股狀態</button>
 </div>
@@ -128,22 +129,6 @@ const ACTION_CLASS: Record<string, string> = {
     </div>
   }
 
-  @if (recordTarget()) {
-    <div class="grid-record-panel">
-      <div style="font-weight:700;margin-bottom:8px">記錄 {{ recordTarget()!.ticker }} {{ ACTION_LABELS[recordTarget()!.action] }} 成交</div>
-      <div class="grid-record-fields">
-        <label>股數 <input type="number" [(ngModel)]="recordShares" /></label>
-        <label>成交價 <input type="number" step="0.01" [(ngModel)]="recordPrice" /></label>
-        <label>日期 <input type="date" [(ngModel)]="recordDate" /></label>
-      </div>
-      @if (recordError()) { <div style="color:var(--red);font-size:13px;margin:6px 0">{{ recordError() }}</div> }
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn-primary" style="flex:none;padding:8px 16px" [disabled]="recordingTicker() !== null" (click)="submitRecord()">確認回填</button>
-        <button class="btn-cancel" (click)="recordTarget.set(null)">取消</button>
-      </div>
-    </div>
-  }
-
 } @else {
   <!-- 持股狀態 -->
   <div class="grid-hint">網格標的來自「投資組合」的 ATR 勾選：勾選即以當下現價建立網格，取消勾選會移出清單但保留錨點與階數，重新勾選就接續原本的網格。</div>
@@ -227,6 +212,76 @@ const ACTION_CLASS: Record<string, string> = {
     </div>
   }
 }
+
+@if (manualPickOpen()) {
+  <div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeManualPickerIfBg($event)">
+    <div class="modal-box" style="max-width:420px;width:92vw">
+      <div class="modal-title">手動回填成交</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+        用實際成交的價格試算網格會給的份數/階數 —— 用在建議已經過期（例如上週六建議、這幾天才成交）而今日建議已經不再顯示的情況。
+      </div>
+      <div class="modal-label">代碼</div>
+      <select class="modal-input" [(ngModel)]="manualCode">
+        @for (p of positions_(); track p.code) {
+          <option [value]="p.code">{{ p.code }} {{ p.name }}</option>
+        }
+      </select>
+      <div class="modal-label" style="margin-top:12px">方向</div>
+      <select class="modal-input" [(ngModel)]="manualAction">
+        <option value="BUY">買進</option>
+        <option value="SELL">賣出</option>
+      </select>
+      <div class="modal-label" style="margin-top:12px">實際成交價</div>
+      <input class="modal-input" type="number" step="0.01" [(ngModel)]="manualPrice" />
+      @if (manualError()) { <div style="color:var(--red);font-size:13px;margin-top:8px">{{ manualError() }}</div> }
+      <div class="modal-actions">
+        <button class="btn-primary" style="flex:1" [disabled]="manualLoading()" (click)="submitManualPreview()">
+          {{ manualLoading() ? '試算中…' : '試算' }}
+        </button>
+        <button class="btn-cancel" (click)="manualPickOpen.set(false)">取消</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (recordTarget(); as rt) {
+  <div class="modal-overlay" (mousedown)="trackMd($event)" (mouseup)="closeRecordIfBg($event)">
+    <div class="modal-box" style="max-width:520px;width:92vw">
+      <div class="modal-title">記錄 {{ rt.ticker }} {{ ACTION_LABELS[rt.action] }} 成交</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+        建議 {{ rt.rungs }} 階 × {{ rt.lotShares }} 股 @ {{ rt.price.toFixed(2) }}。可分成多筆、各自填不同成交價再送出。
+      </div>
+
+      <div class="modal-label">日期</div>
+      <input class="modal-input" type="date" [(ngModel)]="recordDate" />
+
+      <div class="modal-label" style="margin-top:12px">成交明細</div>
+      @for (row of recordRows; track $index) {
+        <div class="grid-record-row">
+          <input type="number" step="1" [(ngModel)]="row.shares" placeholder="股數" />
+          <span style="color:var(--text-muted);font-size:13px">股 @</span>
+          <input type="number" step="0.01" [(ngModel)]="row.price" placeholder="成交價" />
+          @if (recordRows.length > 1) {
+            <button class="grid-record-row-del" (click)="removeRow($index)">✕</button>
+          }
+        </div>
+      }
+      <button class="sig-open-add" style="margin-top:8px" (click)="addRow()">＋ 新增一筆（不同成交價）</button>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px">
+        目前合計 {{ totalRowShares().toLocaleString() }} 股（建議 {{ rt.shares.toLocaleString() }} 股）
+      </div>
+
+      @if (recordError()) { <div style="color:var(--red);font-size:13px;margin-top:8px">{{ recordError() }}</div> }
+      <div class="modal-actions">
+        <button class="btn-primary" style="flex:1" [disabled]="recordingTicker() !== null" (click)="submitRecord()">
+          {{ recordingTicker() ? '記錄中…' : '確認回填' }}
+        </button>
+        <button class="btn-cancel" (click)="recordTarget.set(null)">取消</button>
+      </div>
+    </div>
+  </div>
+}
   `,
   styles: [`
     .grid-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
@@ -235,10 +290,10 @@ const ACTION_CLASS: Record<string, string> = {
     .grid-tab-btn + .grid-tab-btn { margin-left:0; }
     .grid-block-text { color:var(--red); }
     .grid-row-disabled { opacity:0.5; }
-    .grid-record-panel { margin-top:14px; padding:14px 16px; border:1.5px solid var(--border); border-radius:10px; background:var(--sidebar-bg); max-width:480px; }
-    .grid-record-fields { display:flex; gap:12px; flex-wrap:wrap; }
-    .grid-record-fields label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--text-muted); }
-    .grid-record-fields input { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:14px; width:120px; }
+    .grid-record-row { display:flex; align-items:center; gap:6px; margin-top:6px; }
+    .grid-record-row input { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:14px; width:110px; }
+    .grid-record-row-del { border:none; background:none; color:var(--text-muted); cursor:pointer; font-size:14px; padding:2px 6px; }
+    .grid-record-row-del:hover { color:var(--red); }
     .grid-hint { margin-bottom:16px; font-size:12px; color:var(--text-muted); }
     .grid-class-select { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; background:none; color:inherit; }
   `],
@@ -255,11 +310,19 @@ export class GridViewComponent implements OnInit {
   loadingPositions = signal(false);
 
   recordTarget = signal<GridDecision | null>(null);
+  recordRows: { shares: number; price: number }[] = [];
   recordingTicker = signal<string | null>(null);
   recordError = signal('');
-  recordShares = 0;
-  recordPrice = 0;
   recordDate = new Date().toISOString().slice(0, 10);
+
+  manualPickOpen = signal(false);
+  manualCode = '';
+  manualAction: 'BUY' | 'SELL' = 'BUY';
+  manualPrice = 0;
+  manualLoading = signal(false);
+  manualError = signal('');
+
+  private overlayMd = false;
 
   constructor(private api: ApiService) {}
 
@@ -354,37 +417,106 @@ export class GridViewComponent implements OnInit {
 
   openRecord(d: GridDecision) {
     this.recordTarget.set(d);
-    this.recordShares = d.shares;
-    this.recordPrice = d.price;
+    this.recordRows = [{ shares: d.shares, price: d.price }];
     this.recordDate = new Date().toISOString().slice(0, 10);
     this.recordError.set('');
+  }
+
+  totalRowShares(): number {
+    return this.recordRows.reduce((sum, r) => sum + (r.shares || 0), 0);
+  }
+
+  addRow() {
+    const d = this.recordTarget();
+    if (!d) return;
+    const lot = d.lotShares || d.shares || 1;
+    const remaining = Math.max(0, d.shares - this.totalRowShares());
+    this.recordRows = [...this.recordRows, { shares: remaining > 0 ? Math.min(lot, remaining) : lot, price: d.price }];
+  }
+
+  removeRow(i: number) {
+    this.recordRows = this.recordRows.filter((_, idx) => idx !== i);
   }
 
   async submitRecord() {
     const d = this.recordTarget();
     if (!d) return;
-    if (this.recordShares <= 0 || this.recordPrice <= 0) {
-      this.recordError.set('股數與成交價必須大於 0');
+    const rows = this.recordRows.filter(r => r.shares > 0 && r.price > 0);
+    if (rows.length === 0) {
+      this.recordError.set('至少要有一筆股數與成交價都大於 0 的紀錄');
       return;
     }
     this.recordError.set('');
     this.recordingTicker.set(d.ticker);
     try {
-      await this.api.recordGridFill({
-        code: d.ticker,
-        action: d.action as 'BUY' | 'SELL',
-        shares: this.recordShares,
-        price: this.recordPrice,
-        rungs: d.rungs,
-        step: d.step,
-        date: this.recordDate,
-      });
+      const lot = d.lotShares || d.shares;
+      for (const row of rows) {
+        const rungs = Math.max(1, Math.round(row.shares / lot));
+        await this.api.recordGridFill({
+          code: d.ticker,
+          action: d.action as 'BUY' | 'SELL',
+          shares: row.shares,
+          price: row.price,
+          rungs,
+          step: d.step,
+          date: this.recordDate,
+        });
+      }
       this.recordTarget.set(null);
+      this.recordRows = [];
       await Promise.all([this.loadPositions(), this.refreshAdvice()]);
     } catch (e: any) {
-      this.recordError.set(e.message ?? '記錄失敗');
+      this.recordError.set(e?.error?.detail ?? e?.message ?? '記錄失敗');
     } finally {
       this.recordingTicker.set(null);
     }
+  }
+
+  openManualPicker() {
+    const codes = this.positions_();
+    this.manualCode = codes[0]?.code ?? '';
+    this.manualAction = 'BUY';
+    this.manualPrice = 0;
+    this.manualError.set('');
+    this.manualPickOpen.set(true);
+  }
+
+  async submitManualPreview() {
+    if (!this.manualCode || this.manualPrice <= 0) {
+      this.manualError.set('請選代碼並輸入大於 0 的成交價');
+      return;
+    }
+    this.manualError.set('');
+    this.manualLoading.set(true);
+    try {
+      const d = await this.api.previewGridFill(this.manualCode, this.manualPrice);
+      if (d.shares <= 0 || (d.action !== 'BUY' && d.action !== 'SELL') || d.action !== this.manualAction) {
+        const msgs = [...d.blocks, ...d.notes];
+        this.manualError.set(
+          msgs.length
+            ? msgs.join('；')
+            : `這個價格在 ${d.ticker} 目前的網格下不會觸發${this.manualAction === 'BUY' ? '買進' : '賣出'}（目前判定為${ACTION_LABELS[d.action] ?? d.action}）`
+        );
+        return;
+      }
+      this.manualPickOpen.set(false);
+      this.openRecord(d);
+    } catch (e: any) {
+      this.manualError.set(e?.error?.detail ?? e?.message ?? '試算失敗');
+    } finally {
+      this.manualLoading.set(false);
+    }
+  }
+
+  trackMd(e: MouseEvent) { this.overlayMd = e.target === e.currentTarget; }
+
+  closeManualPickerIfBg(e: MouseEvent) {
+    if (this.overlayMd && e.target === e.currentTarget) this.manualPickOpen.set(false);
+    this.overlayMd = false;
+  }
+
+  closeRecordIfBg(e: MouseEvent) {
+    if (this.overlayMd && e.target === e.currentTarget) this.recordTarget.set(null);
+    this.overlayMd = false;
   }
 }
