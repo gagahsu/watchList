@@ -32,7 +32,7 @@ from grid.adapter import AdapterError, build_settings, commit_fill, evaluate_all
 from grid.config import ConfigError, GridParams, VALID_CLASSES, infer_asset_class
 from grid.engine import BUY, SELL, Decision, lot_size, next_grid_levels
 from grid.indicators import Bar
-from models import GridParamsIn, GridPositionIn, GridPositionPatch, GridRecordIn, TradeIn
+from models import GridParamsIn, GridPositionIn, GridPositionPatch, GridPreviewIn, GridRecordIn, TradeIn
 from routers.ohlc import get_ohlc
 from routers.quotes import _price_tw, _price_us
 from routers.trades import create_trade
@@ -243,6 +243,32 @@ def get_grid_advice():
             "cost": sum(d.est_fee + d.est_tax for d in actionable),
         },
     }
+
+
+@router.post("/grid/preview")
+def preview_grid_fill(body: GridPreviewIn):
+    """Recompute today's grid decision for one code at a manually-supplied
+    price instead of the live quote.
+
+    The live `/grid/advice` list only ever shows what the engine says *right
+    now*, against the current spot price and the currently-persisted
+    anchor/rung — a suggestion from a few days ago (e.g. Saturday) can be
+    gone by the time the user actually gets the fill (e.g. Monday), because
+    the price and/or anchor have since moved and the decision recomputes to
+    HOLD. This lets the record UI ask "what would the engine have said at
+    the price I actually traded at" so a late fill can still be recorded
+    with correct rungs/step, instead of only ever being able to record
+    whatever happens to be showing as actionable today."""
+    if body.price <= 0:
+        raise HTTPException(400, "price 必須大於 0")
+    markets = _market_map()
+    try:
+        decisions = evaluate_all(_make_bars_fn(markets), lambda _c: body.price, codes=[body.code])
+    except AdapterError as exc:
+        raise HTTPException(400, str(exc))
+    if not decisions:
+        raise HTTPException(404, f"{body.code} 不是啟用中的網格標的")
+    return _decision_to_dict(decisions[0])
 
 
 @router.get("/grid/asset-classes")

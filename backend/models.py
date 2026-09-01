@@ -239,6 +239,11 @@ class GridRecordIn(BaseModel):
     accountId: str | None = None
 
 
+class GridPreviewIn(BaseModel):
+    code: str
+    price: float
+
+
 class GridPositionPatch(BaseModel):
     enabled: bool | None = None
     anchor: float | None = None
