@@ -57,7 +57,15 @@ def fix_unsettled_trades():
 
 
 def process_due_settlements():
-    """Auto-deduct T+2 settlement payments from linked accounts on settlement day."""
+    """Auto-deduct T+2 settlement payments from linked accounts on settlement day.
+
+    Also catches up any trade whose settlement date has already passed — e.g. one
+    that only just got an account_id attached (LINE-recorded trades used to be
+    saved with account_id=NULL, which this loop's account_id IS NOT NULL filter
+    silently skipped forever; backfilling the account now lets it settle here on
+    the next run instead of staying stuck). Using ``<= today`` instead of
+    ``== today`` is safe because settled trades are excluded by the WHERE clause,
+    so nothing gets deducted twice."""
     import uuid
     from datetime import date as _date
     today = _date.today().isoformat()
@@ -66,7 +74,7 @@ def process_due_settlements():
             "SELECT * FROM trades WHERE type='buy' AND settled=FALSE AND account_id IS NOT NULL"
         ).fetchall()
         for r in rows:
-            if _settlement_date_str(r["date"]) != today:
+            if _settlement_date_str(r["date"]) > today:
                 continue
             amount = r["shares"] * r["price"] + r["fee"]
             txn_id = str(uuid.uuid4())

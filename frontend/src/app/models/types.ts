@@ -201,6 +201,7 @@ export interface Broker {
   discount: number;
   minFee: number;
   rounding: 'floor' | 'round' | 'ceil';
+  accountId: string | null;
 }
 
 export type EditTarget =

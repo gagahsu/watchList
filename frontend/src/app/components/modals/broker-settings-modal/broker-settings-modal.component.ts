@@ -55,6 +55,17 @@ const ROUNDINGS = [
               </select>
             </div>
           </div>
+          <div class="broker-form-row">
+            <div class="broker-form-group" style="flex:1">
+              <div class="modal-label">交割帳戶</div>
+              <select class="sig-form-select" style="width:100%" (change)="editF.accountId=asStrOrNull($event)">
+                <option value="" [selected]="!editF.accountId">（未設定）</option>
+                @for (a of state.accounts(); track a.id) {
+                  <option [value]="a.id" [selected]="editF.accountId===a.id">{{ a.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="btn-primary" style="flex:1" (click)="saveEdit(b.id)">儲存</button>
             <button class="btn-cancel" (click)="editId.set(null)">取消</button>
@@ -67,6 +78,7 @@ const ROUNDINGS = [
             <span>{{ disp(b.discount) }} 折</span>
             <span>最低 {{ b.minFee }} 元</span>
             <span>{{ roundingLabel(b.rounding) }}</span>
+            <span>{{ accountLabel(b.accountId) }}</span>
           </div>
           <div class="broker-row-actions">
             <button class="sig-action-btn" (click)="startEdit(b)">編輯</button>
@@ -108,6 +120,17 @@ const ROUNDINGS = [
             </select>
           </div>
         </div>
+        <div class="broker-form-row">
+          <div class="broker-form-group" style="flex:1">
+            <div class="modal-label">交割帳戶</div>
+            <select class="sig-form-select" style="width:100%" (change)="newF.accountId=asStrOrNull($event)">
+              <option value="" [selected]="!newF.accountId">（未設定）</option>
+              @for (a of state.accounts(); track a.id) {
+                <option [value]="a.id" [selected]="newF.accountId===a.id">{{ a.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn-primary" style="flex:1" (click)="saveNew()">新增</button>
           <button class="btn-cancel" (click)="showForm.set(false)">取消</button>
@@ -133,7 +156,7 @@ export class BrokerSettingsModalComponent {
 
   constructor(public state: AppStateService, private api: ApiService) {}
 
-  blank() { return { name: '', discount: 0.6, minFee: 20, rounding: 'floor' }; }
+  blank() { return { name: '', discount: 0.6, minFee: 20, rounding: 'floor', accountId: null as string | null }; }
   disp(d: number) { return +(d * 10).toFixed(1); }
   toDiscount(e: Event) {
     const v = parseFloat((e.target as HTMLInputElement).value);
@@ -141,7 +164,12 @@ export class BrokerSettingsModalComponent {
   }
   toInt(e: Event) { return parseInt((e.target as HTMLInputElement).value) || 0; }
   asStr(e: Event) { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
+  asStrOrNull(e: Event) { return (e.target as HTMLSelectElement).value || null; }
   roundingLabel(r: string) { return ROUNDINGS.find(x => x.v === r)?.l ?? r; }
+  accountLabel(accountId: string | null) {
+    if (!accountId) return '未設定交割帳戶';
+    return this.state.accounts().find(a => a.id === accountId)?.name ?? '未設定交割帳戶';
+  }
 
   startNew() { this.newF = this.blank(); this.showForm.set(true); this.editId.set(null); }
 
@@ -149,14 +177,15 @@ export class BrokerSettingsModalComponent {
     if (!this.newF.name.trim()) return;
     const b: Broker = { id: uid(), name: this.newF.name.trim(),
       discount: this.newF.discount, minFee: this.newF.minFee,
-      rounding: this.newF.rounding as Broker['rounding'] };
+      rounding: this.newF.rounding as Broker['rounding'], accountId: this.newF.accountId };
     const saved = await this.api.createBroker(b);
     this.state.brokers.update(bs => [...bs, saved]);
     this.showForm.set(false);
   }
 
   startEdit(b: Broker) {
-    this.editF = { name: b.name, discount: b.discount, minFee: b.minFee, rounding: b.rounding };
+    this.editF = { name: b.name, discount: b.discount, minFee: b.minFee,
+      rounding: b.rounding, accountId: b.accountId };
     this.editId.set(b.id);
     this.showForm.set(false);
   }
@@ -164,7 +193,7 @@ export class BrokerSettingsModalComponent {
   async saveEdit(id: string) {
     const b: Broker = { id, name: this.editF.name.trim(),
       discount: this.editF.discount, minFee: this.editF.minFee,
-      rounding: this.editF.rounding as Broker['rounding'] };
+      rounding: this.editF.rounding as Broker['rounding'], accountId: this.editF.accountId };
     const saved = await this.api.updateBroker(id, b);
     this.state.brokers.update(bs => bs.map(x => x.id === id ? saved : x));
     this.editId.set(null);

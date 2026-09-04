@@ -7,7 +7,7 @@ router = APIRouter()
 
 def _row(r) -> dict:
     return {"id": r["id"], "name": r["name"], "discount": r["discount"],
-            "minFee": r["min_fee"], "rounding": r["rounding"]}
+            "minFee": r["min_fee"], "rounding": r["rounding"], "accountId": r["account_id"]}
 
 
 @router.get("/brokers", response_model=list[BrokerOut])
@@ -21,9 +21,9 @@ def get_brokers():
 def create_broker(b: BrokerIn):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO brokers(id, name, discount, min_fee, rounding)"
-            " VALUES (%s,%s,%s,%s,%s)",
-            (b.id, b.name, b.discount, b.minFee, b.rounding),
+            "INSERT INTO brokers(id, name, discount, min_fee, rounding, account_id)"
+            " VALUES (%s,%s,%s,%s,%s,%s)",
+            (b.id, b.name, b.discount, b.minFee, b.rounding, b.accountId),
         )
         row = conn.execute("SELECT * FROM brokers WHERE id=%s", (b.id,)).fetchone()
     return _row(row)
@@ -35,8 +35,8 @@ def update_broker(broker_id: str, b: BrokerIn):
         if not conn.execute("SELECT id FROM brokers WHERE id=%s", (broker_id,)).fetchone():
             raise HTTPException(404, "Broker not found")
         conn.execute(
-            "UPDATE brokers SET name=%s, discount=%s, min_fee=%s, rounding=%s WHERE id=%s",
-            (b.name, b.discount, b.minFee, b.rounding, broker_id),
+            "UPDATE brokers SET name=%s, discount=%s, min_fee=%s, rounding=%s, account_id=%s WHERE id=%s",
+            (b.name, b.discount, b.minFee, b.rounding, b.accountId, broker_id),
         )
         row = conn.execute("SELECT * FROM brokers WHERE id=%s", (broker_id,)).fetchone()
     return _row(row)

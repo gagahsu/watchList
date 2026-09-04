@@ -114,6 +114,9 @@ DDL = [
                  CHECK(rounding IN ('floor','round','ceil'))
     )
     """,
+    # 券商 → 交割帳戶：LINE bot 記帳時用這欄自動決定 trades.account_id，
+    # 不再需要使用者每次手動指定帳戶名稱（見 routers/linebot.py::_resolve_account_id）。
+    "ALTER TABLE brokers ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
     """
     CREATE TABLE IF NOT EXISTS stocks (
         code       TEXT PRIMARY KEY,

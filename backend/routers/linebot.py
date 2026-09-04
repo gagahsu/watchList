@@ -428,6 +428,18 @@ def _fuzzy_match(rows, name: str, key: str = "name") -> dict | None:
     return None
 
 
+def _resolve_account_id(broker: dict | None) -> str | None:
+    """Settlement account for a LINE-recorded trade: the broker's own linked
+    account (brokers.account_id) first, falling back to the grid feature's
+    default cash account (grid_cash_account_id) when the broker has none set
+    or no broker was given at all. Returning None here is what leaves a trade
+    permanently un-deducted (process_due_settlements only touches trades with
+    an account_id) — callers should warn the user when this happens."""
+    if broker and broker.get("account_id"):
+        return broker["account_id"]
+    return get_setting("grid_cash_account_id")
+
+
 def _calc_fee(shares: float, price: float, trade_type: str, broker: dict, code: str = "") -> float:
     fns = {"floor": math.floor, "round": round, "ceil": math.ceil}
     round_fn = fns.get(broker["rounding"], math.floor)
@@ -538,14 +550,19 @@ def _process_command(text: str) -> str | None:
         fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
         trade_date = trade_date or date.today().isoformat()
         trade_id = str(uuid.uuid4())
+        account_id = _resolve_account_id(broker)
 
         with get_db() as conn:
             conn.execute(
                 "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (trade_id, code, trade_date, trade_type, shares, price, fee, "", None,
+                (trade_id, code, trade_date, trade_type, shares, price, fee, "", account_id,
                  _is_settled(trade_type, trade_date)),
             )
+            account_name = None
+            if account_id:
+                acct_row = conn.execute("SELECT name FROM accounts WHERE id=%s", (account_id,)).fetchone()
+                account_name = acct_row["name"] if acct_row else None
 
         type_str = "買入" if trade_type == "buy" else "賣出"
         amount = shares * price
@@ -562,6 +579,10 @@ def _process_command(text: str) -> str | None:
             reply += f"\n券商：{broker_name}"
         if trade_type == "buy":
             reply += f"\n交割日：{_settlement_date(trade_date).isoformat()}"
+            if account_name:
+                reply += f"\n交割帳戶：{account_name}"
+            else:
+                reply += "\n⚠️ 找不到交割帳戶，這筆買單到期不會自動扣款，請先在券商設定或「網格現金帳戶」設定交割帳戶後手動補上。"
         return reply
 
     # ── Deposit ──────────────────────────────────────────────────────────────
@@ -731,6 +752,7 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
     today = date.today().isoformat()
     inserted: list[dict] = []
     skipped = 0
+    account_id = _resolve_account_id(broker)
 
     with get_db() as conn:
         for line in rows:
@@ -761,7 +783,7 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
                 "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (trade_id, code, trade_date, trade_type, shares, price, fee,
-                 f"國泰成交回報 {order_no}".strip(), None, _is_settled(trade_type, trade_date)),
+                 f"國泰成交回報 {order_no}".strip(), account_id, _is_settled(trade_type, trade_date)),
             )
             inserted.append({"code": code, "name": name, "type": trade_type, "shares": shares,
                               "price": price, "fee": fee, "date": trade_date})
@@ -798,6 +820,8 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
     reply = f"✅ 已匯入國泰成交回報 {len(inserted)} 筆\n\n" + "\n\n".join(sections)
     if broker is None:
         reply += "\n\n⚠️ 找不到「國泰」券商設定，手續費以 0 計算，請先在系統中建立券商後補記。"
+    elif account_id is None:
+        reply += "\n\n⚠️ 找不到交割帳戶，買單到期不會自動扣款，請先在券商設定或「網格現金帳戶」設定交割帳戶後手動補上。"
     if skipped:
         reply += f"\n\n（{skipped} 行無法辨識已略過）"
     return reply

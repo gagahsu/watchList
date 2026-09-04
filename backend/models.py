@@ -195,6 +195,7 @@ class BrokerIn(BaseModel):
     discount: float = 0.6
     minFee: int = 20
     rounding: str = "floor"
+    accountId: str | None = None
 
 
 class BrokerOut(BaseModel):
@@ -203,6 +204,7 @@ class BrokerOut(BaseModel):
     discount: float
     minFee: int
     rounding: str
+    accountId: str | None = None
 
 
 # ── Sources ──────────────────────────────────────────
