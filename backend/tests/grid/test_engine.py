@@ -90,6 +90,31 @@ def test_sell_signal_when_price_rises_one_step(holding, position, settings, stat
     assert decision.rungs == 1
     assert decision.est_cash_flow > 0
     assert decision.anchor_after > decision.anchor_before
+    assert decision.step == pytest.approx(1.0)  # sell_step_multiple 預設 1.0，跟買進步長對稱
+
+
+def test_sell_step_multiple_widens_sell_side_only(holding, position, settings, state):
+    wide_sell = replace(settings.params_for("equity"), sell_step_multiple=2.0)
+    wide_settings = Settings(cash=settings.cash, defaults={"equity": wide_sell})
+
+    # 賣出步長變成 1.0 * 2 = 2.0：距錨點 1.1 元還不到一格（對稱版本這裡會是 SELL）
+    hold_decision = _evaluate(holding, position, wide_settings, state, price=101.1)
+    assert hold_decision.action == HOLD
+
+    # 距錨點 2.5 元 ≥ 2.0 步長 → 觸發 1 格賣出
+    sell_decision = _evaluate(holding, position, wide_settings, state, price=102.5)
+    assert sell_decision.action == SELL
+    assert sell_decision.rungs == 1
+    assert sell_decision.step == pytest.approx(2.0)
+    assert sell_decision.anchor_after == pytest.approx(sell_decision.anchor_before + 2.0)
+    assert any("不對稱步長" in n for n in sell_decision.notes)
+
+    # 買進步長不受影響，維持基準 1.0 —— 跌 2.5 元照樣是 2 格（跟對稱版一致）
+    buy_decision = _evaluate(holding, position, wide_settings, state, price=97.5)
+    assert buy_decision.action == BUY
+    assert buy_decision.rungs == 2
+    assert buy_decision.step == pytest.approx(1.0)
+    assert not any("不對稱步長" in n for n in buy_decision.notes)
 
 
 def test_multiple_rungs_when_price_moves_far(holding, position, settings, state):

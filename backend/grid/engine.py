@@ -405,12 +405,20 @@ def evaluate(
     decision.anchor_before = position.anchor
     decision.anchor_after = position.anchor
 
-    step = base_step
-    decision.step = step
-    decision.step_pct = step / price * 100
-
     distance = price - position.anchor
     side = SELL if distance > 0 else BUY
+
+    # 不對稱步長：賣出步長永久是買進步長的 sell_step_multiple 倍，不像趨勢濾網
+    # 的 widen 只在判定為逆勢時才放大。用意一樣是「讓利潤奔跑」，但不靠落後
+    # 指標判斷 regime，單邊上漲時網格自然賣得慢一點。1.0（預設）＝關閉，跟加入
+    # 這個參數之前完全一樣。
+    step = base_step * params.sell_step_multiple if side == SELL else base_step
+    if params.sell_step_multiple != 1.0 and side == SELL:
+        decision.notes.append(
+            f"不對稱步長：賣出步長由 {base_step:.3f} 放大 {params.sell_step_multiple:g} 倍為 {step:.3f} 元"
+        )
+    decision.step = step
+    decision.step_pct = step / price * 100
 
     # ------------------------------------------------------------ 趨勢濾網
     regime = detect_regime(bars, price, params)
@@ -428,13 +436,14 @@ def evaluate(
             )
             return decision
         if params.trend_filter_mode == "widen":
-            step = base_step * params.trend_step_multiple
-            decision.step = step
-            decision.step_pct = step / price * 100
+            widened = step * params.trend_step_multiple
+            decision.step = widened
+            decision.step_pct = widened / price * 100
             decision.notes.append(
                 f"趨勢濾網 widen：{'賣出' if side == SELL else '買進'}步長由 "
-                f"{base_step:.3f} 放大 {params.trend_step_multiple:g} 倍為 {step:.3f} 元"
+                f"{step:.3f} 放大 {params.trend_step_multiple:g} 倍為 {widened:.3f} 元"
             )
+            step = widened
 
     raw_rungs = int(abs(distance) // step)
     if raw_rungs == 0:

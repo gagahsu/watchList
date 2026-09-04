@@ -226,3 +226,57 @@ def sweep_multiplier(
         except ValueError:
             continue
     return out
+
+
+#: /grid/positions review 建議清單裡的 B1（rung_pct_of_baseline）與 C1
+#: （sell_step_multiple）預設關閉；這兩組數字是「開下去大概什麼樣子」的起點，
+#: 不是建議值——實際要開多少，看 compare_variants() 在自己標的歷史上跑出來
+#: 的結果再調。
+DEFAULT_COMPARISON_VARIANTS: dict[str, dict] = {
+    "純網格": {},
+    "B1 單階佔部位比例": {"rung_pct_of_baseline": 0.02},
+    "C1 不對稱步長": {"sell_step_multiple": 1.5},
+    "B1+C1": {"rung_pct_of_baseline": 0.02, "sell_step_multiple": 1.5},
+}
+
+
+def compare_variants(
+    holding: Holding,
+    bars: Sequence[Bar],
+    settings: Settings,
+    variants: dict[str, dict] | None = None,
+    cash: float | None = None,
+) -> list[tuple[str, BacktestResult]]:
+    """在同一段歷史、同一個 holding 上比較幾組參數覆寫，預設是「純網格 / B1 /
+    C1 / B1+C1」四組（見 DEFAULT_COMPARISON_VARIANTS）。
+
+    每組是要疊加到 ``holding.overrides`` 的 GridParams 欄位覆寫（跟
+    grid_positions.grid_overrides 存的是同一種東西——単一標的的參數覆寫）；
+    「純網格」的覆寫是空字典，代表 B1/C1 都維持關閉的預設值，作為對照基準。
+    保留 ``holding`` 原本就有的覆寫（例如個股已經調過的 atr_multiplier），
+    只疊加這裡新增的欄位，不會把既有設定蓋掉。"""
+    from dataclasses import replace as dc_replace
+
+    variants = DEFAULT_COMPARISON_VARIANTS if variants is None else variants
+    out: list[tuple[str, BacktestResult]] = []
+    for label, overrides in variants.items():
+        merged = {**holding.overrides, **overrides}
+        variant = dc_replace(holding, overrides=merged)
+        out.append((label, run_backtest(variant, bars, settings, cash=cash)))
+    return out
+
+
+def compare_summary(results: Sequence[tuple[str, BacktestResult]]) -> str:
+    """把 compare_variants() 的結果並排成一張表，方便肉眼比較。"""
+    header = (
+        f"{'':<16}{'成交':>6}{'年化次':>8}{'成本':>10}"
+        f"{'已實現':>12}{'期末權益':>14}{'超額報酬':>12}"
+    )
+    lines = [header, "-" * len(header)]
+    for label, r in results:
+        lines.append(
+            f"{label:<16}{r.total_trades:>6}{r.trades_per_year:>8.1f}"
+            f"{r.total_fees + r.total_tax:>10,}{r.realized_pnl:>12,.0f}"
+            f"{r.equity_end:>14,.0f}{r.grid_edge:>+12,.0f}"
+        )
+    return "\n".join(lines)

@@ -99,6 +99,12 @@ class GridParams:
     #: 這是讓「一份」跟部位大小掛鉤：固定 fee-optimal lot 對大部位太小（滿檔
     #: 幾階只動到部位的一小部分），對小部位太大（幾階就把整個部位賣光）。
     rung_pct_of_baseline: float = 0.0
+    #: 不對稱步長：賣出步長恆定是買進步長（ATR 決定的 base_step）的這個倍數，
+    #: 不像 trend_filter_mode 的 widen 只在判定為逆勢時才放大——這個是永久生效
+    #: 的。目的一樣是「讓利潤奔跑」：單邊上漲時賣出格子拉開，賣得慢一點，籌碼
+    #: 才不會太早賣光；買進步長不受影響，接刀節奏不變。1.0（預設）表示關閉，
+    #: 跟加入這個參數之前完全一樣（買賣步長對稱）。
+    sell_step_multiple: float = 1.0
 
     def validate(self, label: str) -> None:
         if self.atr_period < 2:
@@ -150,6 +156,8 @@ class GridParams:
                 f"{label}: rung_pct_of_baseline 必須介於 0 與 1（不含 1，"
                 f"單階 100% 等於一次動用整個建檔部位）"
             )
+        if self.sell_step_multiple < 1.0:
+            raise ConfigError(f"{label}: sell_step_multiple 必須 >= 1（賣出步長不會比買進窄）")
 
     def merged(self, overrides: dict[str, Any] | None) -> "GridParams":
         if not overrides:

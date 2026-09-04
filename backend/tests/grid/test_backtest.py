@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from grid.backtest import run_backtest, sweep_multiplier
+from grid.backtest import compare_summary, compare_variants, run_backtest, sweep_multiplier
 from grid.config import Settings
 from grid.indicators import Bar
 
@@ -148,3 +148,70 @@ def test_bond_class_trades_without_tax(holding, bt_settings):
     result = run_backtest(bond, bars, bt_settings)
     assert result.total_tax == 0
     assert result.total_fees > 0
+
+
+# ------------------------------------------------------------ compare_variants
+
+
+def test_compare_variants_returns_the_default_four_labels(holding, bt_settings):
+    bars = synth_bars(400, wave=0.06)
+    results = compare_variants(holding, bars, bt_settings)
+    assert [label for label, _ in results] == ["純網格", "B1 單階佔部位比例", "C1 不對稱步長", "B1+C1"]
+
+
+def test_compare_variants_baseline_matches_plain_run_backtest(holding, bt_settings):
+    """「純網格」組的覆寫是空字典，B1/C1 都維持關閉，數字應該跟直接呼叫
+    run_backtest() 一模一樣——這是 compare_variants() 本身不該改變任何行為
+    的保證。"""
+    bars = synth_bars(400, wave=0.06)
+    baseline = run_backtest(holding, bars, bt_settings)
+    results = dict(compare_variants(holding, bars, bt_settings))
+    grid_only = results["純網格"]
+    assert grid_only.total_trades == baseline.total_trades
+    assert grid_only.equity_end == pytest.approx(baseline.equity_end)
+
+
+def test_compare_variants_preserves_holdings_existing_overrides(holding, bt_settings, monkeypatch):
+    """每一組疊加的覆寫（B1/C1）不該把 holding 原本就有的覆寫（例如個股已經
+    調過的 atr_multiplier）蓋掉。用 spy 攔截實際傳進 run_backtest() 的
+    holding.overrides，直接檢查合併結果，避免依賴回測結果的成交次數等
+    容易受其他因素干擾的間接指標。"""
+    import grid.backtest as backtest_module
+
+    custom = replace(holding, overrides={"atr_multiplier": 1.2})
+    seen: list[dict] = []
+    original = backtest_module.run_backtest
+
+    def spy(h, bars, settings, cash=None):
+        seen.append(dict(h.overrides))
+        return original(h, bars, settings, cash=cash)
+
+    monkeypatch.setattr(backtest_module, "run_backtest", spy)
+    bars = synth_bars(400, wave=0.06)
+    backtest_module.compare_variants(custom, bars, bt_settings)
+
+    assert seen[0] == {"atr_multiplier": 1.2}  # 純網格：不疊加任何東西
+    assert seen[1] == {"atr_multiplier": 1.2, "rung_pct_of_baseline": 0.02}
+    assert seen[2] == {"atr_multiplier": 1.2, "sell_step_multiple": 1.5}
+    assert seen[3] == {
+        "atr_multiplier": 1.2, "rung_pct_of_baseline": 0.02, "sell_step_multiple": 1.5,
+    }
+
+
+def test_compare_variants_asymmetric_step_sells_less_in_a_bull_market(holding, bt_settings):
+    """C1 的用意是「讓利潤奔跑」：單邊上漲時賣出步長變寬，賣得比對稱版慢，
+    賣出次數應該更少、期末持股應該更多。"""
+    bars = synth_bars(400, drift=0.004, vol=0.01, seed=5)
+    results = dict(compare_variants(holding, bars, bt_settings))
+    grid_only = results["純網格"]
+    asymmetric = results["C1 不對稱步長"]
+    assert asymmetric.sells <= grid_only.sells
+    assert asymmetric.shares_end >= grid_only.shares_end
+
+
+def test_compare_summary_lists_every_variant(holding, bt_settings):
+    bars = synth_bars(400, wave=0.06)
+    results = compare_variants(holding, bars, bt_settings)
+    text = compare_summary(results)
+    for label, _ in results:
+        assert label in text
