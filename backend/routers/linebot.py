@@ -24,6 +24,8 @@ import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from database import get_db, get_setting, set_setting
+from grid.config import infer_asset_class
+from grid.fees import transaction_tax
 
 logger = logging.getLogger(__name__)
 
@@ -440,21 +442,93 @@ def _resolve_account_id(broker: dict | None) -> str | None:
     return get_setting("grid_cash_account_id")
 
 
-def _calc_fee(shares: float, price: float, trade_type: str, broker: dict, code: str = "") -> float:
+def _infer_market(code: str) -> str:
+    """Code-shape fallback when a code isn't in the trade_markets registry yet:
+    US tickers are letters, TW codes are numeric."""
+    return "us" if code and code.replace(".", "").isalpha() else "tw"
+
+
+def _trade_market(code: str) -> str:
+    """'tw' or 'us' for a single code, preferring the trade_markets registry
+    (the same table trades/grid use). Only for call sites handling one trade
+    at a time — a batch should use _bulk_markets_and_asset_classes() instead,
+    see its docstring for why."""
+    with get_db() as conn:
+        row = conn.execute("SELECT market FROM trade_markets WHERE code=%s", (code,)).fetchone()
+    return row["market"] if row else _infer_market(code)
+
+
+def _grid_asset_class(code: str, market: str) -> str:
+    """Best-effort asset class for the TW sell tax below, for a single code:
+    grid_positions' own classification if the code is grid-tracked, else the
+    same inference grid/config.py uses when a symbol is first added to the
+    grid. Only for call sites handling one trade at a time — see
+    _bulk_markets_and_asset_classes() for a batch."""
+    with get_db() as conn:
+        row = conn.execute("SELECT asset_class FROM grid_positions WHERE code=%s", (code,)).fetchone()
+        if row and row["asset_class"]:
+            return row["asset_class"]
+        name_row = conn.execute("SELECT name FROM stocks WHERE code=%s", (code,)).fetchone()
+    return infer_asset_class(code, (name_row["name"] if name_row else "") or "", market)
+
+
+def _bulk_markets_and_asset_classes(codes: list[str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Batch version of _trade_market()/_grid_asset_class(): one round-trip for
+    every code in `codes` instead of a fresh connection per code. A trade-table
+    import processes many rows inside a single already-open `with get_db()`
+    block (see _process_trade_table) — opening another connection per row
+    there would risk exhausting Postgres/Supabase's connection limit the same
+    way routers/grid.py's _market_map() docstring describes for the grid page.
+    Returns ({code: market}, {code: asset_class})."""
+    if not codes:
+        return {}, {}
+    with get_db() as conn:
+        market_rows = conn.execute(
+            "SELECT code, market FROM trade_markets WHERE code = ANY(%s)", (codes,)
+        ).fetchall()
+        grid_rows = conn.execute(
+            "SELECT code, asset_class FROM grid_positions WHERE code = ANY(%s)", (codes,)
+        ).fetchall()
+        name_rows = conn.execute(
+            "SELECT code, name FROM stocks WHERE code = ANY(%s)", (codes,)
+        ).fetchall()
+    markets = {r["code"]: r["market"] for r in market_rows}
+    names = {r["code"]: r["name"] for r in name_rows}
+    asset_classes = {r["code"]: r["asset_class"] for r in grid_rows if r["asset_class"]}
+
+    market_by_code = {c: markets.get(c) or _infer_market(c) for c in codes}
+    asset_class_by_code = {
+        c: asset_classes.get(c) or infer_asset_class(c, names.get(c, ""), market_by_code[c])
+        for c in codes
+    }
+    return market_by_code, asset_class_by_code
+
+
+def _calc_fee(shares: float, price: float, broker: dict, market: str = "tw") -> int:
+    """Broker commission only — see _calc_tax for the transaction tax, which
+    used to be folded into this same number and then double-subtracted by
+    fifo.py's own tax calculation (see fifo.py's docstring). Zero for US
+    trades: `broker` here is a TW discount broker's fee schedule, and US
+    fills go through a separate zero-commission broker (mirrors
+    grid/fees.py's brokerage_fee())."""
+    if market != "tw":
+        return 0
     fns = {"floor": math.floor, "round": round, "ceil": math.ceil}
     round_fn = fns.get(broker["rounding"], math.floor)
-    brokerage = max(broker["min_fee"], round_fn(shares * price * 0.001425 * broker["discount"]))
-    if trade_type == "sell":
-        # US stocks (alphabetic codes) have no Taiwan transaction tax
-        if code and code.replace(".", "").isalpha():
-            tax = 0
-        elif code.startswith("00"):
-            tax = math.floor(shares * price * 0.001)   # ETF: 0.1%
-        else:
-            tax = math.floor(shares * price * 0.003)   # 一般股票: 0.3%
-    else:
-        tax = 0
-    return brokerage + tax
+    return max(broker["min_fee"], round_fn(shares * price * 0.001425 * broker["discount"]))
+
+
+def _calc_tax(shares: float, price: float, trade_type: str, asset_class: str, market: str = "tw") -> int:
+    """Sell-side TW transaction tax via grid/fees.py's rate table (0% bond
+    ETF, 0.1% other ETF, 0.3% individual stock — the same table fifo.py
+    uses), replacing the ETF-vs-stock guess this used to hardcode, which
+    taxed bond ETFs at 0.1% instead of their actual 0%. Buys and non-TW
+    trades are always 0. Callers resolve `asset_class` themselves (via
+    _grid_asset_class() for one trade, _bulk_markets_and_asset_classes() for
+    a batch) so this stays DB-free and easy to test."""
+    if trade_type != "sell" or market != "tw":
+        return 0
+    return transaction_tax(shares * price, asset_class)
 
 
 def _process_command(text: str) -> str | None:
@@ -547,7 +621,10 @@ def _process_command(text: str) -> str | None:
                 return f"找不到券商「{broker_token}」，請先在系統中建立，或傳「券商」查看列表。"
             broker_name = broker["name"]
 
-        fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
+        market = _trade_market(code)
+        fee = _calc_fee(shares, price, broker, market) if broker else 0
+        asset_class = _grid_asset_class(code, market) if trade_type == "sell" and market == "tw" else ""
+        tax = _calc_tax(shares, price, trade_type, asset_class, market)
         trade_date = trade_date or date.today().isoformat()
         trade_id = str(uuid.uuid4())
         account_id = _resolve_account_id(broker)
@@ -575,6 +652,8 @@ def _process_command(text: str) -> str | None:
             f"成交金額：NT${amount:,.0f}\n"
             f"手續費：NT${fee:,.0f}"
         )
+        if tax:
+            reply += f"\n證交稅：NT${tax:,.0f}"
         if broker_name:
             reply += f"\n券商：{broker_name}"
         if trade_type == "buy":
@@ -750,43 +829,56 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
     # An explicit date above the table wins over whatever the rows carry.
     override_date = _preamble_date(lines[:header_idx])
     today = date.today().isoformat()
-    inserted: list[dict] = []
-    skipped = 0
     account_id = _resolve_account_id(broker)
 
+    # First pass: parse every row (no DB) so we know every code up front and
+    # can fetch market/asset-class for all of them in one round trip below,
+    # instead of opening a fresh connection per row inside the insert loop.
+    parsed: list[dict] = []
+    skipped = 0
+    for line in rows:
+        cols = _split_table_row(line)
+        if len(cols) < 7:
+            skipped += 1
+            continue
+        time_s, order_no, code, name, cls, shares_s, price_s = cols[:7]
+        trade_date = override_date or _row_date(time_s) or today
+        if "買" in cls:
+            trade_type = "buy"
+        elif "賣" in cls:
+            trade_type = "sell"
+        else:
+            skipped += 1
+            continue
+
+        code = code.strip().upper()
+        shares = _parse_number(shares_s)
+        price = _parse_number(price_s)
+        if not code or (shares is None or price is None or shares <= 0 or price <= 0):
+            skipped += 1
+            continue
+
+        parsed.append({"order_no": order_no, "code": code, "name": name, "type": trade_type,
+                        "shares": shares, "price": price, "date": trade_date})
+
+    markets, asset_classes = _bulk_markets_and_asset_classes(sorted({p["code"] for p in parsed}))
+
+    inserted: list[dict] = []
     with get_db() as conn:
-        for line in rows:
-            cols = _split_table_row(line)
-            if len(cols) < 7:
-                skipped += 1
-                continue
-            time_s, order_no, code, name, cls, shares_s, price_s = cols[:7]
-            trade_date = override_date or _row_date(time_s) or today
-            if "買" in cls:
-                trade_type = "buy"
-            elif "賣" in cls:
-                trade_type = "sell"
-            else:
-                skipped += 1
-                continue
-
-            code = code.strip().upper()
-            shares = _parse_number(shares_s)
-            price = _parse_number(price_s)
-            if not code or (shares is None or price is None or shares <= 0 or price <= 0):
-                skipped += 1
-                continue
-
-            fee = _calc_fee(shares, price, trade_type, broker, code) if broker else 0.0
+        for p in parsed:
+            code, shares, price, trade_type, trade_date = p["code"], p["shares"], p["price"], p["type"], p["date"]
+            market = markets[code]
+            fee = _calc_fee(shares, price, broker, market) if broker else 0
+            tax = _calc_tax(shares, price, trade_type, asset_classes[code], market)
             trade_id = str(uuid.uuid4())
             conn.execute(
                 "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (trade_id, code, trade_date, trade_type, shares, price, fee,
-                 f"國泰成交回報 {order_no}".strip(), account_id, _is_settled(trade_type, trade_date)),
+                 f"國泰成交回報 {p['order_no']}".strip(), account_id, _is_settled(trade_type, trade_date)),
             )
-            inserted.append({"code": code, "name": name, "type": trade_type, "shares": shares,
-                              "price": price, "fee": fee, "date": trade_date})
+            inserted.append({"code": code, "name": p["name"], "type": trade_type, "shares": shares,
+                              "price": price, "fee": fee, "tax": tax, "date": trade_date})
 
     if not inserted:
         return "⚠️ 偵測到成交回報表格，但沒有可辨識的成交明細。"
@@ -794,10 +886,11 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
     by_key: dict[tuple, dict] = {}
     for t in inserted:
         key = (t["date"], t["code"], t["type"])
-        agg = by_key.setdefault(key, {"name": t["name"], "shares": 0.0, "amount": 0.0, "fee": 0.0})
+        agg = by_key.setdefault(key, {"name": t["name"], "shares": 0.0, "amount": 0.0, "fee": 0.0, "tax": 0.0})
         agg["shares"] += t["shares"]
         agg["amount"] += t["shares"] * t["price"]
         agg["fee"] += t["fee"]
+        agg["tax"] += t["tax"]
 
     sections: list[str] = []
     for trade_date in sorted({k[0] for k in by_key}):
@@ -807,10 +900,11 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
                 continue
             type_str = "買入" if trade_type == "buy" else "賣出"
             avg_price = agg["amount"] / agg["shares"] if agg["shares"] else 0
+            tax_part = f"　證交稅：NT${agg['tax']:,.0f}" if agg["tax"] else ""
             detail_lines.append(
                 f"  • {code} {agg['name']}　{type_str}\n"
                 f"    股數：{int(agg['shares']):,}　均價：{avg_price:,.2f}\n"
-                f"    金額：NT${agg['amount']:,.0f}　手續費：NT${agg['fee']:,.0f}"
+                f"    金額：NT${agg['amount']:,.0f}　手續費：NT${agg['fee']:,.0f}{tax_part}"
             )
         header = f"📅 成交日：{trade_date}"
         if any(k[2] == "buy" for k in by_key if k[0] == trade_date):
