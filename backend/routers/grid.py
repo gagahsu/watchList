@@ -221,6 +221,31 @@ def build_grid_alert_message() -> str | None:
     return "🕸️ ATR 網格今日建議\n\n" + "\n".join(lines) + "\n\n請至網站「ATR 網格」確認並回填成交。"
 
 
+def _cash_check(label: str, buys: list[Decision], available: float, floor: float, pending: float, currency: str) -> tuple[dict, str | None]:
+    """Compares today's buy-side advice against what's actually spendable —
+    decisions themselves are untouched; this only surfaces a warning when the
+    engine's per-ticker cash gate (grid/engine.py::_limit_buy) let every
+    position spend as if it had the *whole* account balance to itself. Across
+    several tickers on the same account those per-ticker asks can add up to
+    more than the account actually holds, with nothing today catching it."""
+    required = round(sum(-d.est_cash_flow for d in buys), 2)
+    spendable = round(available - floor, 2)
+    shortfall = round(max(0.0, required - spendable), 2)
+    info = {
+        "available": spendable,
+        "required": required,
+        "shortfall": shortfall,
+        "pendingSettlement": round(pending, 2),
+    }
+    warning = None
+    if shortfall > 0:
+        warning = (
+            f"今日{label}買進建議合計 {currency}${required:,.0f}，"
+            f"超過可用現金 {currency}${spendable:,.0f}（缺口 {currency}${shortfall:,.0f}）"
+        )
+    return info, warning
+
+
 @router.get("/grid/advice")
 def get_grid_advice():
     """Today's decision for every enabled grid position. Read-only except
@@ -230,10 +255,17 @@ def get_grid_advice():
     try:
         markets = _market_map()
         decisions = evaluate_all(_make_bars_fn(markets), _make_price_fn(markets), today=today)
+        with get_db() as conn:
+            settings = build_settings(conn)
     except AdapterError as exc:
         raise HTTPException(400, str(exc))
 
     actionable = [d for d in decisions if d.shares > 0]
+    buys_tw = [d for d in actionable if d.action == BUY and d.market == "tw"]
+    buys_us = [d for d in actionable if d.action == BUY and d.market == "us"]
+    cash_tw, warn_tw = _cash_check("台股", buys_tw, settings.cash, settings.cash_floor, settings.cash_pending, "NT")
+    cash_us, warn_us = _cash_check("美股", buys_us, settings.us_cash, settings.us_cash_floor, settings.us_cash_pending, "US")
+
     return {
         "asOf": today,
         "decisions": [_decision_to_dict(d) for d in decisions],
@@ -242,6 +274,8 @@ def get_grid_advice():
             "tickers": len(actionable),
             "netCashFlow": round(sum(d.est_cash_flow for d in actionable), 2),
             "cost": sum(d.est_fee + d.est_tax for d in actionable),
+            "cash": {"tw": cash_tw, "us": cash_us},
+            "warnings": [w for w in (warn_tw, warn_us) if w],
         },
     }
 

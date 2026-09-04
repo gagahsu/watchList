@@ -58,6 +58,13 @@ interface GuardRow {
 } @else if (tab() === 'advice') {
 
   @if (advice) {
+    @if (advice.summary.warnings.length > 0) {
+      <div class="import-error">
+        @for (w of advice.summary.warnings; track w) {
+          <div>⚠️ {{ w }}</div>
+        }
+      </div>
+    }
     <div class="trade-summary trade-summary-3" style="margin-bottom:16px">
       <div class="trade-summary-card">
         <div class="tsc-label">今日訊號</div>

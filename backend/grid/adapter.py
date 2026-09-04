@@ -92,26 +92,43 @@ def build_settings(conn) -> Settings:
     if missing:
         raise AdapterError(f"grid_params 缺少資產類別：{sorted(missing)}")
 
-    def _account_balance(setting_key: str) -> float:
+    def _account_balance(setting_key: str) -> tuple[float, float]:
+        """Returns (available, pending). `pending` is the T+2 buys already
+        recorded against this account but not yet settled — trades.py's
+        process_due_settlements() only deducts them from accounts.balance on
+        settlement day, so until then the balance column doesn't reflect
+        them and the grid would think it has more cash than it actually
+        does on a losing streak of consecutive buy days. `available` is the
+        balance with that already subtracted; `pending` is surfaced
+        separately (Settings.cash_pending/us_cash_pending) purely so
+        /grid/advice can show it, not because anything here needs it."""
         account_id = _grid_setting(conn, setting_key, "")
         if not account_id:
-            return 0.0
+            return 0.0, 0.0
         row = conn.execute(
             "SELECT balance FROM accounts WHERE id=%s", (account_id,)
         ).fetchone()
         if row is None:
             raise AdapterError(f"grid_{setting_key}={account_id} 找不到對應帳戶")
-        return float(row["balance"])
+        pending_row = conn.execute(
+            "SELECT COALESCE(SUM(shares * price + fee), 0) AS pending FROM trades"
+            " WHERE account_id=%s AND type='buy' AND settled=FALSE",
+            (account_id,),
+        ).fetchone()
+        pending = float(pending_row["pending"])
+        return float(row["balance"]) - pending, pending
 
-    cash = _account_balance("cash_account_id")
-    us_cash = _account_balance("us_cash_account_id")
+    cash, cash_pending = _account_balance("cash_account_id")
+    us_cash, us_cash_pending = _account_balance("us_cash_account_id")
 
     return Settings(
         fee_discount=Decimal(_grid_setting(conn, "fee_discount", "0.28")),
         fee_minimum=int(_grid_setting(conn, "fee_minimum", "1")),
         cash=cash,
+        cash_pending=cash_pending,
         cash_floor=float(_grid_setting(conn, "cash_floor", "0")),
         us_cash=us_cash,
+        us_cash_pending=us_cash_pending,
         us_cash_floor=float(_grid_setting(conn, "us_cash_floor", "0")),
         decision_time=_grid_setting(conn, "decision_time", "13:00"),
         timezone=_grid_setting(conn, "timezone", "Asia/Taipei"),

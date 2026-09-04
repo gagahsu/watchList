@@ -43,10 +43,21 @@ export interface GridDecision {
   notes: string[];
 }
 
+export interface GridCashCheck {
+  available: number;
+  required: number;
+  shortfall: number;
+  pendingSettlement: number;
+}
+
 export interface GridAdvice {
   asOf: string;
   decisions: GridDecision[];
-  summary: { orders: number; tickers: number; netCashFlow: number; cost: number };
+  summary: {
+    orders: number; tickers: number; netCashFlow: number; cost: number;
+    cash: { tw: GridCashCheck; us: GridCashCheck };
+    warnings: string[];
+  };
 }
 
 /** 一組資產類別的網格參數（後端 grid/config.py 的 GridParams）。 */
