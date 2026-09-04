@@ -324,6 +324,9 @@ DDL = [
     # (equity/bond/leveraged/stock). Sharing the table caused the two features
     # to silently overwrite each other's values for the same code.
     "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS asset_class TEXT",
+    # trailing grid（區間上移）的連續突破計數，對應 grid/state.py 的 Position
+    "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS breakout_days INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS last_breakout_date TEXT",
     # 四類資產（equity/bond/leveraged/stock）的網格參數，對應 grid/config.py 的 GridParams
     """
     CREATE TABLE IF NOT EXISTS grid_params (

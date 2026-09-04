@@ -15,6 +15,7 @@ from typing import Any
 
 VALID_CLASSES = {"equity", "bond", "leveraged", "stock"}
 VALID_DRIFT_MODES = {"off", "up_only", "both"}
+VALID_TREND_FILTER_MODES = {"off", "pause", "widen"}
 
 
 class ConfigError(Exception):
@@ -70,6 +71,29 @@ class GridParams:
     #: 是否允許虧損賣出（網格獲利了結預設不允許）
     allow_loss_sell: bool = False
 
+    # ------------------------------------------------------- 單邊行情防護
+    # 以下四組參數預設全部關閉，行為與加入它們之前完全一致 —— 純網格在盤整
+    # 區間是最好的，這些只在「單邊走勢把網格打穿」時才該打開。
+    #: 趨勢濾網模式：off（不啟用）/ pause（順勢方向暫停逆勢單）/
+    #: widen（逆勢方向的步長乘上 trend_step_multiple）
+    trend_filter_mode: str = "off"
+    #: 趨勢判斷用的收盤價均線長度
+    trend_ma_period: int = 20
+    #: RSI 期數與超買門檻；現價 > MA 且 RSI > 門檻 ⇒ 強勢多頭（賣出受抑制）
+    rsi_period: int = 14
+    rsi_overbought: float = 70.0
+    #: MACD 期數；現價 < MA 且 DIF < 0 ⇒ 強勢空頭（買進受抑制）
+    macd_fast: int = 12
+    macd_slow: int = 26
+    macd_signal: int = 9
+    #: widen 模式下，逆勢方向的步長倍數
+    trend_step_multiple: float = 2.0
+    #: 底倉比例。建檔股數（baseline_shares）的這個比例永遠不參與網格賣出，
+    #: 單邊大漲賣飛時仍留有部位吃到趨勢。0 表示不保留底倉。
+    base_position_pct: float = 0.0
+    #: 連續幾天站上網格上緣就把整個區間上移（trailing grid）。0 表示關閉。
+    range_reset_days: int = 0
+
     def validate(self, label: str) -> None:
         if self.atr_period < 2:
             raise ConfigError(f"{label}: atr_period 必須 >= 2")
@@ -91,6 +115,30 @@ class GridParams:
             raise ConfigError(f"{label}: drift_beta 必須介於 0 與 1")
         if self.trend_ema_period < 2:
             raise ConfigError(f"{label}: trend_ema_period 必須 >= 2")
+        if self.trend_filter_mode not in VALID_TREND_FILTER_MODES:
+            raise ConfigError(
+                f"{label}: trend_filter_mode 必須是 "
+                f"{sorted(VALID_TREND_FILTER_MODES)} 之一"
+            )
+        if self.trend_ma_period < 2:
+            raise ConfigError(f"{label}: trend_ma_period 必須 >= 2")
+        if self.rsi_period < 2:
+            raise ConfigError(f"{label}: rsi_period 必須 >= 2")
+        if not 0.0 < self.rsi_overbought <= 100.0:
+            raise ConfigError(f"{label}: rsi_overbought 必須介於 0 與 100")
+        if self.macd_fast < 1 or self.macd_signal < 1:
+            raise ConfigError(f"{label}: macd_fast / macd_signal 必須 >= 1")
+        if self.macd_slow <= self.macd_fast:
+            raise ConfigError(f"{label}: macd_slow 必須大於 macd_fast")
+        if self.trend_step_multiple < 1.0:
+            raise ConfigError(f"{label}: trend_step_multiple 必須 >= 1")
+        if not 0.0 <= self.base_position_pct < 1.0:
+            raise ConfigError(
+                f"{label}: base_position_pct 必須介於 0 與 1（不含 1，"
+                f"底倉 100% 等於整檔停止網格）"
+            )
+        if self.range_reset_days < 0:
+            raise ConfigError(f"{label}: range_reset_days 不可為負")
 
     def merged(self, overrides: dict[str, Any] | None) -> "GridParams":
         if not overrides:

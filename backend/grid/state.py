@@ -63,6 +63,10 @@ class Position:
     applied_ex_dividends: list[str] = field(default_factory=list)
     #: 最後一次套用錨點漂移的日期，確保一天只漂移一次
     last_drift_date: str | None = None
+    #: 連續站上網格上緣的天數，供 trailing grid 的區間上移判斷
+    breakout_days: int = 0
+    #: 最後一次累計 breakout_days 的日期，確保一天只累計一次
+    last_breakout_date: str | None = None
 
     def total_lot_shares(self) -> int:
         return sum(lot.shares for lot in self.lots)

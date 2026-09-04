@@ -185,6 +185,7 @@ def _decision_to_dict(d: Decision) -> dict:
         "estCashFlow": round(d.est_cash_flow, 2),
         "estRealizedPnl": round(d.est_realized_pnl, 2) if d.est_realized_pnl is not None else None,
         "signalRungs": d.signal_rungs,
+        "regime": d.regime, "baseShares": d.base_shares,
         "reasons": d.reasons, "blocks": d.blocks, "notes": d.notes,
     }
 

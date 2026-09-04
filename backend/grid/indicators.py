@@ -108,3 +108,78 @@ def ema_series(values: Sequence[float], period: int) -> list[float | None]:
         current = values[i] * alpha + current * (1 - alpha)
         out[i] = current
     return out
+
+
+def sma(values: Sequence[float], period: int) -> float | None:
+    """簡單移動平均。資料不足 ``period`` 筆時回傳 ``None``。"""
+    if period <= 0:
+        raise ValueError("period must be positive")
+    if len(values) < period:
+        return None
+    return sum(values[-period:]) / period
+
+
+def wilder_rsi(values: Sequence[float], period: int = 14) -> float | None:
+    """Wilder 平滑 RSI。
+
+    首值取前 ``period`` 筆漲跌的簡單平均，其後同 ATR 的遞迴平滑。
+    資料不足 ``period + 1`` 筆時回傳 ``None``。
+
+    全平盤（漲跌都是 0）沒有定義良好的 RSI，回傳中性的 50 而不是 100 ──
+    這個值會被拿去跟超買門檻比較，回 100 會讓一檔完全沒動的標的被誤判為
+    強勢多頭。
+    """
+    if period <= 0:
+        raise ValueError("period must be positive")
+    if len(values) < period + 1:
+        return None
+
+    gains: list[float] = []
+    losses: list[float] = []
+    for prev, cur in zip(values, values[1:]):
+        delta = cur - prev
+        gains.append(max(delta, 0.0))
+        losses.append(max(-delta, 0.0))
+
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+    for gain, loss in zip(gains[period:], losses[period:]):
+        avg_gain = (avg_gain * (period - 1) + gain) / period
+        avg_loss = (avg_loss * (period - 1) + loss) / period
+
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+    rs = avg_gain / avg_loss
+    return 100.0 - 100.0 / (1.0 + rs)
+
+
+def macd(
+    values: Sequence[float],
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> tuple[float, float, float] | None:
+    """MACD，回傳 ``(DIF, DEM, 柱線)``；資料不足時回傳 ``None``。
+
+    * DIF ＝ EMA(fast) − EMA(slow)
+    * DEM ＝ DIF 的 EMA(signal)
+    * 柱線 ＝ DIF − DEM
+    """
+    if fast <= 0 or slow <= 0 or signal <= 0:
+        raise ValueError("periods must be positive")
+    if fast >= slow:
+        raise ValueError("fast period must be shorter than slow period")
+
+    fast_series = ema_series(values, fast)
+    slow_series = ema_series(values, slow)
+    dif = [
+        f - s
+        for f, s in zip(fast_series, slow_series)
+        if f is not None and s is not None
+    ]
+    if len(dif) < signal:
+        return None
+    dem = ema(dif, signal)
+    if dem is None:
+        return None
+    return dif[-1], dem, dif[-1] - dem

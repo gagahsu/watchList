@@ -34,6 +34,10 @@ export interface GridDecision {
   estCashFlow: number;
   estRealizedPnl: number | null;
   signalRungs: number;
+  /** 趨勢濾網判定的行情狀態：bull（強勢多頭，抑制賣出）/ bear（強勢空頭，抑制買進）/ neutral */
+  regime: 'bull' | 'bear' | 'neutral';
+  /** 底倉股數，永遠不參與網格賣出 */
+  baseShares: number;
   reasons: string[];
   blocks: string[];
   notes: string[];
@@ -43,6 +47,33 @@ export interface GridAdvice {
   asOf: string;
   decisions: GridDecision[];
   summary: { orders: number; tickers: number; netCashFlow: number; cost: number };
+}
+
+/** 一組資產類別的網格參數（後端 grid/config.py 的 GridParams）。 */
+export interface GridParams {
+  atr_period: number;
+  atr_multiplier: number;
+  min_step_pct: number;
+  max_step_pct: number;
+  max_buy_rungs: number;
+  max_sell_rungs: number;
+  max_rungs_per_day: number;
+  gap_atr_limit: number;
+  drift_mode: string;
+  drift_beta: number;
+  trend_ema_period: number;
+  allow_loss_sell: boolean;
+  trend_filter_mode: 'off' | 'pause' | 'widen';
+  trend_ma_period: number;
+  rsi_period: number;
+  rsi_overbought: number;
+  macd_fast: number;
+  macd_slow: number;
+  macd_signal: number;
+  trend_step_multiple: number;
+  base_position_pct: number;
+  range_reset_days: number;
+  [key: string]: unknown;
 }
 
 export interface GridPosition {

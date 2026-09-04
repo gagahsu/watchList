@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
-import { GridAdvice, GridDecision, GridPosition } from '../../models/types';
+import { GridAdvice, GridDecision, GridParams, GridPosition } from '../../models/types';
 
 const ASSET_CLASS_OPTIONS = [
   { value: 'equity', label: 'equity（股票型 ETF）' },
@@ -17,6 +17,18 @@ const ACTION_CLASS: Record<string, string> = {
   BUY: 'sig-dir-enter', SELL: 'sig-dir-exit',
   HOLD: 'sig-dir-watch', REVIEW: 'sig-dir-watch', SKIP: 'sig-dir-watch',
 };
+
+/** 「單邊防護」分頁的表單模型。ngModel 綁的是百分比／天數這類人看得懂的單位，
+ *  送回後端前才換算成 GridParams 的欄位。 */
+interface GuardRow {
+  assetClass: string;
+  trendFilterMode: 'off' | 'pause' | 'widen';
+  trendMaPeriod: number;
+  rsiOverbought: number;
+  trendStepMultiple: number;
+  basePositionPct: number;
+  rangeResetDays: number;
+}
 
 @Component({
   selector: 'app-grid-view',
@@ -34,6 +46,7 @@ const ACTION_CLASS: Record<string, string> = {
   <button class="btn-cancel" style="padding:6px 12px;font-size:13px" (click)="openManualPicker()">手動回填成交</button>
   <button class="grid-tab-btn" [class.active]="tab() === 'advice'" (click)="tab.set('advice')">今日建議</button>
   <button class="grid-tab-btn" [class.active]="tab() === 'positions'" (click)="tab.set('positions')">持股狀態</button>
+  <button class="grid-tab-btn" [class.active]="tab() === 'guards'" (click)="tab.set('guards')">單邊防護</button>
 </div>
 
 @if (loadingAdvice() && !advice) {
@@ -129,7 +142,7 @@ const ACTION_CLASS: Record<string, string> = {
     </div>
   }
 
-} @else {
+} @else if (tab() === 'positions') {
   <!-- 持股狀態 -->
   <div class="grid-hint">網格標的來自「投資組合」的 ATR 勾選：勾選即以當下現價建立網格，取消勾選會移出清單但保留錨點與階數，重新勾選就接續原本的網格。</div>
 
@@ -210,6 +223,76 @@ const ACTION_CLASS: Record<string, string> = {
       </tbody>
     </table>
     </div>
+  }
+} @else {
+  <!-- 單邊防護：趨勢濾網 / 底倉 / 區間上移 -->
+  <div class="grid-hint">
+    純網格是「越跌越買、越漲越賣」的左側交易，在盤整區間最有效率，遇到單邊走勢卻會兩頭挨打：
+    一路漲會把籌碼賣光（賣飛）、一路跌會把子彈打光（接刀）。這三道閘門預設全部關閉，
+    打開之後只在極端行情介入，平時網格照常運作。參數依資產類別套用，個別標的可再用覆寫調整。
+  </div>
+
+  @if (paramsError()) { <div style="color:var(--red);font-size:13px;margin-bottom:12px">{{ paramsError() }}</div> }
+
+  @if (guardRows().length === 0) {
+    <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">載入參數中…</div></div>
+  } @else {
+    @for (g of guardRows(); track g.assetClass) {
+      <div class="grid-guard-card">
+        <div class="grid-guard-title">{{ assetClassLabel(g.assetClass) }}</div>
+
+        <div class="grid-guard-grid">
+          <div>
+            <div class="modal-label">趨勢濾網</div>
+            <select class="grid-class-select" style="width:100%" [(ngModel)]="g.trendFilterMode">
+              <option value="off">關閉（純網格）</option>
+              <option value="pause">暫停逆勢單（多頭不賣／空頭不買）</option>
+              <option value="widen">放大逆勢步長（讓格子變稀）</option>
+            </select>
+            <div class="grid-guard-help">
+              多頭＝現價站上 MA{{ g.trendMaPeriod }} 且 RSI 超買；空頭＝現價跌破 MA{{ g.trendMaPeriod }} 且 MACD DIF &lt; 0。
+            </div>
+          </div>
+
+          <div>
+            <div class="modal-label">MA 天數</div>
+            <input class="modal-input" type="number" min="2" step="1" [(ngModel)]="g.trendMaPeriod" />
+          </div>
+
+          <div>
+            <div class="modal-label">RSI 超買門檻</div>
+            <input class="modal-input" type="number" min="1" max="100" step="1" [(ngModel)]="g.rsiOverbought" />
+          </div>
+
+          <div>
+            <div class="modal-label">逆勢步長倍數</div>
+            <input class="modal-input" type="number" min="1" step="0.1"
+              [disabled]="g.trendFilterMode !== 'widen'" [(ngModel)]="g.trendStepMultiple" />
+            <div class="grid-guard-help">只在「放大逆勢步長」模式下生效。</div>
+          </div>
+
+          <div>
+            <div class="modal-label">底倉比例（%）</div>
+            <input class="modal-input" type="number" min="0" max="99" step="1" [(ngModel)]="g.basePositionPct" />
+            <div class="grid-guard-help">建檔股數的這個比例永遠不參與網格賣出，賣飛時仍留有部位吃趨勢。0 = 不留底倉。</div>
+          </div>
+
+          <div>
+            <div class="modal-label">區間上移天數</div>
+            <input class="modal-input" type="number" min="0" step="1" [(ngModel)]="g.rangeResetDays" />
+            <div class="grid-guard-help">連續幾天站上網格上緣就把錨點移到現價、階數歸零，在新中樞重開一組網格。0 = 關閉。</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+          <button class="btn-primary" style="padding:5px 16px;font-size:13px"
+            [disabled]="savingParams().has(g.assetClass)" (click)="saveGuards(g)">
+            {{ savingParams().has(g.assetClass) ? '儲存中…' : '儲存' }}
+          </button>
+          @if (savedParams().has(g.assetClass)) { <span style="font-size:12px;color:var(--green)">已儲存</span> }
+        </div>
+      </div>
+    }
   }
 }
 
@@ -296,6 +379,10 @@ const ACTION_CLASS: Record<string, string> = {
     .grid-record-row-del:hover { color:var(--red); }
     .grid-hint { margin-bottom:16px; font-size:12px; color:var(--text-muted); }
     .grid-class-select { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; background:none; color:inherit; }
+    .grid-guard-card { border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+    .grid-guard-title { font-weight:700; font-size:14px; margin-bottom:10px; }
+    .grid-guard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px 16px; }
+    .grid-guard-help { font-size:11px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
   `],
 })
 export class GridViewComponent implements OnInit {
@@ -303,7 +390,7 @@ export class GridViewComponent implements OnInit {
   ASSET_CLASS_OPTIONS = ASSET_CLASS_OPTIONS;
   ACTION_CLASS = ACTION_CLASS;
 
-  tab = signal<'advice' | 'positions'>('advice');
+  tab = signal<'advice' | 'positions' | 'guards'>('advice');
   advice_ = signal<GridAdvice | null>(null);
   positions_ = signal<GridPosition[]>([]);
   loadingAdvice = signal(false);
@@ -314,6 +401,12 @@ export class GridViewComponent implements OnInit {
   recordingTicker = signal<string | null>(null);
   recordError = signal('');
   recordDate = new Date().toISOString().slice(0, 10);
+
+  gridParams = signal<Record<string, GridParams>>({});
+  guardRows = signal<GuardRow[]>([]);
+  savingParams = signal<Set<string>>(new Set());
+  savedParams = signal<Set<string>>(new Set());
+  paramsError = signal('');
 
   manualPickOpen = signal(false);
   manualCode = '';
@@ -329,6 +422,62 @@ export class GridViewComponent implements OnInit {
   ngOnInit() {
     this.loadPositions();
     this.refreshAdvice();
+    this.loadParams();
+  }
+
+  assetClassLabel(assetClass: string): string {
+    return ASSET_CLASS_OPTIONS.find(o => o.value === assetClass)?.label ?? assetClass;
+  }
+
+  async loadParams() {
+    try {
+      const params = await this.api.getGridParams();
+      this.gridParams.set(params);
+      this.guardRows.set(
+        Object.keys(params).sort().map(assetClass => ({
+          assetClass,
+          trendFilterMode: params[assetClass].trend_filter_mode ?? 'off',
+          trendMaPeriod: params[assetClass].trend_ma_period ?? 20,
+          rsiOverbought: params[assetClass].rsi_overbought ?? 70,
+          trendStepMultiple: params[assetClass].trend_step_multiple ?? 2,
+          // 後端存的是 0~1 的比例，畫面上用百分比比較直覺
+          basePositionPct: Math.round((params[assetClass].base_position_pct ?? 0) * 100),
+          rangeResetDays: params[assetClass].range_reset_days ?? 0,
+        })),
+      );
+      this.paramsError.set('');
+    } catch {
+      this.paramsError.set('讀取網格參數失敗');
+    }
+  }
+
+  async saveGuards(row: GuardRow) {
+    const existing = this.gridParams()[row.assetClass];
+    if (!existing) return;
+    this.savingParams.update(s => new Set(s).add(row.assetClass));
+    this.savedParams.update(s => { const n = new Set(s); n.delete(row.assetClass); return n; });
+    // 後端的 PUT 要完整的參數字典，所以是覆蓋既有值而非只送這幾欄。
+    const params: GridParams = {
+      ...existing,
+      trend_filter_mode: row.trendFilterMode,
+      trend_ma_period: Number(row.trendMaPeriod),
+      rsi_overbought: Number(row.rsiOverbought),
+      trend_step_multiple: Number(row.trendStepMultiple),
+      base_position_pct: Number(row.basePositionPct) / 100,
+      range_reset_days: Number(row.rangeResetDays),
+    };
+    try {
+      await this.api.putGridParams(row.assetClass, params);
+      this.gridParams.update(p => ({ ...p, [row.assetClass]: params }));
+      this.savedParams.update(s => new Set(s).add(row.assetClass));
+      this.paramsError.set('');
+      await this.refreshAdvice();
+    } catch (e: unknown) {
+      const detail = (e as { error?: { detail?: string } })?.error?.detail;
+      this.paramsError.set(detail ?? '儲存失敗');
+    } finally {
+      this.savingParams.update(s => { const n = new Set(s); n.delete(row.assetClass); return n; });
+    }
   }
 
   sortedDecisions(decisions: GridDecision[]): GridDecision[] {

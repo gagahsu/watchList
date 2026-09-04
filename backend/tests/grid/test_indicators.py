@@ -1,6 +1,16 @@
 import pytest
 
-from grid.indicators import Bar, atr_series, ema, ema_series, true_range, wilder_atr
+from grid.indicators import (
+    Bar,
+    atr_series,
+    ema,
+    ema_series,
+    macd,
+    sma,
+    true_range,
+    wilder_atr,
+    wilder_rsi,
+)
 
 
 def make_bars(n: int, base: float = 100.0, spread: float = 2.0) -> list[Bar]:
@@ -80,3 +90,52 @@ def test_ema_series_final_matches_ema():
 
 def test_ema_returns_none_when_too_short():
     assert ema([1.0, 2.0], 10) is None
+
+
+# ------------------------------------------------- SMA / RSI / MACD（趨勢濾網）
+
+
+def test_sma_uses_the_latest_window():
+    assert sma([1.0, 2.0, 3.0, 4.0], 2) == pytest.approx(3.5)
+
+
+def test_sma_needs_enough_data():
+    assert sma([1.0, 2.0], 3) is None
+
+
+def test_rsi_is_100_when_every_bar_gains():
+    assert wilder_rsi([float(i) for i in range(1, 40)]) == pytest.approx(100.0)
+
+
+def test_rsi_is_0_when_every_bar_loses():
+    assert wilder_rsi([float(i) for i in range(40, 1, -1)]) == pytest.approx(0.0)
+
+
+def test_rsi_on_a_flat_series_is_neutral_not_overbought():
+    # 全平盤沒有定義良好的 RSI；回 100 會讓沒動的標的被誤判成強勢多頭
+    assert wilder_rsi([100.0] * 30) == pytest.approx(50.0)
+
+
+def test_rsi_needs_period_plus_one_bars():
+    assert wilder_rsi([100.0] * 14, period=14) is None
+    assert wilder_rsi([100.0] * 15, period=14) is not None
+
+
+def test_macd_is_positive_in_an_uptrend():
+    dif, dem, hist = macd([float(i) for i in range(1, 80)])
+    assert dif > 0
+    assert dem > 0
+
+
+def test_macd_is_negative_in_a_downtrend():
+    dif, _, _ = macd([float(i) for i in range(80, 1, -1)])
+    assert dif < 0
+
+
+def test_macd_needs_enough_data():
+    assert macd([float(i) for i in range(30)]) is None
+
+
+def test_macd_rejects_fast_not_shorter_than_slow():
+    with pytest.raises(ValueError):
+        macd([float(i) for i in range(80)], fast=26, slow=26)

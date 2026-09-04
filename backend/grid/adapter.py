@@ -26,11 +26,13 @@ same trades for the grid's own question.
 
 Persistence note — why every evaluate() call writes back
 ----------------------------------------------------------
-``engine.evaluate()`` mutates ``position.anchor`` in place for two reasons
-that have nothing to do with placing an order: ex-dividend correction and
-anchor drift (see ``grid/engine.py``). Both are idempotent per day (guarded
-by ``applied_ex_dividends`` / ``last_drift_date``), so it's safe to persist
-them after *every* evaluate() call, whether or not a trade resulted. The
+``engine.evaluate()`` mutates ``position`` in place for three reasons that
+have nothing to do with placing an order: ex-dividend correction, anchor
+drift, and the trailing-grid range reset (which also zeroes ``rung`` and the
+``breakout_days`` counter — see ``grid/engine.py``). All three are idempotent
+per day (guarded by ``applied_ex_dividends`` / ``last_drift_date`` /
+``last_breakout_date``), so it's safe to persist them after *every*
+evaluate() call, whether or not a trade resulted. The
 original atrgrid tool got this wrong in its web console — its preview
 endpoint discarded these mutations, and only a CLI ``--persist-anchors`` flag
 (used by its cron job, not the web UI) saved them, with the code comment
@@ -182,6 +184,8 @@ def position_from_row(code: str, grid_row: dict[str, Any], fifo_result: dict[str
         last_trade_date=None,
         applied_ex_dividends=list(grid_row.get("applied_ex_dividends") or []),
         last_drift_date=grid_row.get("last_drift_date"),
+        breakout_days=int(grid_row.get("breakout_days") or 0),
+        last_breakout_date=grid_row.get("last_breakout_date"),
     )
 
 
@@ -256,18 +260,21 @@ def build_context(conn, codes: list[str] | None = None) -> GridContext:
 
 
 def _persist_position(conn, code: str, position: Position) -> None:
-    """Write back anchor/rung/ex-dividend/drift. Safe to call after every
+    """Write back anchor/rung/ex-dividend/drift/breakout. Safe to call after every
     evaluate() — see module docstring for why this must not be conditional
     on a trade having happened."""
     conn.execute(
         """UPDATE grid_positions
-           SET anchor=%s, rung=%s, last_drift_date=%s, applied_ex_dividends=%s
+           SET anchor=%s, rung=%s, last_drift_date=%s, applied_ex_dividends=%s,
+               breakout_days=%s, last_breakout_date=%s
            WHERE code=%s""",
         (
             position.anchor,
             position.rung,
             position.last_drift_date,
             json.dumps(position.applied_ex_dividends),
+            position.breakout_days,
+            position.last_breakout_date,
             code,
         ),
     )

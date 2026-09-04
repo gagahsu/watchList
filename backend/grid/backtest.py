@@ -99,12 +99,21 @@ def run_backtest(
 ) -> BacktestResult:
     """重播日 K，逐日產生並執行決策。
 
-    ``warmup`` 是開始交易前保留的 K 棒數，預設為 ATR 週期加趨勢均線長度，
-    確保第一筆訊號就有完整的指標。
+    ``warmup`` 是開始交易前保留的 K 棒數，預設取所有指標中最長的那個週期，
+    確保第一筆訊號就有完整的指標。趨勢濾網開著時 MA／RSI／MACD 也要算進去 ──
+    資料不夠時 :func:`~grid.engine.detect_regime` 只會安靜地回中性，回測就會在
+    前段跑成「濾網沒開」的版本，結論會失真。
     """
     params = resolve_params(settings, holding)
     if warmup is None:
-        warmup = max(params.atr_period + 1, params.trend_ema_period) + 5
+        needed = [params.atr_period + 1, params.trend_ema_period]
+        if params.trend_filter_mode != "off":
+            needed += [
+                params.trend_ma_period,
+                params.rsi_period + 1,
+                params.macd_slow + params.macd_signal,
+            ]
+        warmup = max(needed) + 5
     if len(bars) <= warmup + 1:
         raise ValueError(
             f"{holding.ticker}: 需要至少 {warmup + 2} 根 K 棒，目前只有 {len(bars)}"

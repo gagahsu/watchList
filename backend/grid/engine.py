@@ -10,6 +10,17 @@
 4. 一連串風控閘門逐一檢查，全過才輸出下單建議。
 5. 成交後錨點移動到新的網格價位，階數同步更新。
 
+純網格假設價格會在區間裡來回，遇到單邊走勢會兩頭挨打：一路漲把籌碼賣光
+（賣飛）、一路跌把子彈打光（接刀）。三道可選的閘門專治這件事，預設全部關閉，
+不打開時的行為與純網格完全相同：
+
+* **趨勢濾網**（``trend_filter_mode``）：極端多／空頭時暫停逆勢的那一邊，
+  或把逆勢方向的步長放大，讓格子變稀。見 :func:`detect_regime`。
+* **底倉**（``base_position_pct``）：建檔股數的固定比例永遠不參與網格賣出，
+  賣飛時仍留有部位吃到趨勢。見 :func:`base_position_shares`。
+* **區間上移**（``range_reset_days``）：站穩網格上緣數日就把錨點移到現價、
+  階數歸零，在新中樞重開一組網格。見 :func:`apply_range_reset`。
+
 「一份」永遠是「手續費剛好 1 元的最大股數」，隨當日價格重算。
 """
 
@@ -21,7 +32,7 @@ from typing import Sequence
 
 from .config import GridParams, Holding, Settings, resolve_params
 from .fees import max_shares_for_min_fee, split_buy_cost, split_sell_cost
-from .indicators import Bar, ema, wilder_atr
+from .indicators import Bar, ema, macd, sma, wilder_atr, wilder_rsi
 from .state import Position, State, Trade
 
 # 決策動作
@@ -30,6 +41,11 @@ SELL = "SELL"
 HOLD = "HOLD"
 REVIEW = "REVIEW"  # 有訊號但需要人工判斷
 SKIP = "SKIP"  # 資料或設定不足，無法評估
+
+# 趨勢濾網判定出的行情狀態
+BULL = "bull"  # 強勢多頭：抑制賣出
+BEAR = "bear"  # 強勢空頭：抑制買進
+NEUTRAL = "neutral"  # 盤整或訊號不明：純網格
 
 
 @dataclass
@@ -62,6 +78,8 @@ class Decision:
     est_cash_flow: float = 0.0  # 負數表示現金流出
     est_realized_pnl: float | None = None
     signal_rungs: int = 0  # 未受限制前的原始訊號份數
+    regime: str = NEUTRAL  # 趨勢濾網判定的行情狀態
+    base_shares: int = 0  # 底倉股數（不參與網格賣出）
     reasons: list[str] = field(default_factory=list)
     blocks: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -141,6 +159,132 @@ def apply_anchor_drift(
     )
 
 
+@dataclass(frozen=True)
+class Regime:
+    """趨勢濾網的判定結果，連同判定所用的指標值一起帶出來供報表說明。"""
+
+    state: str
+    ma: float | None = None
+    rsi: float | None = None
+    macd_dif: float | None = None
+
+    def describe(self, params: GridParams) -> str:
+        if self.state == BULL:
+            return (
+                f"強勢多頭：現價站上 MA{params.trend_ma_period}"
+                f"（{self.ma:.2f}）且 RSI({params.rsi_period})="
+                f"{self.rsi:.1f} > {params.rsi_overbought:g}"
+            )
+        if self.state == BEAR:
+            return (
+                f"強勢空頭：現價跌破 MA{params.trend_ma_period}"
+                f"（{self.ma:.2f}）且 MACD DIF={self.macd_dif:.3f} < 0"
+            )
+        return "趨勢中性"
+
+
+def detect_regime(
+    bars: Sequence[Bar], price: float, params: GridParams
+) -> Regime:
+    """判斷現在是不是「不該逆勢下單」的單邊行情。
+
+    網格預設是左側交易（越跌越買、越漲越賣），在盤整區間最有效率，但遇到單邊
+    走勢就會兩頭挨打：一路漲會把籌碼賣光（賣飛），一路跌會把子彈打光（接刀）。
+    這裡用「均線定方向、震盪指標定強度」的老配方判定極端狀態：
+
+    * 現價 > MA 且 RSI 超買 → 多頭，這時的賣出訊號是在賣飛
+    * 現價 < MA 且 MACD DIF < 0 → 空頭，這時的買進訊號是在接刀
+
+    兩個條件都不成立就回 ``NEUTRAL``，網格照常運作 —— 濾網只在極端時說話，
+    不然會把網格本來要賺的震盪也一起濾掉。
+    """
+    if params.trend_filter_mode == "off":
+        return Regime(NEUTRAL)
+
+    closes = [bar.close for bar in bars]
+    ma = sma(closes, params.trend_ma_period)
+    if ma is None:
+        return Regime(NEUTRAL)
+
+    if price > ma:
+        rsi = wilder_rsi(closes, params.rsi_period)
+        if rsi is not None and rsi > params.rsi_overbought:
+            return Regime(BULL, ma=ma, rsi=rsi)
+        return Regime(NEUTRAL, ma=ma, rsi=rsi)
+
+    if price < ma:
+        values = macd(closes, params.macd_fast, params.macd_slow, params.macd_signal)
+        dif = values[0] if values else None
+        if dif is not None and dif < 0:
+            return Regime(BEAR, ma=ma, macd_dif=dif)
+        return Regime(NEUTRAL, ma=ma, macd_dif=dif)
+
+    return Regime(NEUTRAL, ma=ma)
+
+
+def apply_range_reset(
+    position: Position,
+    price: float,
+    step: float,
+    params: GridParams,
+    today: str,
+) -> str | None:
+    """突破網格上緣站穩數日就把整個區間上移（trailing grid）。
+
+    錨點漂移（``apply_anchor_drift``）走的是 EMA60，落後很多；成長型標的一旦
+    真的突破，靠漂移追不上，網格會停在下方等一個回不來的價格。這裡改用硬條件：
+    現價連續 ``range_reset_days`` 天站上網格上緣（錨點 + 最大賣出階數 × 步長），
+    就把錨點重設到現價、階數歸零，等於在新的中樞重開一組網格。
+
+    階數歸零是有意的：先前一路賣上來把階數壓成負的，那些格子是屬於舊區間的，
+    在新區間繼續沿用只會讓系統以為自己已經賣到下限而不再動作。
+
+    一天只累計一次；價格跌回區間內就把計數歸零，避免「突破一天、休息一天」的
+    假突破也被算成站穩。
+    """
+    if params.range_reset_days <= 0:
+        return None
+
+    ceiling = position.anchor + params.max_sell_rungs * step
+    if price <= ceiling:
+        if position.breakout_days:
+            position.breakout_days = 0
+            position.last_breakout_date = None
+        return None
+
+    if position.last_breakout_date != today:
+        position.breakout_days += 1
+        position.last_breakout_date = today
+
+    if position.breakout_days < params.range_reset_days:
+        return (
+            f"現價 {price:.2f} 站上網格上緣 {ceiling:.2f}，已第 "
+            f"{position.breakout_days}/{params.range_reset_days} 天"
+        )
+
+    before_anchor = position.anchor
+    before_rung = position.rung
+    position.anchor = price
+    position.rung = 0
+    position.breakout_days = 0
+    position.last_breakout_date = None
+    return (
+        f"連續 {params.range_reset_days} 天站上網格上緣 {ceiling:.2f}，網格區間上移："
+        f"錨點 {before_anchor:.4f} → {price:.4f}，階數 {before_rung:+d} → 0"
+    )
+
+
+def base_position_shares(position: Position, params: GridParams) -> int:
+    """底倉股數：建檔股數的 ``base_position_pct``，永遠不參與網格賣出。
+
+    以「建檔股數」而非「當下股數」為基準，底倉才會是一個固定的地板 —— 拿當下
+    股數算的話，每賣一次底倉就跟著縮水，最後還是會賣光，那就不是底倉了。
+    """
+    if params.base_position_pct <= 0:
+        return 0
+    return int(position.baseline_shares * params.base_position_pct)
+
+
 def _staleness_days(last_bar_date: str, today: str) -> int:
     last = datetime.strptime(last_bar_date, "%Y-%m-%d").date()
     now = datetime.strptime(today, "%Y-%m-%d").date()
@@ -159,8 +303,8 @@ def evaluate(
     """對單一標的產生今日決策。
 
     ``bars`` 必須是**已收盤**的日 K（不含今天），``price`` 是 13:00 的即時價。
-    本函式會就地更新 ``position`` 的錨點（除息與漂移），但不會執行成交 ──
-    成交由 :func:`commit` 負責。
+    本函式會就地更新 ``position`` 的錨點（除息、漂移、區間上移；區間上移另會
+    重設 ``rung`` 與突破計數），但不會執行成交 ── 成交由 :func:`commit` 負責。
     """
     today = today or date.today().isoformat()
     params = resolve_params(settings, holding)
@@ -216,13 +360,12 @@ def evaluate(
     decision.anchor_after = position.anchor
 
     # ---------------------------------------------------------------- 網格
-    step = grid_step(price, atr, params)
+    base_step = grid_step(price, atr, params)
     lot = lot_size(price, settings, holding.market)
     decision.atr = atr
     decision.atr_pct = atr / price * 100
-    decision.step = step
-    decision.step_pct = step / price * 100
     decision.lot_shares = lot
+    decision.base_shares = base_position_shares(position, params)
 
     prev_close = bars[-1].close
     gap_atr = abs(price - prev_close) / atr
@@ -234,7 +377,47 @@ def evaluate(
         )
         decision.blocks.append("異常跳空，請先確認是否為除息、拆分或重大事件")
 
+    # 區間上移要在算距離之前做完，否則會用舊錨點下一張早該作廢的單。跳空日不算
+    # 突破 —— 除息、拆分或報價異常都會長得像「一天衝過上緣」，而區間上移是會
+    # 改寫錨點與階數的不可逆動作，寧可多等一天。
+    if not is_gap:
+        reset_note = apply_range_reset(position, price, base_step, params, today)
+        if reset_note:
+            decision.notes.append(reset_note)
+    decision.anchor_before = position.anchor
+    decision.anchor_after = position.anchor
+
+    step = base_step
+    decision.step = step
+    decision.step_pct = step / price * 100
+
     distance = price - position.anchor
+    side = SELL if distance > 0 else BUY
+
+    # ------------------------------------------------------------ 趨勢濾網
+    regime = detect_regime(bars, price, params)
+    decision.regime = regime.state
+    against_trend = (regime.state == BULL and side == SELL) or (
+        regime.state == BEAR and side == BUY
+    )
+    if against_trend:
+        decision.reasons.append(regime.describe(params))
+        if params.trend_filter_mode == "pause":
+            decision.action = HOLD
+            decision.reasons.append(
+                "趨勢濾網 pause：暫停"
+                + ("賣出，讓多頭部位的利潤繼續跑" if side == SELL else "買進，避免接刀")
+            )
+            return decision
+        if params.trend_filter_mode == "widen":
+            step = base_step * params.trend_step_multiple
+            decision.step = step
+            decision.step_pct = step / price * 100
+            decision.notes.append(
+                f"趨勢濾網 widen：{'賣出' if side == SELL else '買進'}步長由 "
+                f"{base_step:.3f} 放大 {params.trend_step_multiple:g} 倍為 {step:.3f} 元"
+            )
+
     raw_rungs = int(abs(distance) // step)
     if raw_rungs == 0:
         decision.action = HOLD
@@ -244,7 +427,6 @@ def evaluate(
         )
         return decision
 
-    side = SELL if distance > 0 else BUY
     decision.signal_rungs = raw_rungs
     decision.action = side
     if side == BUY:
@@ -398,14 +580,32 @@ def _limit_sell(
         decision.notes.append(f"受部位下限限制，由 {rungs} 份縮減為 {room} 份")
         rungs = room
 
-    max_by_shares = position.shares // lot if lot else 0
-    if max_by_shares < rungs:
-        decision.notes.append(
-            f"持股 {position.shares} 股僅夠賣 {max_by_shares} 份"
+    base_shares = base_position_shares(position, params)
+    sellable = position.shares - base_shares
+    if base_shares and sellable <= 0:
+        decision.blocks.append(
+            f"底倉保護：持股 {position.shares} 股已到底倉 {base_shares} 股"
+            f"（建檔 {int(position.baseline_shares)} 股 × "
+            f"{params.base_position_pct:.0%}），不再往下賣"
         )
+        return 0
+
+    max_by_shares = sellable // lot if lot else 0
+    if max_by_shares < rungs:
+        if base_shares:
+            decision.notes.append(
+                f"持股 {position.shares} 股扣掉底倉 {base_shares} 股後，"
+                f"僅夠賣 {max_by_shares} 份"
+            )
+        else:
+            decision.notes.append(
+                f"持股 {position.shares} 股僅夠賣 {max_by_shares} 份"
+            )
         rungs = max_by_shares
     if rungs <= 0:
-        decision.blocks.append(f"持股 {position.shares} 股不足一份（{lot} 股）")
+        decision.blocks.append(
+            f"持股 {position.shares} 股（可賣 {sellable} 股）不足一份（{lot} 股）"
+        )
         return 0
 
     if not params.allow_loss_sell:

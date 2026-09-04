@@ -5,7 +5,10 @@ from tests.grid.conftest import TODAY, bars_with_atr
 
 from grid.config import Settings
 from grid.engine import (
+    BEAR,
+    BULL,
     BUY,
+    NEUTRAL,
     HOLD,
     REVIEW,
     SELL,
@@ -411,3 +414,193 @@ def test_drift_resumes_the_next_day(holding, position, settings, state):
         holding, position, settings, state, price=140.0, bars=bars, today="2026-03-16"
     )
     assert position.anchor > after_first
+
+
+# ------------------------------------------------------ 趨勢濾網（單邊行情）
+
+
+def _with_params(settings, **overrides):
+    """把 equity 的參數換掉，回傳新的 Settings。"""
+    params = replace(settings.params_for("equity"), **overrides)
+    return Settings(cash=settings.cash, defaults={"equity": params})
+
+
+#: 一路漲的日 K：最後 20 根收在 81~100，MA20≈90.5、RSI=100
+BULL_BARS = dict(count=60, close=100.0, spread=2.0, trend=1.0)
+#: 一路跌的日 K：最後 20 根收在 119~100，MA20≈109.5、MACD DIF < 0
+BEAR_BARS = dict(count=60, close=100.0, spread=2.0, trend=-1.0)
+
+
+def test_regime_is_neutral_when_filter_is_off(holding, position, settings, state):
+    # 預設 trend_filter_mode='off'：多頭走勢照樣賣，行為與加入濾網前一致
+    decision = _evaluate(
+        holding, position, settings, state, price=103.0, bars=bars_with_atr(**BULL_BARS)
+    )
+    assert decision.regime == NEUTRAL
+    assert decision.action == SELL
+    assert decision.shares > 0
+
+
+def test_pause_filter_stops_selling_in_a_bull_run(holding, position, settings, state):
+    settings = _with_params(settings, trend_filter_mode="pause")
+    decision = _evaluate(
+        holding, position, settings, state, price=103.0, bars=bars_with_atr(**BULL_BARS)
+    )
+    assert decision.regime == BULL
+    assert decision.action == HOLD
+    assert decision.shares == 0
+    assert any("暫停賣出" in r for r in decision.reasons)
+
+
+def test_pause_filter_still_buys_in_a_bull_run(holding, position, settings, state):
+    # 濾網只擋逆勢的那一邊：多頭時的買進（回檔承接）不受影響
+    settings = _with_params(settings, trend_filter_mode="pause")
+    decision = _evaluate(
+        holding, position, settings, state, price=97.0, bars=bars_with_atr(**BULL_BARS)
+    )
+    assert decision.action == BUY
+    assert decision.shares > 0
+
+
+def test_pause_filter_stops_buying_in_a_bear_run(holding, position, settings, state):
+    settings = _with_params(settings, trend_filter_mode="pause")
+    decision = _evaluate(
+        holding, position, settings, state, price=97.0, bars=bars_with_atr(**BEAR_BARS)
+    )
+    assert decision.regime == BEAR
+    assert decision.action == HOLD
+    assert decision.shares == 0
+    assert any("避免接刀" in r for r in decision.reasons)
+
+
+def test_pause_filter_still_sells_in_a_bear_run(holding, position, settings, state):
+    settings = _with_params(settings, trend_filter_mode="pause")
+    decision = _evaluate(
+        holding, position, settings, state, price=103.0, bars=bars_with_atr(**BEAR_BARS)
+    )
+    assert decision.action == SELL
+    assert decision.shares > 0
+
+
+def test_widen_filter_doubles_the_step_against_the_trend(
+    holding, position, settings, state
+):
+    # ATR=2 → 原步長 1.0。距錨點 3 元本來是 3 格，步長放大成 2.0 後只剩 1 格。
+    settings = _with_params(
+        settings, trend_filter_mode="widen", trend_step_multiple=2.0
+    )
+    decision = _evaluate(
+        holding, position, settings, state, price=103.0, bars=bars_with_atr(**BULL_BARS)
+    )
+    assert decision.regime == BULL
+    assert decision.action == SELL
+    assert decision.step == pytest.approx(2.0)
+    assert decision.signal_rungs == 1
+    assert any("步長由" in n for n in decision.notes)
+
+
+def test_widen_filter_leaves_the_with_trend_side_alone(
+    holding, position, settings, state
+):
+    settings = _with_params(
+        settings, trend_filter_mode="widen", trend_step_multiple=2.0
+    )
+    decision = _evaluate(
+        holding, position, settings, state, price=97.0, bars=bars_with_atr(**BULL_BARS)
+    )
+    assert decision.action == BUY
+    assert decision.step == pytest.approx(1.0)
+    assert decision.signal_rungs == 3
+
+
+# ------------------------------------------------------------------ 底倉
+
+
+def test_base_position_blocks_the_last_sell(holding, position, settings, state):
+    # 建檔 1000 股、底倉 50% → 500 股是地板，持股剛好到地板就不再賣
+    settings = _with_params(settings, base_position_pct=0.5)
+    position.shares = 500
+    decision = _evaluate(holding, position, settings, state, price=103.0)
+    assert decision.action == REVIEW
+    assert decision.shares == 0
+    assert any("底倉保護" in b for b in decision.blocks)
+
+
+def test_base_position_caps_the_sellable_shares(holding, position, settings, state):
+    # 持股 560、底倉 500 → 只剩 60 股可賣，一份 48 股（103 元）故只賣 1 份
+    settings = _with_params(settings, base_position_pct=0.5)
+    position.shares = 560
+    decision = _evaluate(holding, position, settings, state, price=103.0)
+    assert decision.action == SELL
+    assert decision.base_shares == 500
+    assert decision.rungs == 1
+    assert position.shares - decision.shares >= 500
+
+
+def test_no_base_position_by_default_sells_down_to_zero(
+    holding, position, settings, state
+):
+    position.shares = 50
+    decision = _evaluate(holding, position, settings, state, price=103.0)
+    assert decision.base_shares == 0
+    assert decision.action == SELL
+    assert decision.shares == 48  # 一份 48 股（103 元），50 股只夠賣一份
+
+
+# ------------------------------------------------ 網格區間上移（trailing grid）
+
+
+def test_range_reset_needs_consecutive_days(holding, position, settings, state):
+    # 步長 1.0、max_sell_rungs 5 → 上緣 105。106 元算突破，但只站一天不重設。
+    settings = _with_params(settings, range_reset_days=3)
+    decision = _evaluate(holding, position, settings, state, price=106.0)
+    assert position.anchor == pytest.approx(100.0)
+    assert position.breakout_days == 1
+    assert any("1/3 天" in n for n in decision.notes)
+
+
+def test_range_reset_counter_is_once_per_day(holding, position, settings, state):
+    settings = _with_params(settings, range_reset_days=3)
+    _evaluate(holding, position, settings, state, price=106.0)
+    _evaluate(holding, position, settings, state, price=106.0)
+    assert position.breakout_days == 1
+
+
+def test_range_reset_counter_resets_when_price_falls_back(
+    holding, position, settings, state
+):
+    settings = _with_params(settings, range_reset_days=3)
+    _evaluate(holding, position, settings, state, price=106.0)
+    _evaluate(holding, position, settings, state, price=103.0, today="2026-03-16")
+    assert position.breakout_days == 0
+    assert position.last_breakout_date is None
+
+
+def test_range_reset_moves_the_whole_grid_up(holding, position, settings, state):
+    settings = _with_params(settings, range_reset_days=3)
+    position.rung = -3  # 一路賣上來，已經減碼三階
+    for day in ("2026-03-15", "2026-03-16", "2026-03-17"):
+        decision = _evaluate(
+            holding, position, settings, state, price=106.0, today=day
+        )
+    assert position.anchor == pytest.approx(106.0)
+    assert position.rung == 0
+    assert position.breakout_days == 0
+    assert decision.action == HOLD  # 錨點就是現價，當天不再有訊號
+    assert any("區間上移" in n for n in decision.notes)
+
+
+def test_range_reset_off_by_default(holding, position, settings, state):
+    for day in ("2026-03-15", "2026-03-16", "2026-03-17"):
+        _evaluate(holding, position, settings, state, price=106.0, today=day)
+    assert position.anchor == pytest.approx(100.0)
+    assert position.breakout_days == 0
+
+
+def test_range_reset_ignores_gap_days(holding, position, settings, state):
+    # 除息、拆分或報價異常都長得像「一天衝過上緣」；區間上移不可逆，跳空日不算
+    settings = _with_params(settings, range_reset_days=1)
+    decision = _evaluate(holding, position, settings, state, price=130.0)
+    assert decision.action == REVIEW
+    assert position.anchor == pytest.approx(100.0)
+    assert position.breakout_days == 0

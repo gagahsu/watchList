@@ -5,7 +5,7 @@ import {
   Note, Row, Entry, Signal, Trade, StockInfo, TrackedStock,
   TrackingStatus, SignalStatus, Market, Broker, Account, Liability, OhlcBar, ChipData,
   AccountTransaction, CreditCard, DividendRecord, FundHolding, FundSchedule, NetWorthSnapshot,
-  TrancheItem, TranchePlan, GridAdvice, GridDecision, GridPosition, GridPositionAddRequest, GridRecordRequest,
+  TrancheItem, TranchePlan, GridAdvice, GridDecision, GridParams, GridPosition, GridPositionAddRequest, GridRecordRequest,
 } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
@@ -222,6 +222,10 @@ export class ApiService {
   }
   previewGridFill(code: string, price: number) {
     return this.post<GridDecision>('/grid/preview', { code, price });
+  }
+  getGridParams() { return this.get<Record<string, GridParams>>('/grid/params'); }
+  putGridParams(assetClass: string, params: GridParams) {
+    return this.put<{ok:boolean}>(`/grid/params/${assetClass}`, { params });
   }
   recordGridFill(body: GridRecordRequest) {
     return this.post<{ok:boolean; code:string; anchor:number; rung:number; fee:number; tax:number; realizedPnl:number|null}>('/grid/record', body);
