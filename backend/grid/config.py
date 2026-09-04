@@ -93,6 +93,12 @@ class GridParams:
     base_position_pct: float = 0.0
     #: 連續幾天站上網格上緣就把整個區間上移（trailing grid）。0 表示關閉。
     range_reset_days: int = 0
+    #: 每階股數 = baseline_shares（建檔股數）× 這個比例，以「手續費 1 元上限」
+    #: 的股數（fee-optimal lot）為下限——不會因為這個比例算出更少股數而縮水。
+    #: 0 表示關閉，一階固定是 fee-optimal lot（跟這個參數加入前的行為完全一樣）。
+    #: 這是讓「一份」跟部位大小掛鉤：固定 fee-optimal lot 對大部位太小（滿檔
+    #: 幾階只動到部位的一小部分），對小部位太大（幾階就把整個部位賣光）。
+    rung_pct_of_baseline: float = 0.0
 
     def validate(self, label: str) -> None:
         if self.atr_period < 2:
@@ -139,6 +145,11 @@ class GridParams:
             )
         if self.range_reset_days < 0:
             raise ConfigError(f"{label}: range_reset_days 不可為負")
+        if not 0.0 <= self.rung_pct_of_baseline < 1.0:
+            raise ConfigError(
+                f"{label}: rung_pct_of_baseline 必須介於 0 與 1（不含 1，"
+                f"單階 100% 等於一次動用整個建檔部位）"
+            )
 
     def merged(self, overrides: dict[str, Any] | None) -> "GridParams":
         if not overrides:

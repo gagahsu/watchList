@@ -17,6 +17,7 @@ from grid.engine import (
     evaluate,
     grid_step,
     lot_size,
+    rung_shares,
 )
 from grid.state import Lot
 
@@ -32,6 +33,28 @@ def _evaluate(holding, position, settings, state, price, bars=None, today=TODAY)
 def test_lot_size_tracks_price(settings):
     assert lot_size(100.0, settings) == 50  # 50 * 100 = 5000 < 5012.53
     assert lot_size(50.0, settings) == 100
+
+
+def test_rung_shares_matches_lot_size_when_pct_off(settings):
+    params = settings.params_for("equity")  # rung_pct_of_baseline defaults to 0
+    assert rung_shares(100.0, settings, params, baseline_shares=1000, market="tw") == lot_size(100.0, settings)
+
+
+def test_rung_shares_uses_pct_of_baseline_when_it_exceeds_fee_optimal_lot(settings):
+    params = replace(settings.params_for("equity"), rung_pct_of_baseline=0.1)
+    # baseline 1000 * 10% = 100，遠大於 100 元價位下約 50 股的 fee-optimal lot
+    assert rung_shares(100.0, settings, params, baseline_shares=1000, market="tw") == 100
+
+
+def test_rung_shares_floors_at_fee_optimal_lot_when_pct_is_smaller(settings):
+    params = replace(settings.params_for("equity"), rung_pct_of_baseline=0.01)
+    # baseline 10 * 1% = 0 股，遠小於 fee-optimal lot，下限保護生效
+    assert rung_shares(100.0, settings, params, baseline_shares=10, market="tw") == lot_size(100.0, settings)
+
+
+def test_rung_shares_ignores_pct_for_us_market(settings):
+    params = replace(settings.params_for("equity"), rung_pct_of_baseline=0.5)
+    assert rung_shares(100.0, settings, params, baseline_shares=1_000_000, market="us") == 1
 
 
 def test_grid_step_clamped_by_floor(settings):
@@ -74,6 +97,19 @@ def test_multiple_rungs_when_price_moves_far(holding, position, settings, state)
     decision = _evaluate(holding, position, settings, state, price=97.5)
     assert decision.action == BUY
     assert decision.rungs == 2
+    assert any("多付手續費" in n for n in decision.notes)
+
+
+def test_evaluate_uses_larger_rung_when_pct_of_baseline_set(holding, position, settings, state):
+    big_rung = replace(settings.params_for("equity"), rung_pct_of_baseline=0.1)
+    settings = Settings(cash=settings.cash, defaults={"equity": big_rung})
+    decision = _evaluate(holding, position, settings, state, price=97.5)
+    assert decision.rungs == 2
+    assert decision.lot_shares == 100  # baseline 1000 * 10%
+    assert decision.shares == 200
+    assert any("每筆 100 股下單" in n for n in decision.notes)
+    # 一份已經比 fee-optimal lot 大，分筆不再省手續費，不該再宣稱這件事
+    assert not any("多付手續費" in n for n in decision.notes)
 
 
 def test_daily_rung_cap_is_enforced(holding, position, settings, state):

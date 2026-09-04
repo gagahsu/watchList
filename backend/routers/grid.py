@@ -30,7 +30,7 @@ from database import get_db, get_setting
 from fifo import calc_fifo
 from grid.adapter import AdapterError, build_settings, commit_fill, evaluate_all, position_from_row
 from grid.config import ConfigError, GridParams, VALID_CLASSES, infer_asset_class
-from grid.engine import BUY, SELL, Decision, lot_size, next_grid_levels
+from grid.engine import BUY, SELL, Decision, next_grid_levels, rung_shares
 from grid.indicators import Bar
 from models import GridParamsIn, GridPositionIn, GridPositionPatch, GridPreviewIn, GridRecordIn, TradeIn
 from routers.ohlc import get_ohlc
@@ -378,7 +378,8 @@ def get_grid_positions():
             step_guess = row["anchor"] * params.min_step_pct / 100
             buys, sells = next_grid_levels(position, step_guess, 3)
             entry.update({
-                "lotShares": lot_size(row["anchor"], settings, markets.get(code, "tw")),
+                "lotShares": rung_shares(row["anchor"], settings, params, position.baseline_shares,
+                                          markets.get(code, "tw")),
                 "maxBuyRungs": params.max_buy_rungs,
                 "maxSellRungs": params.max_sell_rungs,
                 "nextBuy": [round(p, 2) for p in buys],

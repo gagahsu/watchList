@@ -84,6 +84,7 @@ export interface GridParams {
   trend_step_multiple: number;
   base_position_pct: number;
   range_reset_days: number;
+  rung_pct_of_baseline: number;
   [key: string]: unknown;
 }
 

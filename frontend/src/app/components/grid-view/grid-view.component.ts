@@ -28,6 +28,7 @@ interface GuardRow {
   trendStepMultiple: number;
   basePositionPct: number;
   rangeResetDays: number;
+  rungPctOfBaseline: number;
 }
 
 @Component({
@@ -291,6 +292,18 @@ interface GuardRow {
           </div>
         </div>
 
+        <div class="grid-guard-title" style="margin-top:16px;font-size:13px">網格結構（跟上面三道單邊防護無關）</div>
+        <div class="grid-guard-grid">
+          <div>
+            <div class="modal-label">單階佔建檔股數（%）</div>
+            <input class="modal-input" type="number" min="0" max="99" step="1" [(ngModel)]="g.rungPctOfBaseline" />
+            <div class="grid-guard-help">
+              每階股數改成建檔股數（baseline_shares）× 這個比例，以手續費最低收費的股數為下限。
+              0 = 關閉，每階固定是手續費最低收費的股數（跟這個參數加入前的行為一樣）。
+            </div>
+          </div>
+        </div>
+
         <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
           <button class="btn-primary" style="padding:5px 16px;font-size:13px"
             [disabled]="savingParams().has(g.assetClass)" (click)="saveGuards(g)">
@@ -450,6 +463,7 @@ export class GridViewComponent implements OnInit {
           // 後端存的是 0~1 的比例，畫面上用百分比比較直覺
           basePositionPct: Math.round((params[assetClass].base_position_pct ?? 0) * 100),
           rangeResetDays: params[assetClass].range_reset_days ?? 0,
+          rungPctOfBaseline: Math.round((params[assetClass].rung_pct_of_baseline ?? 0) * 100),
         })),
       );
       this.paramsError.set('');
@@ -472,6 +486,7 @@ export class GridViewComponent implements OnInit {
       trend_step_multiple: Number(row.trendStepMultiple),
       base_position_pct: Number(row.basePositionPct) / 100,
       range_reset_days: Number(row.rangeResetDays),
+      rung_pct_of_baseline: Number(row.rungPctOfBaseline) / 100,
     };
     try {
       await this.api.putGridParams(row.assetClass, params);

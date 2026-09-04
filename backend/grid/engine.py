@@ -90,8 +90,26 @@ class Decision:
 
 
 def lot_size(price: float, settings: Settings, market: str = "tw") -> int:
-    """當日「一份」的股數。美股零手續費，一份固定是 1 股。"""
+    """fee-optimal lot：手續費仍等於最低收費的最大股數。美股零手續費，固定是 1 股。"""
     return max_shares_for_min_fee(price, settings.fee_discount, settings.fee_minimum, market)
+
+
+def rung_shares(
+    price: float, settings: Settings, params: GridParams, baseline_shares: float, market: str = "tw"
+) -> int:
+    """單階實際股數。``rung_pct_of_baseline`` 關閉（0，預設）時就是 :func:`lot_size`
+    的 fee-optimal lot，行為與加入這個參數之前完全一樣。開啟後改成
+    ``baseline_shares × rung_pct_of_baseline``，並以 fee-optimal lot 當下限
+    （股數只會比它多，不會比它少，維持「手續費仍是最低收費」的下限保護）。
+
+    這是讓「一份」跟部位大小掛鉤：固定的 fee-optimal lot 對大部位太小
+    （滿檔幾階只動到部位的一小部分，網格空轉），對小部位太大（幾階就把整個
+    部位賣光）。美股沒有手續費上限這個概念，lot_size 恆為 1 股，這裡也不
+    套用比例。"""
+    fee_optimal = lot_size(price, settings, market)
+    if market != "tw" or params.rung_pct_of_baseline <= 0:
+        return fee_optimal
+    return max(fee_optimal, int(baseline_shares * params.rung_pct_of_baseline))
 
 
 def grid_step(price: float, atr: float, params: GridParams) -> float:
@@ -361,7 +379,7 @@ def evaluate(
 
     # ---------------------------------------------------------------- 網格
     base_step = grid_step(price, atr, params)
-    lot = lot_size(price, settings, holding.market)
+    lot = rung_shares(price, settings, params, position.baseline_shares, holding.market)
     decision.atr = atr
     decision.atr_pct = atr / price * 100
     decision.lot_shares = lot
@@ -469,10 +487,15 @@ def evaluate(
     decision.rungs = rungs
     decision.shares = shares
     if rungs > 1 and holding.market == "tw":
-        # 一份的定義就是手續費 1 元的上限，合併下單會踩過門檻。
-        decision.notes.append(
-            f"請分 {rungs} 筆、每筆 {lot} 股下單（合併成 {shares} 股一筆會多付手續費）"
-        )
+        if lot <= lot_size(price, settings, holding.market):
+            # 一份剛好是手續費 1 元的上限，合併下單會踩過門檻。
+            decision.notes.append(
+                f"請分 {rungs} 筆、每筆 {lot} 股下單（合併成 {shares} 股一筆會多付手續費）"
+            )
+        else:
+            # rung_pct_of_baseline 開啟時一份已經比 fee-optimal lot 大，
+            # 分筆下單不再有省手續費的意義，只是單純提示分批量。
+            decision.notes.append(f"請分 {rungs} 筆、每筆 {lot} 股下單")
 
     if side == BUY:
         cost = split_buy_cost(
