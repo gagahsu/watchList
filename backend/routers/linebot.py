@@ -24,8 +24,9 @@ import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from database import get_db, get_setting, set_setting
-from grid.adapter import asset_classes_for
+from grid.adapter import AdapterError, asset_classes_for, commit_fill, evaluate_all
 from grid.fees import transaction_tax
+from routers.grid import _make_bars_fn, _market_map
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +383,15 @@ _HELP_TEXT = (
     "例：賣 2330 1000 600 元大 2026-08-15\n\n"
     "日期可省略（預設今天），格式 2026-08-15 或 0815，\n"
     "只寫 MMDD 時自動取最近一次（不會是未來）。\n\n"
+    "🔹 ATR 網格交易\n"
+    "網格買 代碼 股數 價格 [日期]\n"
+    "例：網格買 2330 500 580\n\n"
+    "網格賣 代碼 股數 價格 [日期]\n"
+    "例：網格賣 2330 500 600\n\n"
+    "只能記錄「已啟用網格」的代碼，手續費依網格現金帳戶連結的券商折數計算\n"
+    "（不用另外指定券商）。會依你回報的價格試算網格判斷的份數，\n"
+    "跟你打的股數差太多時只會提醒、仍照你的股數記錄；\n"
+    "但方向（買/賣）跟網格試算不一致時會拒絕記錄。\n\n"
     "🔹 帳戶金流\n"
     "存入 金額 帳戶名稱\n"
     "例：存入 50000 玉山\n\n"
@@ -407,6 +417,7 @@ _HELP_TEXT = (
 )
 
 _TRADE_CMDS = {"買": "buy", "買入": "buy", "買進": "buy", "賣": "sell", "賣出": "sell", "賣掉": "sell"}
+_GRID_TRADE_CMDS = {"網格買": "BUY", "網格買進": "BUY", "網格賣": "SELL", "網格賣出": "SELL", "網格賣掉": "SELL"}
 _DEPOSIT_CMDS = {"存入", "存款", "入帳"}
 _WITHDRAW_CMDS = {"提出", "提款", "出帳"}
 _TRANSFER_CMDS = {"轉帳", "轉出"}
@@ -511,6 +522,118 @@ def _calc_tax(shares: float, price: float, trade_type: str, asset_class: str, ma
     if trade_type != "sell" or market != "tw":
         return 0
     return transaction_tax(shares * price, asset_class)
+
+
+_ACTION_LABEL = {"BUY": "買進", "SELL": "賣出"}
+
+
+def _record_grid_trade(code: str, action: str, shares: int, price: float, trade_date: str | None) -> str:
+    """Implements the 網格買/網格賣 LINE commands.
+
+    There's no LINE-side equivalent of the web UI's "look at /grid/advice,
+    then record" flow, so this recomputes the decision at the price you
+    report — the same thing /grid/preview does for the web UI's "record a
+    late fill" flow (see routers/grid.py's docstring on that endpoint) — and
+    takes its rungs/step from that, rather than trusting your shares alone
+    to reverse-engineer them. Direction (BUY vs SELL) is a hard requirement:
+    if your price implies the opposite side of what you typed, this refuses
+    rather than risk pushing the grid's anchor the wrong way. Share count is
+    soft: if it's off from what the grid would have suggested, this still
+    records your actual shares and just says so in the reply.
+
+    Goes through the exact same grid.adapter.commit_fill() + trades-table
+    insert as the web UI's /grid/record, tagged sig_ref='grid' the same way,
+    so a LINE-recorded grid fill updates the grid's anchor/rung state
+    identically to a web-recorded one and both show up as grid trades in
+    reports, not plain buy/sell."""
+    markets = _market_map()
+    try:
+        decisions = evaluate_all(_make_bars_fn(markets), lambda _c: price, codes=[code])
+    except AdapterError as exc:
+        return f"⚠️ {exc}"
+    if not decisions:
+        return f"{code} 不是啟用中的網格標的。"
+    decision = decisions[0]
+    if decision.action == "SKIP":
+        return f"⚠️ {code} 無法試算：{'；'.join(decision.blocks) or '未知原因'}"
+
+    implied_side = "SELL" if price > decision.anchor_before else "BUY"
+    if implied_side != action:
+        return (
+            f"⚠️ {code} 現價 {price:.2f} 相對錨點 {decision.anchor_before:.2f}，網格判斷方向是"
+            f"「{_ACTION_LABEL[implied_side]}」，跟你打的「{_ACTION_LABEL[action]}」不一致，未記錄。\n"
+            f"請確認價格是否正確——方向不一致無法用這個指令記錄，避免網格錨點被推向錯誤方向。"
+        )
+
+    warn = None
+    if decision.rungs > 0:
+        rungs, step = decision.rungs, decision.step
+        if abs(decision.shares - shares) > max(decision.lot_shares, 1):
+            warn = f"網格試算為 {decision.rungs} 份（{decision.shares:,} 股），跟你打的 {shares:,} 股不同，已用 {shares:,} 股記錄。"
+    elif decision.lot_shares > 0:
+        rungs = max(1, round(shares / decision.lot_shares))
+        step = decision.step
+        if decision.blocks:
+            # rungs 被風控閘門（現金不足、部位上限、禁止虧損賣出…）壓到 0，
+            # 不是單純距錨點太近——把實際擋下的原因顯示出來，不要只說「不到一格」。
+            warn = f"網格風控擋下這筆建議（{'；'.join(decision.blocks)}），已依你的股數換算成對應份數記錄。"
+        else:
+            warn = "現價距錨點不到一格，網格原本不會觸發訊號；已依你的股數換算成對應份數記錄。"
+    else:
+        return f"⚠️ {code} 無法試算單階股數，未記錄。"
+
+    try:
+        result = commit_fill(code, action, shares, price, rungs, step, trade_date=trade_date)
+    except AdapterError as exc:
+        return f"⚠️ {exc}"
+
+    trade_date = trade_date or date.today().isoformat()
+    account_setting = "grid_us_cash_account_id" if result.market == "us" else "grid_cash_account_id"
+    account_id = get_setting(account_setting)
+    trade_type = "buy" if action == "BUY" else "sell"
+
+    with get_db() as conn:
+        trade_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (trade_id, code, trade_date, trade_type, shares, price, result.est_fee,
+             f"ATR 網格 {result.rungs} 份", account_id, _is_settled(trade_type, trade_date)),
+        )
+        account_name = None
+        if account_id:
+            acct_row = conn.execute("SELECT name FROM accounts WHERE id=%s", (account_id,)).fetchone()
+            account_name = acct_row["name"] if acct_row else None
+
+    amount = shares * price
+    reply = (
+        f"✅ 網格{_ACTION_LABEL[action]}已記錄\n\n"
+        f"股票：{code}\n"
+        f"成交日：{trade_date}\n"
+        f"股數：{shares:,} 股\n"
+        f"價格：NT${price:,.2f}\n"
+        f"成交金額：NT${amount:,.0f}\n"
+        f"手續費：NT${result.est_fee:,.0f}"
+    )
+    if result.est_tax:
+        reply += f"\n證交稅：NT${result.est_tax:,.0f}"
+    reply += (
+        f"\n\n📊 網格狀態\n"
+        f"份數：{result.rungs} 份\n"
+        f"錨點：{result.anchor_before:.3f} → {result.anchor_after:.3f}\n"
+        f"階數：{result.rung_before:+d} → {result.rung_after:+d}"
+    )
+    if trade_type == "buy":
+        reply += f"\n交割日：{_settlement_date(trade_date).isoformat()}"
+        if account_name:
+            reply += f"\n交割帳戶：{account_name}"
+        else:
+            reply += "\n⚠️ 找不到交割帳戶，這筆買單到期不會自動扣款，請先設定「網格現金帳戶」。"
+    elif account_name:
+        reply += f"\n交割帳戶：{account_name}"
+    if warn:
+        reply += f"\n\n⚠️ {warn}"
+    return reply
 
 
 def _process_command(text: str) -> str | None:
@@ -645,6 +768,26 @@ def _process_command(text: str) -> str | None:
             else:
                 reply += "\n⚠️ 找不到交割帳戶，這筆買單到期不會自動扣款，請先在券商設定或「網格現金帳戶」設定交割帳戶後手動補上。"
         return reply
+
+    # ── Grid trade commands ─────────────────────────────────────────────────
+    if cmd in _GRID_TRADE_CMDS:
+        action = _GRID_TRADE_CMDS[cmd]
+        if len(parts) < 4:
+            return f"格式錯誤。範例：{cmd} 2330 500 580 [日期]"
+        code = parts[1].upper()
+        shares = _parse_number(parts[2])
+        price = _parse_number(parts[3])
+        if shares is None or price is None or shares <= 0 or price <= 0:
+            return "股數或價格格式錯誤。"
+
+        trade_date = None
+        for token in parts[4:]:
+            if _looks_like_date_token(token):
+                trade_date = _parse_trade_date(token)
+                if trade_date is None:
+                    return f"日期「{token}」無效。格式：2026-08-15 或 0815。"
+
+        return _record_grid_trade(code, action, int(shares), price, trade_date)
 
     # ── Deposit ──────────────────────────────────────────────────────────────
     if cmd in _DEPOSIT_CMDS:

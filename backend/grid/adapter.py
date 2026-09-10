@@ -482,6 +482,11 @@ def commit_fill(
             decision.anchor_after = position.anchor + step * rungs
 
         engine_commit(ctx.state, decision, trade_date)
+        # engine_commit() updates position.rung in place but — unlike evaluate()'s
+        # own Decision — never writes it back onto this manually-built Decision,
+        # so without this line every caller's `decision.rung_after` reads back
+        # as the dataclass default 0 regardless of the real new rung.
+        decision.rung_after = position.rung
         _persist_position(conn, code, position)
 
     return decision
