@@ -7,7 +7,7 @@ against the real database once the grid_positions/grid_params tables exist.
 import pytest
 
 from fifo import calc_fifo
-from grid.adapter import AdapterError, asset_classes_for, holding_from_row, position_from_row
+from grid.adapter import AdapterError, asset_classes_for, grid_net_spent, holding_from_row, position_from_row
 
 
 def make_grid_row(**overrides) -> dict:
@@ -173,3 +173,66 @@ class TestAssetClassesFor:
         )
         result = asset_classes_for(conn, ["0052", "2330"], {"0052": "tw", "2330": "tw"})
         assert result == {"0052": "equity", "2330": "stock"}
+
+
+def grid_trade(type_, shares, price, fee=0) -> dict:
+    return {"type": type_, "shares": shares, "price": price, "fee": fee, "sig_ref": "grid"}
+
+
+def plain_trade(type_, shares, price, fee=0) -> dict:
+    return {"type": type_, "shares": shares, "price": price, "fee": fee, "sig_ref": ""}
+
+
+class TestGridNetSpent:
+    def test_no_trades_is_zero(self):
+        assert grid_net_spent([]) == 0.0
+
+    def test_only_counts_sig_ref_grid_trades(self):
+        trades = [plain_trade("buy", 1000, 100.0, 10)]
+        assert grid_net_spent(trades) == 0.0
+
+    def test_buy_adds_cost_plus_fee(self):
+        trades = [grid_trade("buy", 100, 50.0, 5)]
+        assert grid_net_spent(trades) == 100 * 50.0 + 5
+
+    def test_sell_subtracts_proceeds_minus_fee(self):
+        trades = [
+            grid_trade("buy", 100, 50.0, 5),
+            grid_trade("sell", 40, 55.0, 3),
+        ]
+        # net = (100*50+5) - (40*55-3) = 5005 - 2197 = 2808
+        assert grid_net_spent(trades) == pytest.approx(2808.0)
+
+    def test_floors_at_zero_when_grid_has_net_sold(self):
+        trades = [
+            grid_trade("buy", 10, 50.0, 1),
+            grid_trade("sell", 10, 200.0, 1),  # big gain, would go negative
+        ]
+        assert grid_net_spent(trades) == 0.0
+
+    def test_ignores_plain_trades_mixed_with_grid_trades(self):
+        trades = [
+            plain_trade("buy", 1000, 100.0, 10),  # pre-existing holding, not via grid
+            grid_trade("buy", 50, 60.0, 2),
+        ]
+        assert grid_net_spent(trades) == 50 * 60.0 + 2
+
+
+class TestHoldingFromRowBudget:
+    def test_defaults_to_zero_budget_and_zero_spent(self):
+        fifo_result = calc_fifo([])
+        holding = holding_from_row("0052", "測試", "equity", make_grid_row(), fifo_result, [])
+        assert holding.budget_pct == 0.0
+        assert holding.grid_net_spent == 0.0
+
+    def test_reads_budget_pct_from_grid_row(self):
+        fifo_result = calc_fifo([])
+        row = make_grid_row(budget_pct=0.3)
+        holding = holding_from_row("0052", "測試", "equity", row, fifo_result, [])
+        assert holding.budget_pct == 0.3
+
+    def test_computes_grid_net_spent_from_trades(self):
+        fifo_result = calc_fifo([])
+        trades = [grid_trade("buy", 100, 50.0, 5)]
+        holding = holding_from_row("0052", "測試", "equity", make_grid_row(), fifo_result, [], trades=trades)
+        assert holding.grid_net_spent == 100 * 50.0 + 5

@@ -29,7 +29,7 @@ from fastapi import APIRouter, HTTPException
 from database import get_db, get_setting
 from fifo import calc_fifo
 from grid.adapter import (
-    AdapterError, asset_classes_for, build_settings, commit_fill, evaluate_all, position_from_row,
+    AdapterError, asset_classes_for, build_settings, commit_fill, evaluate_all, grid_net_spent, position_from_row,
 )
 from grid.config import ConfigError, GridParams, VALID_CLASSES, infer_asset_class
 from grid.engine import BUY, SELL, Decision, next_grid_levels, rung_shares
@@ -383,6 +383,7 @@ def get_grid_positions():
             "anchor": round(row["anchor"], 3),
             "rung": row["rung"],
             "baselineShares": row["baseline_shares"],
+            "budgetPct": row["budget_pct"],
         }
         if settings is not None and asset_class in settings.defaults and row["anchor"] > 0:
             params = settings.params_for(asset_class).merged(row["grid_overrides"] or {})
@@ -397,6 +398,14 @@ def get_grid_positions():
                 "nextBuy": [round(p, 2) for p in buys],
                 "nextSell": [round(p, 2) for p in sells],
             })
+            if row["budget_pct"]:
+                is_us = markets.get(code, "tw") == "us"
+                spendable = (settings.us_cash - settings.us_cash_floor) if is_us else (settings.cash - settings.cash_floor)
+                budget_amount = spendable * row["budget_pct"]
+                entry.update({
+                    "budgetAmount": round(budget_amount, 2),
+                    "budgetSpent": round(grid_net_spent(by_code.get(code, [])), 2),
+                })
         result.append(entry)
     return result
 
@@ -465,13 +474,17 @@ def patch_grid_position(code: str, body: GridPositionPatch):
             raise HTTPException(404, f"{code} 不是網格標的")
         if body.assetClass is not None and body.assetClass not in VALID_CLASSES:
             raise HTTPException(400, f"assetClass 必須是 {sorted(VALID_CLASSES)} 之一")
+        if body.budgetPct is not None and not 0.0 <= body.budgetPct <= 1.0:
+            raise HTTPException(400, "budgetPct 必須介於 0 與 1")
         enabled = row["enabled"] if body.enabled is None else body.enabled
         anchor = row["anchor"] if body.anchor is None else body.anchor
         overrides = row["grid_overrides"] if body.gridOverrides is None else body.gridOverrides
         asset_class = row["asset_class"] if body.assetClass is None else body.assetClass
+        budget_pct = row["budget_pct"] if body.budgetPct is None else body.budgetPct
         conn.execute(
-            "UPDATE grid_positions SET enabled=%s, anchor=%s, grid_overrides=%s, asset_class=%s WHERE code=%s",
-            (enabled, anchor, json.dumps(overrides), asset_class, code),
+            "UPDATE grid_positions SET enabled=%s, anchor=%s, grid_overrides=%s, asset_class=%s,"
+            " budget_pct=%s WHERE code=%s",
+            (enabled, anchor, json.dumps(overrides), asset_class, budget_pct, code),
         )
     return {"ok": True}
 
@@ -491,6 +504,11 @@ def record_grid_fill(body: GridRecordIn):
     trade_date = body.date or date.today().isoformat()
     default_setting = "grid_us_cash_account_id" if decision.market == "us" else "grid_cash_account_id"
     account_id = body.accountId or get_setting(default_setting)
+    with get_db() as conn:
+        broker_row = (
+            conn.execute("SELECT id FROM brokers WHERE account_id=%s LIMIT 1", (account_id,)).fetchone()
+            if account_id else None
+        )
     trade = TradeIn(
         id=str(uuid.uuid4()),
         date=trade_date,
@@ -501,6 +519,7 @@ def record_grid_fill(body: GridRecordIn):
         sigRef="grid",
         note=f"ATR 網格 {decision.rungs} 份",
         accountId=account_id,
+        brokerId=broker_row["id"] if broker_row else None,
         settled=False,
     )
     create_trade(body.code, trade)

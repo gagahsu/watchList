@@ -167,6 +167,29 @@ def build_settings(conn) -> Settings:
 # dataclasses. Kept free of DB calls so they're unit-testable without a live
 # database — the thin `build_*` wrappers below just fetch rows and delegate.
 
+def grid_net_spent(trades: Sequence[dict[str, Any]]) -> float:
+    """Net cash the grid itself has spent buying `code` so far (sum of grid
+    buys' cost minus grid sells' proceeds, sig_ref='grid' trades only — a
+    plain buy/sell on the same code doesn't count against the grid's own
+    budget). Used by Holding.budget_pct to cap how much MORE the grid can
+    spend going forward, as a share of the current cash pool — not a verdict
+    on the ticker's total position size, which may include shares held
+    before grid tracking ever started. Floored at 0 so a ticker that's sold
+    more via the grid than it ever bought (e.g. selling down a pre-existing
+    position) doesn't get a *negative* spend read as extra budget room."""
+    net = 0.0
+    for t in trades:
+        if t.get("sig_ref") != "grid":
+            continue
+        amount = t["shares"] * t["price"]
+        fee = t.get("fee") or 0
+        if t["type"] == "buy":
+            net += amount + fee
+        else:
+            net -= amount - fee
+    return max(0.0, net)
+
+
 def holding_from_row(
     code: str,
     name: str,
@@ -175,6 +198,7 @@ def holding_from_row(
     fifo_result: dict[str, Any],
     ex_dividend_rows: Sequence[dict[str, Any]],
     market: str = "tw",
+    trades: Sequence[dict[str, Any]] = (),
 ) -> Holding:
     if asset_class not in VALID_CLASSES:
         raise AdapterError(
@@ -205,6 +229,8 @@ def holding_from_row(
         overrides=dict(grid_row.get("grid_overrides") or {}),
         ex_dividends=ex_dividends,
         tracked_since=tracked_since,
+        budget_pct=float(grid_row.get("budget_pct") or 0.0),
+        grid_net_spent=grid_net_spent(trades),
     )
 
 
@@ -293,7 +319,7 @@ def _build_one(conn, grid_row: dict[str, Any], trades: list[dict], market: str) 
         "SELECT ex_date, cash_div FROM dividend_records WHERE code=%s ORDER BY ex_date", (code,)
     ).fetchall()
 
-    holding = holding_from_row(code, name, asset_class, grid_row, fifo_result, ex_div_rows, market)
+    holding = holding_from_row(code, name, asset_class, grid_row, fifo_result, ex_div_rows, market, trades)
     position = position_from_row(code, grid_row, fifo_result)
     return holding, position
 

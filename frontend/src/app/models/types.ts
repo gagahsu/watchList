@@ -104,6 +104,9 @@ export interface GridPosition {
   maxSellRungs?: number;
   nextBuy?: number[];
   nextSell?: number[];
+  budgetPct: number;
+  budgetAmount?: number;
+  budgetSpent?: number;
 }
 
 export interface GridPositionAddRequest {
@@ -177,6 +180,7 @@ export interface Trade {
   sigRef: string;
   note: string;
   accountId: string | null;
+  brokerId: string | null;
   settled: boolean;
 }
 

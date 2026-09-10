@@ -117,6 +117,11 @@ DDL = [
     # 券商 → 交割帳戶：LINE bot 記帳時用這欄自動決定 trades.account_id，
     # 不再需要使用者每次手動指定帳戶名稱（見 routers/linebot.py::_resolve_account_id）。
     "ALTER TABLE brokers ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+    # 記錄每筆交易實際是哪個券商成交的（B2）。account_id 通常間接透露這個資訊
+    # （一個帳戶多半只掛一個券商），但沒有顯式欄位就沒辦法直接篩選/稽核，換
+    # 券商時歷史交易的手續費折數也說不清楚是哪個算出來的。歷史交易不回填，
+    # 只有這之後新記的單才會有值。
+    "ALTER TABLE trades ADD COLUMN IF NOT EXISTS broker_id TEXT REFERENCES brokers(id) ON DELETE SET NULL",
     """
     CREATE TABLE IF NOT EXISTS stocks (
         code       TEXT PRIMARY KEY,
@@ -330,6 +335,10 @@ DDL = [
     # trailing grid（區間上移）的連續突破計數，對應 grid/state.py 的 Position
     "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS breakout_days INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS last_breakout_date TEXT",
+    # 每檔獨立資金預算（B3）：這檔網格最多可動用「可用現金 × 這個比例」，
+    # 0（預設）＝不限制，維持這個欄位加入前的行為（19 檔共搶同一池現金）。
+    # 對應 grid/config.py 的 Holding.budget_pct。
+    "ALTER TABLE grid_positions ADD COLUMN IF NOT EXISTS budget_pct DOUBLE PRECISION NOT NULL DEFAULT 0",
     # 四類資產（equity/bond/leveraged/stock）的網格參數，對應 grid/config.py 的 GridParams
     """
     CREATE TABLE IF NOT EXISTS grid_params (

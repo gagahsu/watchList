@@ -173,6 +173,7 @@ interface GuardRow {
           <th style="width:90px;text-align:right">成本</th>
           <th style="width:90px;text-align:right">錨點</th>
           <th style="width:60px;text-align:right">階數</th>
+          <th style="width:120px;text-align:right">資金預算</th>
           <th>下一買 / 下一賣</th>
           <th style="width:70px">狀態</th>
           <th style="width:110px"></th>
@@ -202,6 +203,31 @@ interface GuardRow {
               }
             </td>
             <td class="risk-num">{{ p.rung > 0 ? '+' + p.rung : p.rung }}</td>
+            <td class="risk-num">
+              @if (editingBudgetCode() === p.code) {
+                <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+                  <input type="number" min="0" max="100" step="1" style="width:56px;text-align:right"
+                    [(ngModel)]="budgetInputValue" />
+                  <span style="font-size:12px">%</span>
+                  <button class="btn-primary" style="padding:2px 8px;font-size:11px" [disabled]="savingBudget().has(p.code)"
+                    (click)="saveBudget(p)">{{ savingBudget().has(p.code) ? '…' : '存' }}</button>
+                  <button class="btn-cancel" style="padding:2px 8px;font-size:11px" (click)="cancelEditBudget()">取消</button>
+                </div>
+              } @else {
+                <div style="cursor:pointer" (click)="startEditBudget(p)" title="點擊設定這檔的資金預算上限">
+                  @if (p.budgetPct > 0) {
+                    <div>{{ (p.budgetPct * 100).toFixed(0) }}%</div>
+                    @if (p.budgetAmount !== undefined && p.budgetSpent !== undefined) {
+                      <div style="font-size:11px;color:var(--text-muted)">
+                        {{ p.budgetSpent.toLocaleString() }} / {{ p.budgetAmount.toLocaleString() }}
+                      </div>
+                    }
+                  } @else {
+                    <span style="color:var(--border);font-size:12px">未限制</span>
+                  }
+                </div>
+              }
+            </td>
             <td style="font-size:12px">
               @if (p.nextBuy && p.nextSell) {
                 <span class="pos">↓ {{ p.nextBuy[0].toFixed(2) }}</span>
@@ -584,6 +610,38 @@ export class GridViewComponent implements OnInit {
     if (assetClass === p.assetClass) return;
     await this.api.patchGridPosition(p.code, { assetClass });
     await this.loadPositions();
+  }
+
+  savingBudget = signal<ReadonlySet<string>>(new Set());
+  editingBudgetCode = signal<string | null>(null);
+  budgetInputValue = 0;
+
+  /** 每檔資金預算佔可用現金的比例（B3）：0 表示不限制，跟其他標的共用同一池。
+   *  畫面用百分比比較直覺，存回後端前才換算成 0~1 的比例。 */
+  startEditBudget(p: GridPosition) {
+    this.editingBudgetCode.set(p.code);
+    this.budgetInputValue = Math.round(p.budgetPct * 100);
+  }
+
+  cancelEditBudget() {
+    this.editingBudgetCode.set(null);
+  }
+
+  async saveBudget(p: GridPosition) {
+    if (this.budgetInputValue < 0 || this.budgetInputValue > 100) {
+      alert('預算比例必須介於 0 與 100');
+      return;
+    }
+    this.savingBudget.update(s => new Set(s).add(p.code));
+    try {
+      await this.api.patchGridPosition(p.code, { budgetPct: this.budgetInputValue / 100 });
+      this.editingBudgetCode.set(null);
+      await this.loadPositions();
+    } catch (e: any) {
+      alert(e?.error?.detail ?? e?.message ?? '設定資金預算失敗');
+    } finally {
+      this.savingBudget.update(s => { const n = new Set(s); n.delete(p.code); return n; });
+    }
   }
 
   openRecord(d: GridDecision) {

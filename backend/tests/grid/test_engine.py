@@ -221,6 +221,48 @@ def test_cash_floor_is_respected(holding, position, settings, state):
     assert decision.shares == 0
 
 
+# ------------------------------------------------------------ 每檔資金預算（B3）
+
+
+def test_limit_buy_budget_off_by_default(holding, position, settings, state):
+    assert holding.budget_pct == 0.0
+    decision = _evaluate(holding, position, settings, state, price=98.9)
+    assert decision.action == BUY
+    assert decision.rungs == 1
+
+
+def test_limit_buy_blocks_when_budget_fully_used(holding, position, settings, state):
+    # 預算 = 1,000,000 * 1% = 10,000，已花掉一樣多 -> 立刻擋下，不進現金迴圈
+    used_up = replace(holding, budget_pct=0.01, grid_net_spent=1_000_000 * 0.01)
+    decision = _evaluate(used_up, position, settings, state, price=98.9)
+    assert decision.shares == 0
+    assert any("已達本檔資金預算上限" in b for b in decision.blocks)
+
+
+def test_limit_buy_allows_when_budget_has_room(holding, position, settings, state):
+    ample = replace(holding, budget_pct=0.5, grid_net_spent=0.0)
+    decision = _evaluate(ample, position, settings, state, price=98.9)
+    assert decision.action == BUY
+    assert decision.rungs == 1
+
+
+def test_limit_buy_trims_rungs_to_fit_remaining_budget(holding, position, settings, state):
+    # 跌 2.5 元原本是 2 格（見 test_multiple_rungs_when_price_moves_far），
+    # 預算只夠 1 格（1 格成本約 4,973.5，2 格約 9,947，預算設 7,000 介於中間）
+    tight = replace(holding, budget_pct=0.007, grid_net_spent=0.0)
+    decision = _evaluate(tight, position, settings, state, price=97.5)
+    assert decision.action == BUY
+    assert decision.rungs == 1
+
+
+def test_limit_sell_ignores_budget_pct(holding, position, settings, state):
+    # budget_pct 只限制買進的資金流出，不影響賣出（賣出本身不花這檔的預算）
+    tight = replace(holding, budget_pct=0.0001, grid_net_spent=1_000_000 * 0.0001)
+    decision = _evaluate(tight, position, settings, state, price=101.1)
+    assert decision.action == SELL
+    assert decision.rungs == 1
+
+
 def test_sell_blocked_when_holding_less_than_one_lot(holding, position, settings, state):
     position.shares = 10
     position.lots = [Lot(date="2026-01-01", price=50.0, shares=10)]

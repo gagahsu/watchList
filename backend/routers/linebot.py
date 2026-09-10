@@ -593,12 +593,17 @@ def _record_grid_trade(code: str, action: str, shares: int, price: float, trade_
     trade_type = "buy" if action == "BUY" else "sell"
 
     with get_db() as conn:
+        broker_row = (
+            conn.execute("SELECT id, name FROM brokers WHERE account_id=%s LIMIT 1", (account_id,)).fetchone()
+            if account_id else None
+        )
+        broker_id = broker_row["id"] if broker_row else None
         trade_id = str(uuid.uuid4())
         conn.execute(
-            "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, broker_id, settled)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (trade_id, code, trade_date, trade_type, shares, price, result.est_fee,
-             f"ATR 網格 {result.rungs} 份", account_id, _is_settled(trade_type, trade_date)),
+             f"ATR 網格 {result.rungs} 份", account_id, broker_id, _is_settled(trade_type, trade_date)),
         )
         account_name = None
         if account_id:
@@ -736,10 +741,10 @@ def _process_command(text: str) -> str | None:
 
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, broker_id, settled)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (trade_id, code, trade_date, trade_type, shares, price, fee, "", account_id,
-                 _is_settled(trade_type, trade_date)),
+                 broker["id"] if broker else None, _is_settled(trade_type, trade_date)),
             )
             account_name = None
             if account_id:
@@ -997,10 +1002,11 @@ def _process_trade_table(text: str, broker_hint: str = "國泰") -> str:
             tax = _calc_tax(shares, price, trade_type, asset_classes[code], market)
             trade_id = str(uuid.uuid4())
             conn.execute(
-                "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, settled)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO trades(id, code, date, type, shares, price, fee, note, account_id, broker_id, settled)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (trade_id, code, trade_date, trade_type, shares, price, fee,
-                 f"國泰成交回報 {p['order_no']}".strip(), account_id, _is_settled(trade_type, trade_date)),
+                 f"國泰成交回報 {p['order_no']}".strip(), account_id,
+                 broker["id"] if broker else None, _is_settled(trade_type, trade_date)),
             )
             inserted.append({"code": code, "name": p["name"], "type": trade_type, "shares": shares,
                               "price": price, "fee": fee, "tax": tax, "date": trade_date})

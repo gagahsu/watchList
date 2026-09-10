@@ -123,21 +123,28 @@ def make_decision(**overrides) -> Decision:
 
 
 class _RecordConn:
-    """Fake connection for _record_grid_trade's final trades-INSERT + accounts
-    lookup — the only DB work left once evaluate_all()/commit_fill() are
-    monkeypatched away."""
+    """Fake connection for _record_grid_trade's final trades-INSERT + accounts/
+    brokers lookups — the only DB work left once evaluate_all()/commit_fill()
+    are monkeypatched away."""
 
-    def __init__(self, account_name: str | None = None):
+    def __init__(self, account_name: str | None = None, broker_id: str | None = None):
         self.account_name = account_name
+        self.broker_id = broker_id
         self.inserted_params = None
+        self._last_sql = ""
 
     def execute(self, sql, params=None):
+        self._last_sql = sql
         if sql.strip().startswith("INSERT INTO trades"):
             self.inserted_params = params
         return self
 
     def fetchone(self):
-        return {"name": self.account_name} if self.account_name is not None else None
+        if "FROM brokers" in self._last_sql:
+            return {"id": self.broker_id} if self.broker_id is not None else None
+        if "FROM accounts" in self._last_sql:
+            return {"name": self.account_name} if self.account_name is not None else None
+        return None
 
 
 def _patch_grid_trade_deps(monkeypatch, decisions, commit_result=None, account_name="國泰證券"):

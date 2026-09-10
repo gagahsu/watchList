@@ -229,6 +229,17 @@ class Holding:
     #: 只該列出這天之後的新事件。``None`` 表示沒登記，不做任何過濾（相容
     #: 舊資料）。
     tracked_since: str | None = None
+    #: 這檔網格最多可動用「可用現金 × 這個比例」，0（預設）表示不限制——跟其他
+    #: 標的共用同一池，這個參數加入前的行為。目的是不讓好幾檔標的在同一天
+    #: 各自都以為自己能動用全部現金（每一檔的買進閘門本來就是各自獨立跟總額比
+    #: 較，見 grid/engine.py::_limit_buy），互相排擠。只限制「這檔網格自己還能
+    #: 再花多少」，不評斷這檔目前部位大小是否合理——那是 baseline_shares/實際
+    #: 持股的事，不歸這裡管。
+    budget_pct: float = 0.0
+    #: 這檔網格自己已經淨花掉的現金（sig_ref='grid' 的買進成本減賣出價款），
+    #: adapter 從 trades 表現算好帶進來，純粹用來跟 budget_pct 算出的預算比較，
+    #: 不影響任何持股/成本計算。
+    grid_net_spent: float = 0.0
 
     def validate(self) -> None:
         if self.market not in ("tw", "us"):
@@ -255,6 +266,10 @@ class Holding:
                     f"{self.ticker}: tracked_since 日期格式錯誤，需要 YYYY-MM-DD："
                     f"{self.tracked_since}"
                 ) from exc
+        if not 0.0 <= self.budget_pct <= 1.0:
+            raise ConfigError(f"{self.ticker}: budget_pct 必須介於 0 與 1")
+        if self.grid_net_spent < 0:
+            raise ConfigError(f"{self.ticker}: grid_net_spent 不可為負")
 
 
 def resolve_params(settings: Settings, holding: Holding) -> GridParams:

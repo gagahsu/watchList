@@ -112,6 +112,7 @@ class TradeIn(BaseModel):
     sigRef: str = ""
     note: str = ""
     accountId: Optional[str] = None
+    brokerId: Optional[str] = None
     settled: bool = False
 
 
@@ -125,6 +126,7 @@ class TradeOut(BaseModel):
     sigRef: str
     note: str
     accountId: Optional[str]
+    brokerId: Optional[str]
     settled: bool
 
 
@@ -251,6 +253,7 @@ class GridPositionPatch(BaseModel):
     anchor: float | None = None
     gridOverrides: dict | None = None
     assetClass: str | None = None
+    budgetPct: float | None = None
 
 
 class GridParamsIn(BaseModel):

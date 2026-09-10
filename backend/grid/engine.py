@@ -483,7 +483,7 @@ def evaluate(
         )
 
     if side == BUY:
-        rungs = _limit_buy(decision, position, params, settings, state, price, lot, rungs, holding.market)
+        rungs = _limit_buy(decision, position, params, settings, state, price, lot, rungs, holding.market, holding)
     else:
         rungs = _limit_sell(decision, position, params, settings, price, lot, rungs, holding.market)
 
@@ -550,8 +550,9 @@ def _limit_buy(
     lot: int,
     rungs: int,
     market: str = "tw",
+    holding: Holding | None = None,
 ) -> int:
-    """把買進份數壓到部位上限與現金允許的範圍內。"""
+    """把買進份數壓到部位上限、現金允許的範圍、與這檔自己的資金預算內。"""
     room = params.max_buy_rungs - position.rung
     if room <= 0:
         decision.blocks.append(
@@ -570,6 +571,23 @@ def _limit_buy(
             f"可用現金 {cash:,.2f} 已達保留水位 {cash_floor:,.2f}"
         )
         return 0
+
+    # 每檔獨立資金預算（B3）：budget_pct=0（預設）就跟這個參數加入前完全一樣，
+    # 不限制。開了之後，這檔能動用的現金額外被夾在「預算 - 這檔網格已經淨花掉
+    # 的錢」以內——不管現金池本身還剩多少，避免好幾檔標的同一天都以為自己能
+    # 動用全部現金（見 A3 的 /grid/advice 現金水位警告，那個是疊加提醒，這個
+    # 才是真正的硬性上限）。
+    if holding is not None and holding.budget_pct > 0:
+        unit = "美元" if market == "us" else "元"
+        budget = spendable * holding.budget_pct
+        remaining_budget = budget - holding.grid_net_spent
+        if remaining_budget <= 0:
+            decision.blocks.append(
+                f"已達本檔資金預算上限（{holding.budget_pct:.0%} × 可用現金 = "
+                f"{budget:,.2f} {unit}，已用 {holding.grid_net_spent:,.2f} {unit}）"
+            )
+            return 0
+        spendable = min(spendable, remaining_budget)
 
     while rungs > 0:
         cost = split_buy_cost(
