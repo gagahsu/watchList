@@ -4,7 +4,7 @@ import { StockService } from '../../services/stock.service';
 import { settlementDate } from '../../utils';
 
 interface CalEvent {
-  type: 'credit-card' | 'loan' | 'fund' | 'dividend' | 'balance-alert' | 'settlement' | 'account-total';
+  type: 'loan' | 'fund' | 'dividend' | 'balance-alert' | 'settlement' | 'account-total';
   label: string;
   sublabel?: string;
   amount?: number;
@@ -12,7 +12,6 @@ interface CalEvent {
 }
 
 const META = {
-  'credit-card':   { icon: '💳', color: '#e74c3c', bg: 'rgba(231,76,60,.18)',   text: '信用卡扣款'   },
   'loan':          { icon: '🔔', color: '#e67e22', bg: 'rgba(230,126,34,.18)',  text: '貸款還款'     },
   'fund':          { icon: '🏦', color: '#3498db', bg: 'rgba(52,152,219,.18)',  text: '基金扣款'     },
   'dividend':      { icon: '💵', color: '#27ae60', bg: 'rgba(39,174,96,.18)',   text: '股息除息'     },
@@ -26,10 +25,6 @@ const META = {
   template: `
 <!-- Summary strip -->
 <div class="cal-summary">
-  <div class="cal-sum-card">
-    <div class="cal-sum-label">信用卡扣款</div>
-    <div class="cal-sum-val">{{ state.creditCards().length || '—' }} 張</div>
-  </div>
   <div class="cal-sum-card">
     <div class="cal-sum-label">貸款還款 / 月</div>
     <div class="cal-sum-val neg">{{ fmtNT(totalLoan()) }}</div>
@@ -376,9 +371,6 @@ export class CalendarViewComponent {
       m2.set(accountId, (m2.get(accountId) ?? 0) + amt);
     };
 
-    for (const c of this.state.creditCards()) {
-      push(c.paymentDay, { type: 'credit-card', label: c.name, sublabel: c.note || undefined });
-    }
     for (const l of this.state.liabilities()) {
       if (!l.reminderEnabled || !l.reminderDay) continue;
       push(l.reminderDay, { type: 'loan', label: l.name, amount: l.monthlyPayment ?? undefined, accountId: l.accountId });

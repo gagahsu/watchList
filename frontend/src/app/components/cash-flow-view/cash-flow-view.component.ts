@@ -139,9 +139,6 @@ import { calcFIFO } from '../../utils';
       </div>
     }
 
-    <div class="cf-note">
-      <span>※ 信用卡費因金額不固定，不列入計算</span>
-    </div>
   </div>
 
 </div>

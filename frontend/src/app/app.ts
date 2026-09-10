@@ -13,7 +13,6 @@ import { AddCompanyModalComponent } from './components/modals/add-company-modal/
 import { StockDetailModalComponent } from './components/modals/stock-detail-modal/stock-detail-modal.component';
 import { ImportModalComponent } from './components/modals/import-modal/import-modal.component';
 import { BrokerSettingsModalComponent } from './components/modals/broker-settings-modal/broker-settings-modal.component';
-import { CreditCardSettingsModalComponent } from './components/modals/credit-card-settings-modal/credit-card-settings-modal.component';
 import { AccountsViewComponent } from './components/accounts-view/accounts-view.component';
 import { BalanceSheetViewComponent } from './components/balance-sheet-view/balance-sheet-view.component';
 import { WatchViewComponent } from './components/watch-view/watch-view.component';
@@ -32,7 +31,7 @@ import { GridViewComponent } from './components/grid-view/grid-view.component';
     SidebarComponent, NotesViewComponent, NotesListViewComponent,
     StockIndexComponent, SignalsViewComponent, PortfolioViewComponent,
     AddCompanyModalComponent, StockDetailModalComponent, ImportModalComponent,
-    BrokerSettingsModalComponent, CreditCardSettingsModalComponent, AccountsViewComponent,
+    BrokerSettingsModalComponent, AccountsViewComponent,
     BalanceSheetViewComponent, WatchViewComponent, AccountTransactionsViewComponent,
     DividendViewComponent, FundHoldingsViewComponent, CashFlowViewComponent, CalendarViewComponent,
     LiabilitiesViewComponent, RiskViewComponent, GridViewComponent,
@@ -48,7 +47,7 @@ export class App implements OnInit {
 
   async ngOnInit() {
     try {
-      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, creditCards, netWorthSnapshots, assetClasses, gridAssetClasses] = await this.api.loadAll();
+      const [notes, signals, trades, sources, markets, stocks, trackedStocks, brokers, accounts, liabilities, transactions, dividends, fxRate, funds, netWorthSnapshots, assetClasses, gridAssetClasses] = await this.api.loadAll();
       this.state.notes.set(notes);
       this.state.signals.set(signals);
       this.state.trades.set(trades);
@@ -63,7 +62,6 @@ export class App implements OnInit {
       this.state.dividends.set(dividends);
       this.state.usdTwdRate.set(fxRate.rate);
       this.state.funds.set(funds);
-      this.state.creditCards.set(creditCards);
       this.state.netWorthSnapshots.set(netWorthSnapshots);
       this.state.assetClasses.set(assetClasses);
       this.state.gridAssetClasses.set(gridAssetClasses);

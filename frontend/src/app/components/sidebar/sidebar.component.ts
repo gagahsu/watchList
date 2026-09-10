@@ -39,9 +39,6 @@ import { pendingSettlements, settlementDate } from '../../utils';
       </button>
       <button class="sidebar-nav-item" [class.active]="isActive('cash-flow')" (click)="navigate('cash-flow')">
         <span class="nav-icon">📊</span> 每月現金流
-        @if (creditCardReminderCount() > 0) {
-          <span class="sidebar-nav-badge" style="background:rgba(192,57,43,.8)">💳 {{ creditCardReminderCount() }}</span>
-        }
       </button>
       <button class="sidebar-nav-item" [class.active]="isActive('calendar')" (click)="navigate('calendar')">
         <span class="nav-icon">📅</span> 財務行事曆
@@ -144,12 +141,6 @@ import { pendingSettlements, settlementDate } from '../../utils';
           <span class="sidebar-nav-badge">{{ state.brokers().length }}</span>
         }
       </button>
-      <button class="sidebar-nav-item" (click)="openCreditCards()">
-        <span class="nav-icon">💳</span> 信用卡扣款日
-        @if (state.creditCards().length > 0) {
-          <span class="sidebar-nav-badge">{{ state.creditCards().length }}</span>
-        }
-      </button>
     </div>
   </div>
 
@@ -178,7 +169,6 @@ export class SidebarComponent {
   }
 
   openBrokers()      { this.state.brokersOpen.set(true);      this.state.sidebarOpen.set(false); }
-  openCreditCards()  { this.state.creditCardsOpen.set(true);  this.state.sidebarOpen.set(false); }
 
   accountWarningCount = computed(() => {
     const trades = this.state.trades();
@@ -192,16 +182,10 @@ export class SidebarComponent {
     this.state.tracked().filter(t => t.status === 'locked' || t.status === 'holding').length,
   );
 
-  creditCardReminderCount = computed(() => {
-    const todayDay = new Date().getDate();
-    return this.state.creditCards().filter(c => c.paymentDay === todayDay).length;
-  });
-
   calendarEventCount = computed(() => {
     const n = new Date();
     const d = n.getDate(), m = n.getMonth(), y = n.getFullYear();
-    let count = this.state.creditCards().filter(c => c.paymentDay === d).length;
-    count += this.state.liabilities().filter(l => l.reminderEnabled && l.reminderDay === d).length;
+    let count = this.state.liabilities().filter(l => l.reminderEnabled && l.reminderDay === d).length;
     count += this.state.funds().flatMap(f => f.schedules).filter(s => s.dayOfMonth === d).length;
     count += this.state.dividends().filter(dv => {
       const dt = new Date(dv.exDate + 'T00:00:00');

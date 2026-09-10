@@ -221,19 +221,7 @@ def check_and_push_alerts():
     with get_db() as conn:
         accounts = {r["id"]: r for r in conn.execute("SELECT id, name, balance FROM accounts").fetchall()}
 
-        # ── 1. Credit card payment reminders (明日繳費) ──────────────────
-        credit_cards = conn.execute(
-            "SELECT name, note FROM credit_cards WHERE payment_day = %s",
-            (min(tomorrow_day, last_day_tomorrow),)
-        ).fetchall()
-        for cc in credit_cards:
-            msg = f"💳 信用卡繳費提醒\n\n卡片：{cc['name']}"
-            if cc["note"]:
-                msg += f"\n備註：{cc['note']}"
-            msg += "\n\n明日為繳費日，請儘早準備款項。"
-            messages.append(msg)
-
-        # ── 2. Liability reminders (明日還款) ────────────────────────────
+        # ── Liability reminders (明日還款) ────────────────────────────
         liabilities = conn.execute(
             "SELECT name, type, amount, monthly_payment, reminder_day, note, account_id "
             "FROM liabilities WHERE reminder_enabled = TRUE AND reminder_day IS NOT NULL"
@@ -1096,7 +1084,6 @@ async def webhook(request: Request, x_line_signature: str = Header(...)):
                     reply_token,
                     "已訂閱提醒通知 ✓\n\n"
                     "我會在以下情況主動通知您：\n"
-                    "• 💳 信用卡繳費日\n"
                     "• 🔔 負債還款提醒日\n"
                     "• 🏦 基金扣款日\n"
                     "• 💵 股息除息日\n"

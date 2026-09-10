@@ -5,10 +5,10 @@ import { ApiService } from '../../services/api.service';
 import { Liability } from '../../models/types';
 import { uid } from '../../utils';
 
-const LIABILITY_TYPES = ['房貸', '車貸', '信用貸款', '信用卡', '學貸', '其他'];
+const LIABILITY_TYPES = ['房貸', '車貸', '信用貸款', '學貸', '其他'];
 const LOAN_TYPES = new Set(['房貸', '車貸', '信用貸款', '學貸']);
 const TYPE_ICON: Record<string, string> = {
-  '房貸': '🏠', '車貸': '🚗', '信用貸款': '🏦', '信用卡': '💳', '學貸': '🎓', '其他': '📋',
+  '房貸': '🏠', '車貸': '🚗', '信用貸款': '🏦', '學貸': '🎓', '其他': '📋',
 };
 
 function isReminderToday(l: Liability): boolean {
@@ -120,7 +120,7 @@ function isReminderToday(l: Liability): boolean {
     </div>
     <div class="broker-form-group" style="flex:1">
       <div class="modal-label">類型</div>
-      <select class="trade-form-select" (change)="f.type=asStr($event); f.selectedBank=''">
+      <select class="trade-form-select" (change)="f.type=asStr($event)">
         @for (t of liabilityTypes; track t) {
           <option [value]="t" [selected]="f.type===t">{{ t }}</option>
         }
@@ -186,45 +186,23 @@ function isReminderToday(l: Liability): boolean {
     </div>
   }
 
-  @if (f.type === '信用卡' && state.creditCards().length > 0) {
-    <div class="bs-loan-divider">扣款日設定</div>
-    <div class="broker-form-row">
+  <div class="broker-form-row" style="align-items:flex-end;margin-top:4px">
+    <div class="broker-form-group" style="flex:0 0 auto">
+      <div class="modal-label">提醒</div>
+      <label class="bs-toggle">
+        <input type="checkbox" [checked]="f.reminderEnabled"
+          (change)="f.reminderEnabled=asChecked($event)" />
+        <span class="bs-toggle-label">開啟提醒</span>
+      </label>
+    </div>
+    @if (f.reminderEnabled) {
       <div class="broker-form-group" style="flex:1">
-        <div class="modal-label">銀行（自動帶入扣款日）</div>
-        <select class="trade-form-select" [value]="f.selectedBank" (change)="onBankChange($event, f)">
-          <option value="">— 選擇銀行 —</option>
-          @for (c of state.creditCards(); track c.id) {
-            <option [value]="c.name">{{ c.name }}（每月 {{ c.paymentDay }} 日）</option>
-          }
-        </select>
+        <div class="modal-label">每月幾號 (1–31)</div>
+        <input class="modal-input" type="number" min="1" max="31" step="1"
+          [value]="f.reminderDay" (input)="f.reminderDay=toInt($event)" />
       </div>
-      @if (f.selectedBank) {
-        <div class="broker-form-group" style="flex:0 0 auto;align-self:flex-end">
-          <div class="bs-bank-day-tag">🔔 每月 {{ f.reminderDay }} 日扣款</div>
-        </div>
-      }
-    </div>
-  }
-
-  @if (f.type !== '信用卡' || !f.selectedBank) {
-    <div class="broker-form-row" style="align-items:flex-end;margin-top:4px">
-      <div class="broker-form-group" style="flex:0 0 auto">
-        <div class="modal-label">提醒</div>
-        <label class="bs-toggle">
-          <input type="checkbox" [checked]="f.reminderEnabled"
-            (change)="f.reminderEnabled=asChecked($event)" />
-          <span class="bs-toggle-label">開啟提醒</span>
-        </label>
-      </div>
-      @if (f.reminderEnabled) {
-        <div class="broker-form-group" style="flex:1">
-          <div class="modal-label">每月幾號 (1–31)</div>
-          <input class="modal-input" type="number" min="1" max="31" step="1"
-            [value]="f.reminderDay" (input)="f.reminderDay=toInt($event)" />
-        </div>
-      }
-    </div>
-  }
+    }
+  </div>
 </ng-template>
   `,
   styles: [`
@@ -298,20 +276,11 @@ export class LiabilitiesViewComponent {
       interestRate: null as number | null,
       monthlyPayment: null as number | null,
       accountId: null as string | null,
-      selectedBank: '',
     };
   }
 
   accountName(id: string) {
     return this.state.accounts().find(a => a.id === id)?.name ?? id;
-  }
-
-  onBankChange(e: Event, f: ReturnType<typeof this.blankForm>) {
-    const bankName = (e.target as HTMLSelectElement).value;
-    f.selectedBank = bankName;
-    if (!bankName) { f.reminderEnabled = false; f.reminderDay = 1; return; }
-    const card = this.state.creditCards().find(c => c.name === bankName);
-    if (card) { f.reminderEnabled = true; f.reminderDay = card.paymentDay; }
   }
 
   asStr(e: Event)         { return (e.target as HTMLInputElement | HTMLSelectElement).value; }
@@ -367,18 +336,12 @@ export class LiabilitiesViewComponent {
   }
 
   startEdit(l: Liability) {
-    let selectedBank = '';
-    if (l.type === '信用卡' && l.reminderEnabled && l.reminderDay) {
-      const match = this.state.creditCards().find(c => c.paymentDay === l.reminderDay);
-      if (match) selectedBank = match.name;
-    }
     this.editF = {
       name: l.name, type: l.type, amount: l.amount, note: l.note,
       reminderEnabled: l.reminderEnabled, reminderDay: l.reminderDay ?? 1,
       totalAmount: l.totalAmount, periods: l.periods,
       paidPeriods: l.paidPeriods, interestRate: l.interestRate,
       monthlyPayment: l.monthlyPayment, accountId: l.accountId,
-      selectedBank,
     };
     this.editId.set(l.id);
     this.showAddForm.set(false);

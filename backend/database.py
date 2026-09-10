@@ -247,15 +247,7 @@ DDL = [
         note         TEXT NOT NULL DEFAULT ''
     )
     """,
-    """
-    CREATE TABLE IF NOT EXISTS credit_cards (
-        id          TEXT PRIMARY KEY,
-        name        TEXT NOT NULL,
-        bank        TEXT NOT NULL DEFAULT '',
-        payment_day INTEGER NOT NULL,
-        note        TEXT NOT NULL DEFAULT ''
-    )
-    """,
+    "DROP TABLE IF EXISTS credit_cards",
     # migrate: add deduction account to liabilities
     "ALTER TABLE liabilities ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
     # migrate: track when auto-deduction was last run (YYYY-MM prevents same-month double deduction)

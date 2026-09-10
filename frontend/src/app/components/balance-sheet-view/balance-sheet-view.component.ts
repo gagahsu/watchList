@@ -405,7 +405,7 @@ export class BalanceSheetViewComponent {
   }
 
   typeIcon(t: string) {
-    const icons: Record<string, string> = { '房貸': '🏠', '車貸': '🚗', '信用貸款': '🏦', '信用卡': '💳', '學貸': '🎓', '其他': '📋' };
+    const icons: Record<string, string> = { '房貸': '🏠', '車貸': '🚗', '信用貸款': '🏦', '學貸': '🎓', '其他': '📋' };
     return icons[t] ?? '📋';
   }
 

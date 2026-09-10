@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import init_db
-from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts, liabilities, ohlc, chips, linebot, account_transactions, dividends, funds, credit_cards, net_worth, asset_classes, tranches, grid
+from routers import notes, signals, trades, sources, stocks, tracked, quotes, brokers, accounts, liabilities, ohlc, chips, linebot, account_transactions, dividends, funds, net_worth, asset_classes, tranches, grid
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def _scheduled_net_worth_snapshot():
 
 
 def _scheduled_process_due_payments():
-    """Daily job: auto-deduct loan/credit-card payments on reminder day."""
+    """Daily job: auto-deduct loan payments on reminder day."""
     from routers.liabilities import process_due_payments
     process_due_payments()
 
@@ -253,7 +253,6 @@ app.include_router(account_transactions.router, prefix="/api")
 app.include_router(dividends.router,           prefix="/api")
 app.include_router(linebot.router,             prefix="/api")
 app.include_router(funds.router,               prefix="/api")
-app.include_router(credit_cards.router,        prefix="/api")
 app.include_router(net_worth.router,           prefix="/api")
 app.include_router(asset_classes.router,       prefix="/api")
 app.include_router(tranches.router,            prefix="/api")

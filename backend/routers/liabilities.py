@@ -99,7 +99,7 @@ def delete_liability(liability_id: str):
 # ── Auto-deduction (called by scheduler) ──────────────────────────────────────
 
 def process_due_payments():
-    """Deduct loan/credit-card monthly payments from linked accounts on reminder day."""
+    """Deduct loan monthly payments from linked accounts on reminder day."""
     from datetime import date as _date
     today = _date.today()
     today_ym = today.strftime("%Y-%m")   # idempotency key: one deduction per month
