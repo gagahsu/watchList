@@ -7,7 +7,7 @@ against the real database once the grid_positions/grid_params tables exist.
 import pytest
 
 from fifo import calc_fifo
-from grid.adapter import AdapterError, holding_from_row, position_from_row
+from grid.adapter import AdapterError, asset_classes_for, holding_from_row, position_from_row
 
 
 def make_grid_row(**overrides) -> dict:
@@ -119,3 +119,57 @@ class TestHoldingFromRow:
         ex_div_rows = [{"ex_date": "2020-01-01", "cash_div": 0.1}]
         holding = holding_from_row("00725B", "國泰投資級公司債", "bond", row, fifo_result, ex_div_rows)
         assert holding.ex_dividends == [{"date": "2020-01-01", "amount": 0.1}]
+
+
+class _FakeConn:
+    """Routes SELECT ... FROM <table> to a canned result set by table name,
+    just enough to exercise asset_classes_for()'s two queries without a real
+    database."""
+
+    def __init__(self, grid_rows: list[dict], stock_rows: list[dict]):
+        self._grid_rows = grid_rows
+        self._stock_rows = stock_rows
+        self._last_sql = ""
+
+    def execute(self, sql: str, _params=None):
+        self._last_sql = sql
+        return self
+
+    def fetchall(self):
+        if "grid_positions" in self._last_sql:
+            return self._grid_rows
+        if "stocks" in self._last_sql:
+            return self._stock_rows
+        raise AssertionError(f"unexpected query: {self._last_sql}")
+
+
+class TestAssetClassesFor:
+    def test_empty_codes_short_circuits_without_querying(self):
+        conn = _FakeConn(grid_rows=[], stock_rows=[])
+        assert asset_classes_for(conn, [], {}) == {}
+
+    def test_grid_tracked_code_wins_over_inference(self):
+        # 0052 is grid-tracked as "equity" even though infer_asset_class()
+        # would guess "bond" from a name containing "債" — grid_positions'
+        # own classification always wins.
+        conn = _FakeConn(
+            grid_rows=[{"code": "0052", "asset_class": "equity"}],
+            stock_rows=[{"code": "0052", "name": "某債券型ETF"}],
+        )
+        assert asset_classes_for(conn, ["0052"], {"0052": "tw"}) == {"0052": "equity"}
+
+    def test_infers_for_codes_missing_from_grid_positions(self):
+        conn = _FakeConn(
+            grid_rows=[],
+            stock_rows=[{"code": "00725B", "name": "國泰投資級公司債"}, {"code": "2330", "name": "台積電"}],
+        )
+        result = asset_classes_for(conn, ["00725B", "2330"], {"00725B": "tw", "2330": "tw"})
+        assert result == {"00725B": "bond", "2330": "stock"}
+
+    def test_mixes_grid_tracked_and_inferred_in_one_call(self):
+        conn = _FakeConn(
+            grid_rows=[{"code": "0052", "asset_class": "equity"}],
+            stock_rows=[{"code": "2330", "name": "台積電"}],
+        )
+        result = asset_classes_for(conn, ["0052", "2330"], {"0052": "tw", "2330": "tw"})
+        assert result == {"0052": "equity", "2330": "stock"}

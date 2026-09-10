@@ -28,7 +28,9 @@ from fastapi import APIRouter, HTTPException
 
 from database import get_db, get_setting
 from fifo import calc_fifo
-from grid.adapter import AdapterError, build_settings, commit_fill, evaluate_all, position_from_row
+from grid.adapter import (
+    AdapterError, asset_classes_for, build_settings, commit_fill, evaluate_all, position_from_row,
+)
 from grid.config import ConfigError, GridParams, VALID_CLASSES, infer_asset_class
 from grid.engine import BUY, SELL, Decision, next_grid_levels, rung_shares
 from grid.indicators import Bar
@@ -308,15 +310,25 @@ def preview_grid_fill(body: GridPreviewIn):
 
 @router.get("/grid/asset-classes")
 def get_grid_asset_classes():
-    """{code: assetClass} for every grid position, including soft-deleted ones
-    (unticked codes keep their row — see sync_grid_position) — a lightweight
+    """{code: assetClass} for every code that's ever been traded — a lightweight
     lookup the frontend loads at startup so calcFIFO() can pick the right TW
-    sell-tax rate for realized-P&L display. Deliberately not the same
-    endpoint/shape as the shared /api/asset-classes (Chinese balance-sheet
-    labels) — see grid_positions.asset_class's DDL comment."""
+    sell-tax rate for realized-P&L display, for every holding, not only
+    grid-tracked ones. A plain ETF you hold but never ticked ATR on used to
+    fall through this endpoint entirely and silently get calcFIFO()'s flat
+    0.3% individual-stock rate instead of the 0.1% it's actually owed — see
+    grid/adapter.py::asset_classes_for(), which grid-tracked codes still win
+    through (including soft-deleted ones — see sync_grid_position), everything
+    else gets the same code/name heuristic used when a symbol is first added
+    to the grid. Deliberately not the same endpoint/shape as the shared
+    /api/asset-classes (Chinese balance-sheet labels) — see
+    grid_positions.asset_class's DDL comment."""
     with get_db() as conn:
-        rows = conn.execute("SELECT code, asset_class FROM grid_positions WHERE asset_class IS NOT NULL").fetchall()
-    return {r["code"]: r["asset_class"] for r in rows}
+        codes = [r["code"] for r in conn.execute("SELECT DISTINCT code FROM trades").fetchall()]
+        markets = {
+            r["code"]: r["market"]
+            for r in conn.execute("SELECT code, market FROM trade_markets WHERE code = ANY(%s)", (codes,)).fetchall()
+        }
+        return asset_classes_for(conn, codes, markets)
 
 
 @router.get("/grid/positions")

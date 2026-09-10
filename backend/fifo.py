@@ -88,10 +88,11 @@ def load_trades_by_code() -> tuple[dict[str, list[dict]], dict[str, str]]:
 
 def current_holdings() -> list[dict]:
     """[{code, shares, avgCost, market}] for codes with holdingShares > 0."""
+    from grid.adapter import asset_classes_for  # local: grid.adapter imports calc_fifo from here
+
     by_code, markets = load_trades_by_code()
     with get_db() as conn:
-        asset_classes = {r["code"]: r["asset_class"] for r in
-                          conn.execute("SELECT code, asset_class FROM grid_positions").fetchall()}
+        asset_classes = asset_classes_for(conn, list(by_code.keys()), markets)
     out = []
     for code, ts in by_code.items():
         mkt = markets.get(code, "tw")

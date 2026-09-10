@@ -24,7 +24,7 @@ import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from database import get_db, get_setting, set_setting
-from grid.config import infer_asset_class
+from grid.adapter import asset_classes_for
 from grid.fees import transaction_tax
 
 logger = logging.getLogger(__name__)
@@ -459,17 +459,11 @@ def _trade_market(code: str) -> str:
 
 
 def _grid_asset_class(code: str, market: str) -> str:
-    """Best-effort asset class for the TW sell tax below, for a single code:
-    grid_positions' own classification if the code is grid-tracked, else the
-    same inference grid/config.py uses when a symbol is first added to the
-    grid. Only for call sites handling one trade at a time — see
+    """Best-effort asset class for the TW sell tax below, for a single code.
+    Only for call sites handling one trade at a time — see
     _bulk_markets_and_asset_classes() for a batch."""
     with get_db() as conn:
-        row = conn.execute("SELECT asset_class FROM grid_positions WHERE code=%s", (code,)).fetchone()
-        if row and row["asset_class"]:
-            return row["asset_class"]
-        name_row = conn.execute("SELECT name FROM stocks WHERE code=%s", (code,)).fetchone()
-    return infer_asset_class(code, (name_row["name"] if name_row else "") or "", market)
+        return asset_classes_for(conn, [code], {code: market})[code]
 
 
 def _bulk_markets_and_asset_classes(codes: list[str]) -> tuple[dict[str, str], dict[str, str]]:
@@ -486,21 +480,9 @@ def _bulk_markets_and_asset_classes(codes: list[str]) -> tuple[dict[str, str], d
         market_rows = conn.execute(
             "SELECT code, market FROM trade_markets WHERE code = ANY(%s)", (codes,)
         ).fetchall()
-        grid_rows = conn.execute(
-            "SELECT code, asset_class FROM grid_positions WHERE code = ANY(%s)", (codes,)
-        ).fetchall()
-        name_rows = conn.execute(
-            "SELECT code, name FROM stocks WHERE code = ANY(%s)", (codes,)
-        ).fetchall()
-    markets = {r["code"]: r["market"] for r in market_rows}
-    names = {r["code"]: r["name"] for r in name_rows}
-    asset_classes = {r["code"]: r["asset_class"] for r in grid_rows if r["asset_class"]}
-
-    market_by_code = {c: markets.get(c) or _infer_market(c) for c in codes}
-    asset_class_by_code = {
-        c: asset_classes.get(c) or infer_asset_class(c, names.get(c, ""), market_by_code[c])
-        for c in codes
-    }
+        markets = {r["code"]: r["market"] for r in market_rows}
+        market_by_code = {c: markets.get(c) or _infer_market(c) for c in codes}
+        asset_class_by_code = asset_classes_for(conn, codes, market_by_code)
     return market_by_code, asset_class_by_code
 
 

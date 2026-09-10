@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta
 
 from database import get_db, get_setting, set_setting
 from fifo import calc_fifo, current_holdings, load_trades_by_code
+from grid.adapter import asset_classes_for
 from routers.linebot import _get_subscribers, _push_sync
 
 logger = logging.getLogger(__name__)
@@ -513,8 +514,7 @@ def send_weekly_report():
             "WHERE ex_date > %s AND ex_date <= %s AND cash_div > 0 ORDER BY ex_date",
             (today.isoformat(), next_week.isoformat()),
         ).fetchall()
-        asset_classes = {r["code"]: r["asset_class"] for r in
-                          conn.execute("SELECT code, asset_class FROM grid_positions").fetchall()}
+        asset_classes = asset_classes_for(conn, list(by_code.keys()), markets)
 
     # Portfolio snapshot + week realized PnL
     total_mv = total_cost = week_realized = 0.0
@@ -587,8 +587,7 @@ def send_monthly_report():
     by_code, markets = load_trades_by_code()
     holdings_shares = {h["code"]: h["shares"] for h in current_holdings()}
     with get_db() as conn:
-        asset_classes = {r["code"]: r["asset_class"] for r in
-                          conn.execute("SELECT code, asset_class FROM grid_positions").fetchall()}
+        asset_classes = asset_classes_for(conn, list(by_code.keys()), markets)
 
     month_realized = 0.0
     for code, ts in by_code.items():

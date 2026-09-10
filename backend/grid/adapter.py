@@ -51,7 +51,7 @@ from typing import Any, Callable, Sequence
 from database import get_db
 from fifo import calc_fifo
 
-from .config import GridParams, Holding, Settings, VALID_CLASSES
+from .config import GridParams, Holding, Settings, VALID_CLASSES, infer_asset_class
 from .engine import BUY, SELL, Decision, evaluate as engine_evaluate, commit as engine_commit
 from .fees import split_buy_cost, split_sell_cost
 from .indicators import Bar
@@ -121,9 +121,32 @@ def build_settings(conn) -> Settings:
     cash, cash_pending = _account_balance("cash_account_id")
     us_cash, us_cash_pending = _account_balance("us_cash_account_id")
 
+    # Prefer the fee schedule of whichever broker is actually linked to the
+    # grid's TW cash account (brokers.account_id — see routers/brokers.py)
+    # over the separate grid_fee_discount/grid_fee_minimum settings. Without
+    # this, editing a broker's discount in 券商管理 had zero effect on grid
+    # math — the grid only ever read its own copy of the number, so the two
+    # silently drifted apart the moment either one changed. Falls back to the
+    # settings when no broker is linked yet (or the linked account predates
+    # brokers.account_id), so this is a no-op until you actually link one.
+    cash_account_id = _grid_setting(conn, "cash_account_id", "")
+    broker_row = (
+        conn.execute(
+            "SELECT discount, min_fee FROM brokers WHERE account_id=%s LIMIT 1", (cash_account_id,)
+        ).fetchone()
+        if cash_account_id
+        else None
+    )
+    if broker_row is not None:
+        fee_discount = Decimal(str(broker_row["discount"]))
+        fee_minimum = int(broker_row["min_fee"])
+    else:
+        fee_discount = Decimal(_grid_setting(conn, "fee_discount", "0.28"))
+        fee_minimum = int(_grid_setting(conn, "fee_minimum", "1"))
+
     return Settings(
-        fee_discount=Decimal(_grid_setting(conn, "fee_discount", "0.28")),
-        fee_minimum=int(_grid_setting(conn, "fee_minimum", "1")),
+        fee_discount=fee_discount,
+        fee_minimum=fee_minimum,
         cash=cash,
         cash_pending=cash_pending,
         cash_floor=float(_grid_setting(conn, "cash_floor", "0")),
@@ -224,6 +247,38 @@ def _trades_by_code(conn, codes: list[str]) -> tuple[dict[str, list[dict]], dict
     for r in rows:
         by_code[r["code"]].append(dict(r))
     return by_code, markets
+
+
+def asset_classes_for(conn, codes: list[str], markets: dict[str, str]) -> dict[str, str]:
+    """Best-effort TW sell-tax asset class for every code in `codes`, not just
+    grid-tracked ones: `grid_positions.asset_class` wins when the code is
+    grid-tracked, otherwise the same code/name heuristic `infer_asset_class()`
+    uses when a symbol is first added to the grid.
+
+    Without this, any caller that only reads `grid_positions.asset_class`
+    (as `fifo.py`/`push_alerts.py` used to) gets `None` for every holding
+    that was never ticked into the ATR grid, and `calc_fifo()` silently falls
+    back to its flat 0.3% individual-stock sell tax for it — wrong for any
+    ETF (0.1%) or bond ETF (0%) you hold but don't grid-track. `markets` is
+    the caller's own `trade_markets` lookup (already needed for calc_fifo's
+    own market argument), passed in rather than re-queried here."""
+    if not codes:
+        return {}
+    grid_rows = conn.execute(
+        "SELECT code, asset_class FROM grid_positions WHERE code = ANY(%s)", (codes,)
+    ).fetchall()
+    known = {r["code"]: r["asset_class"] for r in grid_rows if r["asset_class"]}
+    missing = [c for c in codes if c not in known]
+    names: dict[str, str] = {}
+    if missing:
+        names = {
+            r["code"]: r["name"]
+            for r in conn.execute("SELECT code, name FROM stocks WHERE code = ANY(%s)", (missing,)).fetchall()
+        }
+    return {
+        code: known.get(code) or infer_asset_class(code, names.get(code, ""), markets.get(code, "tw"))
+        for code in codes
+    }
 
 
 def _build_one(conn, grid_row: dict[str, Any], trades: list[dict], market: str) -> tuple[Holding, Position]:
